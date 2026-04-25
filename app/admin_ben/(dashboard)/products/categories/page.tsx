@@ -15,7 +15,6 @@ import {
   Icon,
   Modal,
   Select,
-  Spinner,
   Text,
   TextField,
   Tooltip,
@@ -550,37 +549,32 @@ export default function AdminProductCategoriesPage() {
 
           <Divider />
 
-          {loading ? (
-            <Box padding="600">
-              <InlineStack align="center">
-                <Spinner accessibilityLabel="Chargement des categories" size="large" />
-              </InlineStack>
-            </Box>
-          ) : treeRows.length === 0 ? (
-            <Box padding="400">
-              <Text as="p" tone="subdued">
-                Aucun resultat avec les filtres actuels.
-              </Text>
-            </Box>
-          ) : (
-            <IndexTable
-              selectable
-              resourceName={{ singular: "categorie", plural: "categories" }}
-              itemCount={treeRows.length}
-              selectedItemsCount={
-                allResourcesSelected ? "All" : selectedResources.length
-              }
-              onSelectionChange={handleSelectionChange}
-              headings={[
-                { title: "Nom" },
-                { title: "Type" },
-                { title: "Parent" },
-                { title: "Produits" },
-                { title: "Sous-categories" },
-                { title: "Actions" },
-              ]}
-            >
-              {treeRows.map((row, index) => {
+          <IndexTable
+            selectable
+            loading={loading}
+            resourceName={{ singular: "categorie", plural: "categories" }}
+            itemCount={treeRows.length}
+            selectedItemsCount={
+              allResourcesSelected ? "All" : selectedResources.length
+            }
+            onSelectionChange={handleSelectionChange}
+            emptyState={
+              <Box padding="400">
+                <Text as="p" tone="subdued">
+                  Aucun resultat avec les filtres actuels.
+                </Text>
+              </Box>
+            }
+            headings={[
+              { title: "Nom" },
+              { title: "Type" },
+              { title: "Parent" },
+              { title: "Produits" },
+              { title: "Sous-categories" },
+              { title: "Actions", alignment: "end" },
+            ]}
+          >
+            {treeRows.map((row, index) => {
                 const { item, depth, hasChildren, isExpanded, isContextRoot, parentTitle } = row;
                 const indentPx = depth * 22;
 
@@ -689,9 +683,8 @@ export default function AdminProductCategoriesPage() {
                     </IndexTable.Cell>
                   </IndexTable.Row>
                 );
-              })}
-            </IndexTable>
-          )}
+            })}
+          </IndexTable>
         </BlockStack>
       </Card>
 

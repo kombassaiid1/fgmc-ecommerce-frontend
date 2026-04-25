@@ -87,11 +87,11 @@
 .submitButton {
   margin-top: 16px;
   width: 100%;
-  height: 46px;
+  height: 40px;
   border: 0;
   border-radius: 8px;
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   background: linear-gradient(90deg, #1f2930 0%, #141f26 55%, #1f2930 100%);

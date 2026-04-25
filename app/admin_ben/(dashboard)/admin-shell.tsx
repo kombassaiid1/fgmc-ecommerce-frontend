@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -25,6 +26,7 @@ import {
 import en from "@shopify/polaris/locales/en.json";
 
 import type { AdminUser } from "@/lib/admin-auth";
+import Image from "next/image";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -57,7 +59,7 @@ const PolarisNextLink = forwardRef<HTMLAnchorElement, PolarisLinkProps>(
         {children}
       </Link>
     );
-  }
+  },
 );
 
 const NAV_ITEMS = [
@@ -93,6 +95,11 @@ const NAV_ITEMS = [
 export function AdminShell({ children, user }: AdminShellProps) {
   const pathname = usePathname();
   const [showMobileNavigation, setShowMobileNavigation] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const displayName =
+    `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
+    user.username?.trim() ||
+    user.email;
 
   const navigationMarkup = useMemo(
     () => (
@@ -106,18 +113,42 @@ export function AdminShell({ children, user }: AdminShellProps) {
         />
       </Navigation>
     ),
-    [pathname]
+    [pathname],
   );
 
   const topBarMarkup = (
     <TopBar
       showNavigationToggle
       onNavigationToggle={() => setShowMobileNavigation((prev) => !prev)}
+      userMenu={
+        <TopBar.UserMenu
+          name={displayName}
+          detail={user.email}
+          initials={displayName
+            .split(" ")
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? "")
+            .join("")}
+          open={isUserMenuOpen}
+          onToggle={() => setIsUserMenuOpen((prev) => !prev)}
+          actions={[
+            {
+              items: [
+                {
+                  content: "Se deconnecter",
+                  onAction: () => {
+                    window.location.assign("/admin_ben/logout");
+                  },
+                },
+              ],
+            },
+          ]}
+        />
+      }
       contextControl={
         <Box paddingInlineStart="300">
-          <Text as="p" variant="bodyMd">
-            Administration FGMC
-          </Text>
+          <Image alt="logo" src="/logo-black.png" width={150} height={40} />
         </Box>
       }
     />
@@ -129,12 +160,9 @@ export function AdminShell({ children, user }: AdminShellProps) {
         topBar={topBarMarkup}
         navigation={navigationMarkup}
         showMobileNavigation={showMobileNavigation}
-        onNavigationDismiss={() => setShowMobileNavigation(false)}
-      >
+        onNavigationDismiss={() => setShowMobileNavigation(false)}>
         <Page>
-          <Card roundedAbove="sm">
-            {children}
-          </Card>
+          <Card roundedAbove="sm">{children}</Card>
         </Page>
       </Frame>
     </AppProvider>

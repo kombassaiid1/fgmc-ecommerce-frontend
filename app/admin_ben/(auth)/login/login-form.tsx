@@ -36,7 +36,7 @@ export function AdminLoginForm() {
           <Image
             src="/logo.png"
             alt="Logo FGMC"
-            width={180}
+            width={250}
             height={180}
             priority
           />
@@ -73,8 +73,7 @@ export function AdminLoginForm() {
                     showPassword
                       ? "Masquer le mot de passe"
                       : "Afficher le mot de passe"
-                  }
-                >
+                  }>
                   <Icon source={showPassword ? HideIcon : ViewIcon} />
                 </button>
               }
@@ -84,7 +83,9 @@ export function AdminLoginForm() {
               Mot de passe oublie ?
             </a>
 
-            {state.error ? <p className={styles.errorText}>{state.error}</p> : null}
+            {state.error ? (
+              <p className={styles.errorText}>{state.error}</p>
+            ) : null}
 
             <SubmitButton />
           </form>
