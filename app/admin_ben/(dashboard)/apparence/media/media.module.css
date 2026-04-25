@@ -1,0 +1,62 @@
+.panel {
+  border: 1px dashed #c7c7c7;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, #fafafa 0%, #f4f4f4 100%);
+}
+
+.dropZone {
+  min-height: 140px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.mediaCard {
+  border: 1px solid #e3e3e3;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.mediaPreview {
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f6f7;
+  border-bottom: 1px solid #ececec;
+}
+
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meta {
+  padding: 10px;
+}
+
+.filename {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.subline {
+  color: #6d7175;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

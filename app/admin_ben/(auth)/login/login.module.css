@@ -1,0 +1,118 @@
+.page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  background: #ffffff;
+}
+
+.logoWrap {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 22px;
+  background: #f8f8f8;
+  border: 1px solid #d8d8d8;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  padding: 30px 30px 32px;
+}
+
+.title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+  color: #1d2830;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: #3d4b56;
+  font-size: 15px;
+}
+
+.form {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.passwordIconButton {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #5c6670;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.passwordIconButton:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.forgotLink {
+  font-size: 12px;
+  color: #005bd3;
+  text-decoration: none;
+  margin-top: 2px;
+  width: fit-content;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.errorText {
+  margin: 6px 0 0;
+  color: #c91919;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.submitButton {
+  margin-top: 16px;
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, #1f2930 0%, #141f26 55%, #1f2930 100%);
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+@media (max-width: 560px) {
+  .card {
+    padding: 22px 18px 24px;
+    border-radius: 18px;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+
+  .submitButton {
+    font-size: 15px;
+  }
+}
