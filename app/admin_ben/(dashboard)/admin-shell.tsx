@@ -89,7 +89,12 @@ const NAV_ITEMS = [
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon },
-  { label: "Parametres", url: "/admin_ben/settings", icon: SettingsIcon },
+  {
+    label: "Parametres",
+    url: "/admin_ben/settings",
+    icon: SettingsIcon,
+    subNavigationItems: [{ label: "Taxes", url: "/admin_ben/settings/taxes" }],
+  },
 ];
 
 export function AdminShell({ children, user }: AdminShellProps) {

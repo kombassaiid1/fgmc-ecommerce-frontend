@@ -22,11 +22,15 @@ import styles from "./media-picker-dialog.module.css";
 type MediaPickerDialogProps = {
   open: boolean;
   selectedUrl?: string | null;
+  selectedUrls?: string[];
+  multiple?: boolean;
   onClose: () => void;
   onSelect: (item: MediaItem) => void;
+  onSelectMany?: (items: MediaItem[]) => void;
 };
 
 const LIMIT = 24;
+const EMPTY_SELECTED_URLS: string[] = [];
 
 function detectKind(item: MediaItem): "image" | "video" | "file" {
   const type = (item.fileType ?? "").toLowerCase();
@@ -38,9 +42,13 @@ function detectKind(item: MediaItem): "image" | "video" | "file" {
 export function MediaPickerDialog({
   open,
   selectedUrl,
+  selectedUrls,
+  multiple = false,
   onClose,
   onSelect,
+  onSelectMany,
 }: MediaPickerDialogProps) {
+  const safeSelectedUrls = selectedUrls ?? EMPTY_SELECTED_URLS;
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -51,6 +59,7 @@ export function MediaPickerDialog({
   const [items, setItems] = useState<MediaItem[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [selected, setSelected] = useState<MediaItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
@@ -89,13 +98,23 @@ export function MediaPickerDialog({
 
   useEffect(() => {
     if (!open) return;
+    if (multiple) {
+      const next = new Set<string>();
+      for (const item of items) {
+        if (safeSelectedUrls.includes(item.url)) {
+          next.add(item.id);
+        }
+      }
+      setSelectedIds(next);
+      return;
+    }
     if (!selectedUrl) {
       setSelected(null);
       return;
     }
     const found = items.find((item) => item.url === selectedUrl) ?? null;
     setSelected(found);
-  }, [items, open, selectedUrl]);
+  }, [items, multiple, open, safeSelectedUrls, selectedUrl]);
 
   const selectedId = useMemo(() => selected?.id ?? null, [selected?.id]);
 
@@ -165,9 +184,19 @@ export function MediaPickerDialog({
       onClose={onClose}
       title="Choisir un media"
       primaryAction={{
-        content: "Utiliser ce media",
-        disabled: !selected,
+        content: multiple ? "Utiliser les medias" : "Utiliser ce media",
+        disabled: multiple ? selectedIds.size === 0 : !selected,
         onAction: () => {
+          if (multiple) {
+            const selectedItems = items.filter((item) => selectedIds.has(item.id));
+            if (selectedItems.length === 0) return;
+            if (onSelectMany) {
+              onSelectMany(selectedItems);
+            } else {
+              onSelect(selectedItems[0]);
+            }
+            return;
+          }
           if (!selected) return;
           onSelect(selected);
         },
@@ -217,7 +246,9 @@ export function MediaPickerDialog({
             <div className={styles.grid}>
               {items.map((item) => {
                 const kind = detectKind(item);
-                const selectedCard = selectedId === item.id;
+                const selectedCard = multiple
+                  ? selectedIds.has(item.id)
+                  : selectedId === item.id;
 
                 return (
                   <button
@@ -226,7 +257,21 @@ export function MediaPickerDialog({
                     className={`${styles.cardButton} ${
                       selectedCard ? styles.cardButtonSelected : ""
                     }`}
-                    onClick={() => setSelected(item)}
+                    onClick={() => {
+                      if (multiple) {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(item.id)) {
+                            next.delete(item.id);
+                          } else {
+                            next.add(item.id);
+                          }
+                          return next;
+                        });
+                        return;
+                      }
+                      setSelected(item);
+                    }}
                   >
                     {kind === "image" ? (
                       // eslint-disable-next-line @next/next/no-img-element

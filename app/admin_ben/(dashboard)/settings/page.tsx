@@ -1,16 +1,21 @@
 "use client";
 
-import { BlockStack, Text } from "@shopify/polaris";
+import { BlockStack, Button, Card, Text } from "@shopify/polaris";
 
 export default function AdminSettingsPage() {
   return (
-    <BlockStack gap="200">
-      <Text as="h3" variant="headingMd">
-        Parametres
-      </Text>
-      <Text as="p" tone="subdued">
-        L'interface des parametres de la boutique sera ajoutee ici.
-      </Text>
-    </BlockStack>
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h3" variant="headingMd">
+          Parametres
+        </Text>
+        <Text as="p" tone="subdued">
+          Gerer les configurations globales de la boutique.
+        </Text>
+        <Button url="/admin_ben/settings/taxes" variant="primary">
+          Gerer les taxes
+        </Button>
+      </BlockStack>
+    </Card>
   );
 }
