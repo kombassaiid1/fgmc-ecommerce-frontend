@@ -9,8 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@measured/puck": "^0.20.2",
     "@shopify/polaris": "^13.9.5",
     "@shopify/polaris-icons": "^9.3.1",
+    "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "quill": "^2.0.3",
     "react": "19.2.4",

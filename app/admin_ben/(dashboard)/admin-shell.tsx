@@ -85,6 +85,8 @@ const NAV_ITEMS = [
     icon: ColorIcon,
     subNavigationItems: [
       { label: "Media", url: "/admin_ben/apparence/media", icon: ImageIcon },
+      { label: "Pages", url: "/admin_ben/apparence/pages", icon: ProductIcon },
+      { label: "Builder", url: "/admin_ben/apparence/builder", icon: ColorIcon },
     ],
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },
