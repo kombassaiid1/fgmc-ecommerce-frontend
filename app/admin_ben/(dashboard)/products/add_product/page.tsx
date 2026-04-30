@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -20,7 +20,13 @@ import {
   TextField,
   UnstyledButton,
 } from "@shopify/polaris";
-import { QuestionCircleIcon, SearchIcon, XIcon } from "@shopify/polaris-icons";
+import {
+  DeleteIcon,
+  EditIcon,
+  QuestionCircleIcon,
+  SearchIcon,
+  XIcon,
+} from "@shopify/polaris-icons";
 
 import { MediaPickerDialog } from "@/components/admin/media-picker-dialog";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
@@ -74,6 +80,25 @@ const EMPTY_FORM: ProductFormState = {
   metaTitle: "",
   metaDescription: "",
   metaKeywords: "",
+};
+
+type DraftVariantOption = {
+  attributeId: string;
+  attributeName: string;
+  termId: string;
+  termName: string;
+};
+
+type DraftVariant = {
+  id: string;
+  sku: string;
+  impactPrice: string;
+  price: string;
+  qty: string;
+  stockStatus: string;
+  image: string;
+  isActive: boolean;
+  options: DraftVariantOption[];
 };
 
 function slugify(value: string) {
@@ -139,6 +164,23 @@ export default function AdminProductsPage() {
   const [combinationMode, setCombinationMode] = useState<
     "simple" | "with_combinations"
   >("simple");
+  const [variants, setVariants] = useState<DraftVariant[]>([]);
+  const [combinationQuery, setCombinationQuery] = useState("");
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkAction, setBulkAction] = useState("");
+  const [expandedVariantIds, setExpandedVariantIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [defaultVariantId, setDefaultVariantId] = useState<string | null>(null);
+
+  const makeVariantId = () => {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+      return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
 
   useEffect(() => {
     const loadRefs = async () => {
@@ -188,6 +230,8 @@ export default function AdminProductsPage() {
       setError(null);
       try {
         const product = await getProductById(productId);
+        const basePrice = Number(product.price ?? "0");
+        const basePriceSafe = Number.isFinite(basePrice) ? basePrice : 0;
         const termMap: Record<string, string[]> = {};
         for (const item of product.attributes ?? []) {
           if (!termMap[item.attributeId]) {
@@ -234,6 +278,40 @@ export default function AdminProductsPage() {
         setDraftIsCoverChecked(false);
         setZoomImageUrl(null);
         setIsOnline(product.status === "PUBLIC");
+
+        const combinaisons = product.combinaisons ?? [];
+        if (combinaisons.length > 0) {
+          setCombinationMode("with_combinations");
+          const defaultCombo =
+            combinaisons.find((c) => c.isDefault) ?? combinaisons[0];
+          setDefaultVariantId(defaultCombo?.id ?? null);
+          setVariants(
+            combinaisons.map((combo) => {
+              const finalPrice = Number(combo.price ?? product.price ?? "0");
+              const finalPriceSafe = Number.isFinite(finalPrice) ? finalPrice : basePriceSafe;
+              const impact = finalPriceSafe - basePriceSafe;
+              return {
+                id: combo.id ?? makeVariantId(),
+                sku: combo.sku ?? "",
+                impactPrice: impact.toFixed(2),
+                price: finalPriceSafe.toFixed(2),
+                qty: combo.qty ?? "0",
+                stockStatus: combo.stockStatus ?? "instock",
+                image: combo.image ?? "",
+                isActive: combo.isActive ?? true,
+                options: (combo.options ?? []).map((opt) => ({
+                  attributeId: opt.attributeId,
+                  attributeName: opt.attributeName,
+                  termId: opt.termId,
+                  termName: opt.termName,
+                })),
+              };
+            }),
+          );
+        } else {
+          setCombinationMode("simple");
+          setVariants([]);
+        }
       } catch (loadError) {
         setError(
           loadError instanceof Error
@@ -282,15 +360,24 @@ export default function AdminProductsPage() {
     [priceTaxExcluded, selectedTaxRate],
   );
   const tabs = useMemo(
-    () => [
-      { id: "basic", content: "Parametres de base" },
-      { id: "qty", content: "Quantites" },
-      { id: "shipping", content: "Livraison" },
-      { id: "pricing", content: "Tarification" },
-      { id: "seo", content: "SEO" },
-      { id: "options", content: "Options" },
-    ],
-    [],
+    () => {
+      const base = [{ id: "basic", content: "Parametres de base" }];
+      if (combinationMode === "with_combinations") {
+        base.push({ id: "combinations", content: "Combinaisons" });
+      } else {
+        base.push({ id: "qty", content: "Quantites" });
+      }
+
+      base.push(
+        { id: "shipping", content: "Livraison" },
+        { id: "pricing", content: "Tarification" },
+        { id: "seo", content: "SEO" },
+        { id: "options", content: "Options" },
+      );
+
+      return base;
+    },
+    [combinationMode],
   );
   const basicEditorTabs = useMemo(
     () => [
@@ -317,6 +404,250 @@ export default function AdminProductsPage() {
     }
     setDraftIsCoverChecked(coverImageUrl === selectedImageUrl);
   }, [coverImageUrl, selectedImageUrl]);
+
+  useEffect(() => {
+    const selectedTabId = tabs[selectedTabIndex]?.id ?? "basic";
+    if (combinationMode === "simple" && selectedTabId === "combinations") {
+      setSelectedTabIndex(0);
+    }
+  }, [combinationMode, selectedTabIndex, tabs]);
+
+  const attributesById = useMemo(
+    () => new Map(attributes.map((item) => [item.id, item])),
+    [attributes],
+  );
+
+  const termById = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; attributeId: string }>();
+    for (const attribute of attributes) {
+      for (const term of attribute.terms ?? []) {
+        map.set(term.id, { id: term.id, name: term.name, attributeId: attribute.id });
+      }
+    }
+    return map;
+  }, [attributes]);
+
+  const sortedAttributesForCombinations = useMemo(() => {
+    const parseOptionLabel = (name: string) => {
+      const trimmed = name.trim();
+      const match = /^option(?:\s+(\d+))?$/i.exec(trimmed);
+      if (!match) return null;
+      const n = match[1] ? Number(match[1]) : 1;
+      return Number.isFinite(n) ? n : 1;
+    };
+
+    return [...attributes].sort((a, b) => {
+      const an = parseOptionLabel(a.name);
+      const bn = parseOptionLabel(b.name);
+      if (an !== null || bn !== null) {
+        if (an === null) return 1;
+        if (bn === null) return -1;
+        return an - bn;
+      }
+      return a.name.localeCompare(b.name, "fr", { numeric: true, sensitivity: "base" });
+    });
+  }, [attributes]);
+
+  const parseCombinationQuery = (query: string) => {
+    const next: Record<string, string[]> = {};
+    const chunks = query
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (chunks.length === 0) return null;
+
+    const attributesByName = new Map<string, Attribute>();
+    for (const attribute of attributes) {
+      attributesByName.set(attribute.name.trim().toLowerCase(), attribute);
+    }
+
+    for (const chunk of chunks) {
+      const [rawName, rawValues] = chunk.split(":");
+      if (!rawName || !rawValues) {
+        return { error: `Format invalide: "${chunk}". Exemple: "Taille: all; Couleur: rouge"` };
+      }
+      const nameKey = rawName.trim().toLowerCase();
+      const attribute = attributesByName.get(nameKey);
+      if (!attribute) {
+        return { error: `Attribut introuvable: "${rawName.trim()}"` };
+      }
+
+      const values = rawValues
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      if (values.length === 0) {
+        return { error: `Aucune valeur pour "${rawName.trim()}"` };
+      }
+
+      const allTerms = attribute.terms ?? [];
+      if (values.some((v) => v.toLowerCase() === "all")) {
+        next[attribute.id] = allTerms.map((t) => t.id);
+        continue;
+      }
+
+      const termIds: string[] = [];
+      for (const value of values) {
+        const term =
+          allTerms.find((t) => t.name.toLowerCase() === value.toLowerCase()) ??
+          allTerms.find((t) => t.name.toLowerCase().includes(value.toLowerCase()));
+        if (!term) {
+          return {
+            error: `Valeur "${value}" introuvable pour l'attribut "${attribute.name}"`,
+          };
+        }
+        termIds.push(term.id);
+      }
+      next[attribute.id] = Array.from(new Set(termIds));
+    }
+
+    return { selected: next };
+  };
+
+  const generateVariantsFromSelections = () => {
+    setError(null);
+
+    const trimmedQuery = combinationQuery.trim();
+    if (trimmedQuery) {
+      const parsed = parseCombinationQuery(trimmedQuery);
+      if (parsed && "error" in parsed) {
+        setError(parsed.error);
+        return;
+      }
+      if (parsed && "selected" in parsed) {
+        setSelectedTermIdsByAttribute((prev) => ({ ...prev, ...parsed.selected }));
+      }
+    }
+
+    const attributesForVariants = Object.entries(selectedTermIdsByAttribute)
+      .map(([attributeId, termIds]) => ({
+        attributeId,
+        termIds: termIds.filter(Boolean),
+      }))
+      .filter((entry) => entry.termIds.length > 0);
+
+    if (attributesForVariants.length === 0) {
+      setError(
+        "Selectionnez des valeurs dans la colonne de droite (ex: Couleur, Taille), puis cliquez sur Generer.",
+      );
+      return;
+    }
+
+    const optionGroups: DraftVariantOption[][] = attributesForVariants.map(
+      ({ attributeId, termIds }) => {
+        const attributeName = attributesById.get(attributeId)?.name ?? "Attribut";
+        return termIds
+          .map((termId) => {
+            const term = termById.get(termId);
+            if (!term) return null;
+            return {
+              attributeId,
+              attributeName,
+              termId,
+              termName: term.name,
+            } satisfies DraftVariantOption;
+          })
+          .filter((value): value is DraftVariantOption => Boolean(value));
+      },
+    );
+
+    const cartesian = (groups: DraftVariantOption[][]): DraftVariantOption[][] =>
+      groups.reduce<DraftVariantOption[][]>(
+        (acc, group) => {
+          const next: DraftVariantOption[][] = [];
+          for (const prev of acc) {
+            for (const option of group) {
+              next.push([...prev, option]);
+            }
+          }
+          return next;
+        },
+        [[]],
+      );
+
+    const combos = cartesian(optionGroups).filter((options) => options.length > 0);
+
+    setVariants(
+      combos.map((options) => ({
+        id: makeVariantId(),
+        sku: "",
+        impactPrice: "0",
+        price: formState.price || "0",
+        qty: "0",
+        stockStatus: formState.stockStatus || "instock",
+        image: "",
+        isActive: true,
+        options,
+      })),
+    );
+    setSelectedVariantIds(new Set());
+    setExpandedVariantIds(new Set());
+    setDefaultVariantId(null);
+  };
+
+  const allVariantsSelected =
+    variants.length > 0 && selectedVariantIds.size === variants.length;
+
+  const toggleAllVariants = (checked: boolean) => {
+    setSelectedVariantIds(() => {
+      if (!checked) return new Set();
+      return new Set(variants.map((v) => v.id));
+    });
+  };
+
+  const toggleVariant = (id: string, checked: boolean) => {
+    setSelectedVariantIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const applyBulkAction = (action: string) => {
+    if (!action) return;
+    const selectedIds = new Set(selectedVariantIds);
+    if (selectedIds.size === 0) {
+      setBulkAction("");
+      return;
+    }
+
+    if (action === "delete") {
+      setVariants((prev) => prev.filter((v) => !selectedIds.has(v.id)));
+      setSelectedVariantIds(new Set());
+      setExpandedVariantIds((prev) => {
+        const next = new Set(prev);
+        for (const id of selectedIds) next.delete(id);
+        return next;
+      });
+      setDefaultVariantId((prev) => (prev && selectedIds.has(prev) ? null : prev));
+      setBulkAction("");
+      return;
+    }
+
+    if (action === "activate" || action === "deactivate") {
+      const value = action === "activate";
+      setVariants((prev) =>
+        prev.map((v) => (selectedIds.has(v.id) ? { ...v, isActive: value } : v)),
+      );
+      setBulkAction("");
+      return;
+    }
+
+    setBulkAction("");
+  };
+
+  useEffect(() => {
+    if (variants.length === 0) return;
+    setVariants((prev) =>
+      prev.map((v) => {
+        const impact = Number(v.impactPrice || "0");
+        const nextFinal = priceTaxExcluded + (Number.isFinite(impact) ? impact : 0);
+        return { ...v, price: nextFinal.toFixed(2) };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceTaxExcluded]);
   const categorySearchTerm = categorySearch.trim().toLowerCase();
   const categoryBranchMatches = useMemo(() => {
     const memo = new Map<string, boolean>();
@@ -433,6 +764,24 @@ export default function AdminProductsPage() {
       metaKeywords: formState.metaKeywords.trim() || null,
       categoryIds: selectedCategoryIds,
       attributeTerms,
+      combinaisons:
+        combinationMode === "with_combinations"
+          ? variants.map((variant) => ({
+              sku: variant.sku.trim() || undefined,
+              price: variant.price.trim() || undefined,
+              qty: variant.qty.trim() || undefined,
+              stockStatus: variant.stockStatus || undefined,
+              image: variant.image.trim() || undefined,
+              isActive: variant.isActive,
+              isDefault: defaultVariantId === variant.id,
+              options: variant.options.map((opt) => ({
+                attributeId: opt.attributeId,
+                attributeName: opt.attributeName,
+                termId: opt.termId,
+                termName: opt.termName,
+              })),
+            }))
+          : undefined,
     };
 
     setSaving(true);
@@ -519,8 +868,12 @@ export default function AdminProductsPage() {
             selected={selectedTabIndex}
             onSelect={setSelectedTabIndex}
           />
+          {(() => {
+            const selectedTabId = tabs[selectedTabIndex]?.id ?? "basic";
 
-          {selectedTabIndex === 0 ? (
+          return (
+            <>
+          {selectedTabId === "basic" ? (
             <BlockStack gap="300">
               <InlineGrid columns={{ xs: 1, md: "2fr 1fr" }} gap="400">
                 <BlockStack gap="200">
@@ -705,12 +1058,16 @@ export default function AdminProductsPage() {
                     }
                     autoComplete="off"
                   />
-                  <TextField
-                    label="Quantite"
-                    value={formState.qty}
-                    onChange={(value) => setFormState((prev) => ({ ...prev, qty: value }))}
-                    autoComplete="off"
-                  />
+                  {combinationMode === "simple" ? (
+                    <TextField
+                      label="Quantite"
+                      value={formState.qty}
+                      onChange={(value) =>
+                        setFormState((prev) => ({ ...prev, qty: value }))
+                      }
+                      autoComplete="off"
+                    />
+                  ) : null}
                   <InlineGrid columns={2} gap="200">
                     <TextField
                       label="Tax excluded"
@@ -922,7 +1279,7 @@ export default function AdminProductsPage() {
               </InlineGrid>
             </BlockStack>
           ) : null}
-          {selectedTabIndex === 1 ? (
+          {selectedTabId === "qty" ? (
             <BlockStack gap="300">
               <InlineGrid columns={2} gap="200">
                 <TextField
@@ -970,7 +1327,7 @@ export default function AdminProductsPage() {
             </BlockStack>
           ) : null}
 
-          {selectedTabIndex === 2 ? (
+          {selectedTabId === "shipping" ? (
             <BlockStack gap="200">
               <Text as="h3" variant="headingMd">
                 Livraison
@@ -982,7 +1339,7 @@ export default function AdminProductsPage() {
             </BlockStack>
           ) : null}
 
-          {selectedTabIndex === 3 ? (
+          {selectedTabId === "pricing" ? (
             <BlockStack gap="300">
               <Text as="h3" variant="headingMd">
                 Price
@@ -1055,7 +1412,7 @@ export default function AdminProductsPage() {
             </BlockStack>
           ) : null}
 
-          {selectedTabIndex === 4 ? (
+          {selectedTabId === "seo" ? (
             <BlockStack gap="300">
               <TextField
                 label="Meta titre"
@@ -1085,7 +1442,7 @@ export default function AdminProductsPage() {
             </BlockStack>
           ) : null}
 
-          {selectedTabIndex === 5 ? (
+          {selectedTabId === "options" ? (
             <BlockStack gap="300">
               <Text as="h3" variant="headingMd">
                 Attributs et termes
@@ -1126,6 +1483,349 @@ export default function AdminProductsPage() {
               )}
             </BlockStack>
           ) : null}
+
+          {selectedTabId === "combinations" && combinationMode === "with_combinations" ? (
+            <InlineGrid columns={{ xs: 1, md: "2fr 1fr" }} gap="300">
+              <BlockStack gap="300">
+                <Banner tone="info" title="Manage your product combinations">
+                  <p>
+                    Pour ajouter des combinaisons, selectionnez des valeurs d'attributs dans la
+                    colonne de droite (Taille, Couleur, ...), puis cliquez sur “Generate”.
+                  </p>
+                  <p>
+                    Vous pouvez aussi saisir une requete, ex: <em>Taille: all; Couleur: rouge</em>.
+                  </p>
+                </Banner>
+
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Box width="100%">
+                    <TextField
+                      label=""
+                      labelHidden
+                      placeholder={`Combine several attributes, e.g.: "Taille: all; Couleur: rouge".`}
+                      value={combinationQuery}
+                      onChange={setCombinationQuery}
+                      autoComplete="off"
+                    />
+                  </Box>
+                  <Button variant="primary" onClick={generateVariantsFromSelections}>
+                    Generate
+                  </Button>
+                </InlineStack>
+
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Box width="100%">
+                    <Select
+                      label=""
+                      labelHidden
+                      options={[
+                        { label: `Bulk actions (${selectedVariantIds.size}/${variants.length} selected)`, value: "" },
+                        { label: "Activer", value: "activate" },
+                        { label: "Desactiver", value: "deactivate" },
+                        { label: "Supprimer", value: "delete" },
+                      ]}
+                      value={bulkAction}
+                      onChange={(value) => {
+                        setBulkAction(value);
+                        applyBulkAction(value);
+                      }}
+                      disabled={variants.length === 0}
+                    />
+                  </Box>
+                  <Button
+                    tone="critical"
+                    onClick={() => {
+                      setVariants([]);
+                      setSelectedVariantIds(new Set());
+                    }}
+                    disabled={variants.length === 0}>
+                    Vider
+                  </Button>
+                </InlineStack>
+
+                <Card>
+                  <BlockStack gap="200">
+                    <InlineGrid
+                      columns={{ xs: 1, md: "auto auto 2fr 1fr 1fr 1fr auto auto" }}
+                      gap="200">
+                      <Checkbox
+                        label=""
+                        checked={allVariantsSelected}
+                        onChange={toggleAllVariants}
+                      />
+                      <Text as="p" fontWeight="semibold">
+                        Image
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Combinaison
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Impact (HT)
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Prix final (HT)
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Qté
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Actions
+                      </Text>
+                      <Text as="p" fontWeight="semibold">
+                        Defaut
+                      </Text>
+                    </InlineGrid>
+
+                    <Divider />
+
+                    {variants.length === 0 ? (
+                      <Box padding="400">
+                        <Text as="p" tone="subdued">
+                          Aucune combinaison.
+                        </Text>
+                      </Box>
+                    ) : (
+                      <BlockStack gap="200">
+                        {variants.map((variant) => (
+                          <Box key={variant.id} paddingBlock="100">
+                            <InlineGrid
+                              columns={{ xs: 1, md: "auto auto 2fr 1fr 1fr 1fr auto auto" }}
+                              gap="200">
+                              <Checkbox
+                                label=""
+                                checked={selectedVariantIds.has(variant.id)}
+                                onChange={(checked) => toggleVariant(variant.id, checked)}
+                              />
+                              <div style={{ width: 42, height: 42 }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={variant.image || coverImageUrl || images[0] || ""}
+                                  alt="Variant"
+                                  style={{
+                                    width: 42,
+                                    height: 42,
+                                    objectFit: "cover",
+                                    borderRadius: 4,
+                                    border: "1px solid #e1e3e5",
+                                    background: "#f6f6f7",
+                                  }}
+                                />
+                              </div>
+                              <Text as="p" variant="bodySm">
+                                {variant.options
+                                  .map((opt) => `${opt.attributeName} - ${opt.termName}`)
+                                  .join(", ")}
+                              </Text>
+
+                              <TextField
+                                label=""
+                                labelHidden
+                                value={variant.impactPrice}
+                                onChange={(value) => {
+                                  const impact = Number(value || "0");
+                                  const final =
+                                    priceTaxExcluded + (Number.isFinite(impact) ? impact : 0);
+                                  setVariants((prev) =>
+                                    prev.map((item) =>
+                                      item.id === variant.id
+                                        ? {
+                                            ...item,
+                                            impactPrice: value,
+                                            price: final.toFixed(2),
+                                          }
+                                        : item,
+                                    ),
+                                  );
+                                }}
+                                prefix="€"
+                                autoComplete="off"
+                              />
+                              <TextField
+                                label=""
+                                labelHidden
+                                value={(() => {
+                                  const parsed = Number(variant.price || "0");
+                                  return Number.isFinite(parsed) ? parsed.toFixed(2) : "0.00";
+                                })()}
+                                readOnly
+                                prefix="€"
+                                autoComplete="off"
+                              />
+                              <TextField
+                                label=""
+                                labelHidden
+                                value={variant.qty}
+                                onChange={(value) =>
+                                  setVariants((prev) =>
+                                    prev.map((item) =>
+                                      item.id === variant.id ? { ...item, qty: value } : item,
+                                    ),
+                                  )
+                                }
+                                autoComplete="off"
+                              />
+                              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                                <Button
+                                  variant="plain"
+                                  icon={EditIcon}
+                                  accessibilityLabel="Editer"
+                                  onClick={() =>
+                                    setExpandedVariantIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(variant.id)) next.delete(variant.id);
+                                      else next.add(variant.id);
+                                      return next;
+                                    })
+                                  }
+                                />
+                                <Button
+                                  variant="plain"
+                                  icon={DeleteIcon}
+                                  tone="critical"
+                                  accessibilityLabel="Supprimer"
+                                  onClick={() => {
+                                    setVariants((prev) =>
+                                      prev.filter((item) => item.id !== variant.id),
+                                    );
+                                    setSelectedVariantIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(variant.id);
+                                      return next;
+                                    });
+                                    setExpandedVariantIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(variant.id);
+                                      return next;
+                                    });
+                                    setDefaultVariantId((prev) =>
+                                      prev === variant.id ? null : prev,
+                                    );
+                                  }}
+                                />
+                              </InlineStack>
+                              <div style={{ display: "flex", justifyContent: "center" }}>
+                                <input
+                                  type="radio"
+                                  name="defaultVariant"
+                                  checked={defaultVariantId === variant.id}
+                                  onChange={() => setDefaultVariantId(variant.id)}
+                                  aria-label="Default combination"
+                                />
+                              </div>
+                            </InlineGrid>
+
+                            {expandedVariantIds.has(variant.id) ? (
+                              <Box paddingBlockStart="200">
+                                <InlineGrid columns={{ xs: 1, md: "2fr 1fr 1fr" }} gap="200">
+                                  <TextField
+                                    label="SKU"
+                                    value={variant.sku}
+                                    onChange={(value) =>
+                                      setVariants((prev) =>
+                                        prev.map((item) =>
+                                          item.id === variant.id
+                                            ? { ...item, sku: value }
+                                            : item,
+                                        ),
+                                      )
+                                    }
+                                    autoComplete="off"
+                                  />
+                                  <Select
+                                    label="Statut stock"
+                                    options={[
+                                      { label: "En stock", value: "instock" },
+                                      { label: "Rupture", value: "outofstock" },
+                                    ]}
+                                    value={variant.stockStatus}
+                                    onChange={(value) =>
+                                      setVariants((prev) =>
+                                        prev.map((item) =>
+                                          item.id === variant.id
+                                            ? { ...item, stockStatus: value }
+                                            : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <Checkbox
+                                    label="Actif"
+                                    checked={variant.isActive}
+                                    onChange={(checked) =>
+                                      setVariants((prev) =>
+                                        prev.map((item) =>
+                                          item.id === variant.id
+                                            ? { ...item, isActive: checked }
+                                            : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </InlineGrid>
+                              </Box>
+                            ) : null}
+
+                            <Divider />
+                          </Box>
+                        ))}
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </Card>
+              </BlockStack>
+
+              <Card>
+                <BlockStack gap="300">
+                  {attributes.length === 0 ? (
+                    <Text as="p" tone="subdued">
+                      Aucun attribut disponible.
+                    </Text>
+                  ) : (
+                    <div style={{ maxHeight: 520, overflow: "auto", paddingRight: 8 }}>
+                      <BlockStack gap="300">
+                        {sortedAttributesForCombinations.map((attribute) => {
+                          const terms = attribute.terms ?? [];
+                          if (terms.length === 0) return null;
+                          const selected = selectedTermIdsByAttribute[attribute.id] ?? [];
+                          return (
+                            <Box key={attribute.id}>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {attribute.name}
+                              </Text>
+                              <Box paddingBlockStart="150">
+                                <BlockStack gap="150">
+                                  {terms.map((term) => (
+                                    <Checkbox
+                                      key={term.id}
+                                      label={term.name}
+                                      checked={selected.includes(term.id)}
+                                      onChange={(checked) =>
+                                        setSelectedTermIdsByAttribute((prev) => {
+                                          const current = prev[attribute.id] ?? [];
+                                          const next = new Set(current);
+                                          if (checked) next.add(term.id);
+                                          else next.delete(term.id);
+                                          return { ...prev, [attribute.id]: Array.from(next) };
+                                        })
+                                      }
+                                    />
+                                  ))}
+                                </BlockStack>
+                              </Box>
+                              <Divider />
+                            </Box>
+                          );
+                        })}
+                      </BlockStack>
+                    </div>
+                  )}
+                </BlockStack>
+              </Card>
+            </InlineGrid>
+          ) : null}
+            </>
+          );
+          })()}
         </BlockStack>
       </Card>
 

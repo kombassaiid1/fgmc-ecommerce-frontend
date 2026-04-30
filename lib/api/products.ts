@@ -27,8 +27,8 @@ export type ProductDetails = ProductListItem & {
   discount: string;
   discountType: string;
   tag: string;
-  allowBackorders: string;
-  lowStockThreshold: string;
+  allowBackorders?: string | null;
+  lowStockThreshold?: string | null;
   reference?: string | null;
   metaTitle?: string | null;
   metaDescription?: string | null;
@@ -46,6 +46,7 @@ export type ProductDetails = ProductListItem & {
     attributeId: string;
     termId: string;
   }>;
+  combinaisons?: ProductVariantPayload[];
 };
 
 export type PaginatedProductsResponse = {
@@ -63,6 +64,25 @@ export type PaginatedProductsResponse = {
 export type ProductAttributeTermPayload = {
   attributeId: string;
   termId: string;
+};
+
+export type ProductVariantOptionPayload = {
+  attributeId: string;
+  attributeName: string;
+  termId: string;
+  termName: string;
+};
+
+export type ProductVariantPayload = {
+  id?: string;
+  sku?: string;
+  price?: string;
+  qty?: string;
+  stockStatus?: string;
+  image?: string;
+  isActive?: boolean;
+  isDefault?: boolean;
+  options: ProductVariantOptionPayload[];
 };
 
 export type CreateProductPayload = {
@@ -97,6 +117,7 @@ export type CreateProductPayload = {
   reviewCount?: number | null;
   categoryIds?: string[];
   attributeTerms?: ProductAttributeTermPayload[];
+  combinaisons?: ProductVariantPayload[];
 };
 
 export async function createProduct(payload: CreateProductPayload) {

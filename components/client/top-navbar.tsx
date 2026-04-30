@@ -4,9 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Search, ShoppingCart, User } from "lucide-react";
+import { useCartStore } from "@/lib/stores/cart-store";
 
 export function TopNavBar() {
   const pathname = usePathname();
+  const cartQty = useCartStore((s) => s.totalQty());
 
   if (pathname.startsWith("/admin_ben")) {
     return null;
@@ -68,12 +70,18 @@ export function TopNavBar() {
           <button className="text-blue-700 transition-colors hover:text-blue-600">
             <User size={20} />
           </button>
-          <button className="relative text-blue-700 transition-colors hover:text-blue-600">
+          <Link
+            href="/cart"
+            className="relative text-blue-700 transition-colors hover:text-blue-600"
+            aria-label="Panier"
+          >
             <ShoppingCart size={20} />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-              2
-            </span>
-          </button>
+            {cartQty > 0 ? (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                {cartQty}
+              </span>
+            ) : null}
+          </Link>
         </div>
       </div>
     </header>
