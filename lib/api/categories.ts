@@ -42,6 +42,12 @@ export type CategoryFiltersResponse = {
     title: string;
     slug: string;
   }>;
+  brands?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    image?: string | null;
+  }>;
   attributes: Array<{
     id: string;
     name: string;
@@ -119,6 +125,7 @@ export async function getCategoryProducts(params: {
   page?: number;
   limit?: number;
   filterCategories?: string;
+  brands?: string;
   minPrice?: number;
   maxPrice?: number;
   attributes?: string;
@@ -135,6 +142,9 @@ export async function getCategoryProducts(params: {
   }
   if (params.filterCategories?.trim()) {
     query.set("filterCategories", params.filterCategories.trim());
+  }
+  if (params.brands?.trim()) {
+    query.set("brands", params.brands.trim());
   }
   if (typeof params.minPrice === "number") {
     query.set("minPrice", String(params.minPrice));

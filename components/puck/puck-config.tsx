@@ -7,6 +7,8 @@ import { HeroImageSliderBlock } from "@/components/puck-blocks/hero-image-slider
 import { HeroSliderImagePickerField } from "@/components/puck-blocks/hero-slider-image-picker-field";
 import { IndividualsSideNavBlock } from "@/components/puck-blocks/individuals-side-nav-block";
 import { ProfessionalsSideNavBlock } from "@/components/puck-blocks/professionals-side-nav-block";
+import { productGridConfig } from "@/components/puck-blocks/product-grid";
+import { shopByTopBrandsConfig } from "@/components/puck-blocks/shop-by-top-brands";
 
 export const puckConfig: Config = {
   components: {
@@ -230,5 +232,7 @@ export const puckConfig: Config = {
         <HeroImageSliderBlock imageUrls={imageUrls} minHeight={minHeight} />
       ),
     },
+    ProductGrid: productGridConfig,
+    ShopByTopBrands: shopByTopBrandsConfig,
   },
 };

@@ -25,9 +25,17 @@ export interface CategoryFilterAttribute {
   terms: CategoryFilterTerm[];
 }
 
+export interface CategoryFilterBrand {
+  id: string;
+  title: string;
+  slug: string;
+  image?: string | null;
+}
+
 export interface CategoryFiltersResponse {
   priceRange: CategoryPriceRange;
   subcategories: CategoryFilterSubcategory[];
+  brands?: CategoryFilterBrand[];
   attributes: CategoryFilterAttribute[];
   totalProducts: number;
   categoryTitle: string;
@@ -38,6 +46,7 @@ export interface CategoryProductsParams {
   page?: number;
   limit?: number;
   filterCategories?: string[];
+  brands?: string[];
   minPrice?: number;
   maxPrice?: number;
   attributeFilters?: Record<string, string[]>;
@@ -99,6 +108,9 @@ export function getCategoryProductsUrl(params: CategoryProductsParams): string {
   if (params.limit != null) searchParams.set("limit", String(params.limit));
   if (params.filterCategories?.length) {
     searchParams.set("filterCategories", params.filterCategories.join(","));
+  }
+  if (params.brands?.length) {
+    searchParams.set("brands", params.brands.join(","));
   }
   if (params.minPrice != null) searchParams.set("minPrice", String(params.minPrice));
   if (params.maxPrice != null) searchParams.set("maxPrice", String(params.maxPrice));
@@ -199,4 +211,3 @@ export async function fetchCategoryBreadcrumb(slug: string): Promise<CategoryNod
 
   return chain;
 }
-

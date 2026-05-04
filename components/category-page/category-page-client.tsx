@@ -49,8 +49,10 @@ import {
   useCategoryProducts,
 } from "@/hooks/use-category-catalog";
 import { useDebounce } from "@/hooks/use-debounce";
+import { fetchProductBySlug } from "@/lib/product-details-api";
 import type {
   CategoryFilterAttribute,
+  CategoryFilterBrand,
   CategoryFilterSubcategory,
   CategoryFilterTerm,
 } from "@/lib/category-catalog-api";
@@ -67,7 +69,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getImageUrl } from "@/lib/api";
 
 const ITEMS_PER_PAGE = 12;
@@ -85,6 +88,7 @@ const URL_KEYS = {
   sort: "sort",
   search: "q",
   categories: "cat",
+  brands: "brand",
   minPrice: "min_price",
   maxPrice: "max_price",
   attrPrefix: "attr_",
@@ -97,6 +101,7 @@ function parseFiltersFromSearchParams(
   sort: string;
   search: string;
   categories: Set<string>;
+  brands: Set<string>;
   attributes: Map<string, Set<string>>;
   minPrice: number | null;
   maxPrice: number | null;
@@ -115,6 +120,10 @@ function parseFiltersFromSearchParams(
   const catParam = searchParams.get(URL_KEYS.categories);
   const categories = new Set<string>(
     catParam ? catParam.split(",").filter(Boolean) : [],
+  );
+  const brandParam = searchParams.get(URL_KEYS.brands);
+  const brands = new Set<string>(
+    brandParam ? brandParam.split(",").filter(Boolean) : [],
   );
 
   const attributes = new Map<string, Set<string>>();
@@ -145,6 +154,7 @@ function parseFiltersFromSearchParams(
     sort,
     search,
     categories,
+    brands,
     attributes,
     minPrice: minPrice != null && Number.isFinite(minPrice) ? minPrice : null,
     maxPrice: maxPrice != null && Number.isFinite(maxPrice) ? maxPrice : null,
@@ -157,6 +167,7 @@ function buildSearchParams(params: {
   sort: string;
   search: string;
   categories: Set<string>;
+  brands: Set<string>;
   attributes: Map<string, Set<string>>;
   appliedPriceRange: number[];
   priceFilterActive: boolean;
@@ -173,6 +184,9 @@ function buildSearchParams(params: {
       URL_KEYS.categories,
       Array.from(params.categories).sort().join(","),
     );
+  }
+  if (params.brands.size) {
+    next.set(URL_KEYS.brands, Array.from(params.brands).sort().join(","));
   }
   if (params.priceFilterActive && params.appliedPriceRange.length >= 2) {
     next.set(URL_KEYS.minPrice, String(params.appliedPriceRange[0]));
@@ -203,6 +217,9 @@ export function CategoryPageClient({ slug }: Props) {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(
+    new Set(),
+  );
   const [selectedAttributes, setSelectedAttributes] = useState<
     Map<string, Set<string>>
   >(new Map());
@@ -229,6 +246,83 @@ export function CategoryPageClient({ slug }: Props) {
   const subcategories = filterData?.subcategories ?? [];
   const attributes = filterData?.attributes ?? [];
 
+  const brandOptionsQuery = useCategoryProducts(
+    {
+      slug: slug ?? "",
+      page: 1,
+      limit: 200,
+      sortBy: "newest",
+    },
+    {
+      enabled:
+        hasInitializedFromUrl &&
+        !!slug?.trim() &&
+        (filterData?.brands?.length ?? 0) === 0,
+    },
+  );
+
+  const derivedBrands = useMemo<CategoryFilterBrand[]>(() => {
+    const bySlug = new Map<string, CategoryFilterBrand>();
+    for (const product of brandOptionsQuery.data?.products ?? []) {
+      if (!product.brand?.slug?.trim()) continue;
+      bySlug.set(product.brand.slug, {
+        id: product.brand.id,
+        title: product.brand.title,
+        slug: product.brand.slug,
+        image: product.brand.image,
+      });
+    }
+    return Array.from(bySlug.values()).sort((a, b) =>
+      a.title.localeCompare(b.title, "fr"),
+    );
+  }, [brandOptionsQuery.data?.products]);
+
+  const detailBrandOptionsQuery = useQuery({
+    queryKey: [
+      "category-filter-product-detail-brands",
+      slug,
+      brandOptionsQuery.data?.products.map((product) => product.slug) ?? [],
+    ] as const,
+    queryFn: async () => {
+      const products = brandOptionsQuery.data?.products ?? [];
+      const details = await Promise.all(
+        products.map((product) =>
+          fetchProductBySlug(product.slug).catch(() => null),
+        ),
+      );
+
+      const bySlug = new Map<string, CategoryFilterBrand>();
+      for (const product of details) {
+        if (!product?.brand?.slug?.trim()) continue;
+        bySlug.set(product.brand.slug, {
+          id: product.brand.id,
+          title: product.brand.title,
+          slug: product.brand.slug,
+          image: product.brand.image,
+        });
+      }
+
+      return Array.from(bySlug.values()).sort((a, b) =>
+        a.title.localeCompare(b.title, "fr"),
+      );
+    },
+    enabled:
+      hasInitializedFromUrl &&
+      !!slug?.trim() &&
+      (filterData?.brands?.length ?? 0) === 0 &&
+      derivedBrands.length === 0 &&
+      (brandOptionsQuery.data?.products.length ?? 0) > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const brands =
+    filterData?.brands && filterData.brands.length > 0
+      ? filterData.brands
+      : derivedBrands.length > 0
+        ? derivedBrands
+        : (detailBrandOptionsQuery.data ?? []);
+
   const breadcrumbQuery = useCategoryBreadcrumb(slug?.trim() || null);
   const breadcrumbChain = breadcrumbQuery.data ?? [];
 
@@ -247,6 +341,7 @@ export function CategoryPageClient({ slug }: Props) {
     limit: ITEMS_PER_PAGE,
     filterCategories:
       expandedCategorySlugs.length > 0 ? expandedCategorySlugs : undefined,
+    brands: selectedBrands.size > 0 ? Array.from(selectedBrands) : undefined,
     ...(priceFilterActive
       ? { minPrice: appliedPriceRange[0], maxPrice: appliedPriceRange[1] }
       : {}),
@@ -273,7 +368,10 @@ export function CategoryPageClient({ slug }: Props) {
   const categoryTitle =
     productsQuery.data?.title ?? filterData?.categoryTitle ?? slug ?? "";
 
-  const loadingFilters = filtersQuery.isLoading;
+  const loadingFilters =
+    filtersQuery.isLoading ||
+    ((filterData?.brands?.length ?? 0) === 0 &&
+      (brandOptionsQuery.isLoading || detailBrandOptionsQuery.isLoading));
   const loadingProducts = productsQuery.isFetching;
   const error =
     (filtersQuery.isError && filtersQuery.error
@@ -308,6 +406,7 @@ export function CategoryPageClient({ slug }: Props) {
       setSortBy(parsed.sort);
       setSearchQuery(parsed.search);
       setSelectedCategories(parsed.categories);
+      setSelectedBrands(parsed.brands);
       setSelectedAttributes(parsed.attributes);
       if (
         parsed.priceFilterActive &&
@@ -343,6 +442,7 @@ export function CategoryPageClient({ slug }: Props) {
       sort: sortBy,
       search: debouncedSearch,
       categories: selectedCategories,
+      brands: selectedBrands,
       attributes: selectedAttributes,
       appliedPriceRange,
       priceFilterActive,
@@ -361,6 +461,7 @@ export function CategoryPageClient({ slug }: Props) {
     sortBy,
     debouncedSearch,
     selectedCategories,
+    selectedBrands,
     selectedAttributes,
     appliedPriceRange,
     priceFilterActive,
@@ -368,6 +469,7 @@ export function CategoryPageClient({ slug }: Props) {
 
   const activeFilterCount =
     selectedCategories.size +
+    selectedBrands.size +
     (priceFilterActive ? 1 : 0) +
     Array.from(selectedAttributes.values()).reduce((s, t) => s + t.size, 0);
 
@@ -376,6 +478,16 @@ export function CategoryPageClient({ slug }: Props) {
       const next = new Set(prev);
       if (checked) next.add(categorySlug);
       else next.delete(categorySlug);
+      return next;
+    });
+    setCurrentPage(1);
+  };
+
+  const handleBrandFilter = (brandSlug: string, checked: boolean) => {
+    setSelectedBrands((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(brandSlug);
+      else next.delete(brandSlug);
       return next;
     });
     setCurrentPage(1);
@@ -406,6 +518,7 @@ export function CategoryPageClient({ slug }: Props) {
 
   const resetFilters = () => {
     setSelectedCategories(new Set());
+    setSelectedBrands(new Set());
     setSelectedAttributes(new Map());
     setPriceFilterActive(false);
     setSelectedPriceRange([minPrice, maxPrice]);
@@ -414,11 +527,12 @@ export function CategoryPageClient({ slug }: Props) {
   };
 
   const removeFilter = (
-    type: "category" | "price" | "attribute",
+    type: "category" | "brand" | "price" | "attribute",
     slug?: string,
     attrSlug?: string,
   ) => {
     if (type === "category" && slug) handleCategoryFilter(slug, false);
+    else if (type === "brand" && slug) handleBrandFilter(slug, false);
     else if (type === "price") {
       setPriceFilterActive(false);
       setSelectedPriceRange([minPrice, maxPrice]);
@@ -479,6 +593,27 @@ export function CategoryPageClient({ slug }: Props) {
           </Badge>,
         );
     });
+    selectedBrands.forEach((slug) => {
+      const brand = brands.find((b: CategoryFilterBrand) => b.slug === slug);
+      if (brand)
+        els.push(
+          <Badge
+            key={`brand-${slug}`}
+            variant="secondary"
+            className="gap-1 pr-1 text-xs font-normal">
+            <span className="max-w-[100px] truncate">
+              Marque: {brand.title}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeFilter("brand", slug)}
+              className="rounded p-0.5 hover:bg-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              aria-label={`Retirer filtre ${brand.title}`}>
+              <X className="size-3" />
+            </button>
+          </Badge>,
+        );
+    });
     selectedAttributes.forEach((terms, attrSlug) => {
       const attr = attributes.find(
         (a: CategoryFilterAttribute) => a.slug === attrSlug,
@@ -534,7 +669,7 @@ export function CategoryPageClient({ slug }: Props) {
   return (
     <main className="min-h-screen bg-muted/30">
       <div className="border-b border-border/50 bg-card shadow-sm">
-        <div className="container mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="container mx-auto max-w-450 px-4 py-6 sm:px-6 lg:px-8">
           <nav aria-label="Breadcrumb" className="mb-4">
             <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
               <li>
@@ -592,7 +727,7 @@ export function CategoryPageClient({ slug }: Props) {
         </div>
       </div>
 
-      <div className="container mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="container mx-auto max-w-450 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:w-full">
           <aside className="hidden w-72 shrink-0 lg:block xl:w-80">
             <div className="sticky top-6 space-y-4 rounded-xl border border-border/80 bg-white p-5 shadow-sm">
@@ -654,7 +789,7 @@ export function CategoryPageClient({ slug }: Props) {
               ) : (
                 <Accordion
                   type="multiple"
-                  defaultValue={["categories", "price", "attributes"]}
+                  defaultValue={["categories", "brands", "price", "attributes"]}
                   className="space-y-0">
                   <AccordionItem value="categories" className="border-none">
                     <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
@@ -686,6 +821,36 @@ export function CategoryPageClient({ slug }: Props) {
                               </label>
                             ),
                           )}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="brands" className="border-none">
+                    <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
+                      Marques
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-3 pt-0">
+                      {brands.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">
+                          Aucune marque
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {brands.map((brand: CategoryFilterBrand) => (
+                            <label
+                              key={brand.id}
+                              className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 transition-colors hover:bg-muted/50">
+                              <Checkbox
+                                id={`brand-${brand.slug}`}
+                                checked={selectedBrands.has(brand.slug)}
+                                onCheckedChange={(c) =>
+                                  handleBrandFilter(brand.slug, c === true)
+                                }
+                              />
+                              <span className="text-sm">{brand.title}</span>
+                            </label>
+                          ))}
                         </div>
                       )}
                     </AccordionContent>
@@ -929,6 +1094,54 @@ export function CategoryPageClient({ slug }: Props) {
                                 Appliquer
                               </Button>
                             </div>
+                          </div>
+                          <div className="border-b border-border/60">
+                            <button
+                              type="button"
+                              onClick={() => toggleMobileSection("brands")}
+                              className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50">
+                              <span className="font-medium text-sm">
+                                Marques
+                              </span>
+                              <ChevronRight
+                                className={`size-4 shrink-0 transition-transform ${
+                                  mobileSections.has("brands")
+                                    ? "rotate-90"
+                                    : ""
+                                }`}
+                              />
+                            </button>
+                            {mobileSections.has("brands") && (
+                              <div className="space-y-2 px-4 pb-4">
+                                {brands.length === 0 ? (
+                                  <p className="text-muted-foreground text-sm">
+                                    Aucune marque
+                                  </p>
+                                ) : (
+                                  brands.map((brand: CategoryFilterBrand) => (
+                                    <label
+                                      key={brand.id}
+                                      className="flex cursor-pointer items-center gap-2 rounded-md py-2 pr-2">
+                                      <Checkbox
+                                        id={`m-brand-${brand.slug}`}
+                                        checked={selectedBrands.has(
+                                          brand.slug,
+                                        )}
+                                        onCheckedChange={(c) =>
+                                          handleBrandFilter(
+                                            brand.slug,
+                                            c === true,
+                                          )
+                                        }
+                                      />
+                                      <span className="text-sm">
+                                        {brand.title}
+                                      </span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                            )}
                           </div>
                           {attributes.map((attr: CategoryFilterAttribute) => (
                             <div

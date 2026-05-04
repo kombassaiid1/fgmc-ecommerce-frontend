@@ -15,8 +15,8 @@ export function TopNavBar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/90 text-blue-700 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:text-blue-400">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+    <header className="sticky top-0 z-1000 w-full border-b border-slate-100 bg-white/90 text-blue-700 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:text-blue-400">
+      <div className="mx-auto flex w-full max-w-450 items-center justify-between px-6 py-4">
         <div className="flex items-center gap-6">
           <Link href="/" className="inline-flex items-center">
             <Image
@@ -73,8 +73,7 @@ export function TopNavBar() {
           <Link
             href="/cart"
             className="relative text-blue-700 transition-colors hover:text-blue-600"
-            aria-label="Panier"
-          >
+            aria-label="Panier">
             <ShoppingCart size={20} />
             {cartQty > 0 ? (
               <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">

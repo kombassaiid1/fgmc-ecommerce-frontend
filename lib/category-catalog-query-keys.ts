@@ -17,6 +17,7 @@ export function categoryProductsQueryKey(params: CategoryProductsParams) {
     params.sortBy ?? "newest",
     params.search ?? "",
     params.filterCategories ?? [],
+    params.brands ?? [],
     params.minPrice ?? null,
     params.maxPrice ?? null,
     params.attributeFilters
