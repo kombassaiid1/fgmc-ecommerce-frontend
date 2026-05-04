@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install deps only
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm i --legacy-peer-deps
 
 # Copy full source (including prisma/)
 COPY . .
