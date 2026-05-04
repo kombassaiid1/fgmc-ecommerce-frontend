@@ -1,7 +1,6 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API_URL?.replace(/\/$/, "") ??
-  process.env.BACKEND_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:3001";
+import { getBackendBaseUrl } from "@/lib/backend-url";
+
+const API_BASE_URL = getBackendBaseUrl();
 
 export async function getPublishedPageDataBySlug(slug: string) {
   const query = new URLSearchParams({

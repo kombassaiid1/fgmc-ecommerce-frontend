@@ -1,12 +1,12 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { getBackendBaseUrl } from "@/lib/backend-url";
 
 export const ADMIN_TOKEN_COOKIE = "admin_ben_token";
 const ADMIN_ROLES = new Set(["ADMIN", "STORE_MANAGER"]);
 
-const API_BASE_URL =
-  process.env.BACKEND_API_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
+const API_BASE_URL = getBackendBaseUrl();
 
 export type AdminUser = {
   id: string;

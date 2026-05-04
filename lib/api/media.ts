@@ -1,9 +1,7 @@
+import { getBackendBaseUrl } from "@/lib/backend-url";
 import { ApiError, apiRequest } from "./http-client";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API_URL?.replace(/\/$/, "") ??
-  process.env.BACKEND_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:3001";
+const API_BASE_URL = getBackendBaseUrl();
 
 type MediaBasePath = "/media" | "/api/media" | "/v1/media" | "/api/v1/media";
 

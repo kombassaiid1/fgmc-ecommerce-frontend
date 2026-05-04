@@ -1,12 +1,9 @@
+import { getBackendBaseUrl } from "@/lib/backend-url";
+
 function getBaseUrl(): string {
   // Prefer the backend API base explicitly. `NEXT_PUBLIC_API_URL` is often used
   // for other purposes (assets/proxy) and can accidentally point to the frontend.
-  const urlRaw =
-    process.env.NEXT_PUBLIC_BACKEND_API_URL ??
-    process.env.BACKEND_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:3001";
-  const url = urlRaw.replace(/\/$/, "");
+  const url = getBackendBaseUrl();
 
   // Dev safety: if the base points at the frontend origin, API fetches will 404.
   // Force the backend port even if an env var was set incorrectly.
@@ -58,4 +55,3 @@ export async function apiFetch<T>(
 }
 
 export { getBaseUrl };
-

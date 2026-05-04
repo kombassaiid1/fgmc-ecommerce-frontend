@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getBackendBaseUrl } from "@/lib/backend-url";
 
 export function getSiteUrl(): string {
   return (
@@ -55,13 +56,10 @@ function getImageUrl(image: string | null | undefined, baseUrl: string): string 
 
 /** Returns the default OG image URL from site settings, or fallback (for product/category pages). */
 export async function getDefaultOgImageUrl(): Promise<string> {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BACKEND_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    process.env.BACKEND_API_URL;
-  if (!baseUrl) return getDefaultOgImageFallback();
+  const baseUrl = getBackendBaseUrl();
+
   try {
-    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/settings`, {
+    const res = await fetch(`${baseUrl}/settings`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return getDefaultOgImageFallback();
