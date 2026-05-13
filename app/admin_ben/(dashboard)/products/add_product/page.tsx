@@ -27,9 +27,16 @@ import {
   SearchIcon,
   XIcon,
 } from "@shopify/polaris-icons";
+import { Check, ChevronDown, GripVertical, Plus, X } from "lucide-react";
 
 import { MediaPickerDialog } from "@/components/admin/media-picker-dialog";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { getCategories, type Category } from "@/lib/api/categories";
 import { getBrands, type Brand } from "@/lib/api/brands";
 import { getAttributes, type Attribute } from "@/lib/api/attributes";
@@ -101,6 +108,8 @@ type DraftVariant = {
   options: DraftVariantOption[];
 };
 
+const NEW_ATTRIBUTE_EDITOR_ID = "__new_attribute_editor__";
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -108,6 +117,14 @@ function slugify(value: string) {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 }
 
 function buildCategoryChildrenMap(items: Category[]) {
@@ -166,6 +183,15 @@ export default function AdminProductsPage() {
   >("simple");
   const [variants, setVariants] = useState<DraftVariant[]>([]);
   const [combinationQuery, setCombinationQuery] = useState("");
+  const [combinationAttributeSearch, setCombinationAttributeSearch] =
+    useState("");
+  const [attributeEditorId, setAttributeEditorId] = useState<string | null>(
+    null,
+  );
+  const [attributePickerOpen, setAttributePickerOpen] = useState(false);
+  const [attributePickerSearch, setAttributePickerSearch] = useState("");
+  const [termPickerOpen, setTermPickerOpen] = useState(false);
+  const [termPickerSearch, setTermPickerSearch] = useState("");
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -372,6 +398,7 @@ export default function AdminProductsPage() {
         { id: "shipping", content: "Livraison" },
         { id: "pricing", content: "Tarification" },
         { id: "seo", content: "SEO" },
+        { id: "attributes", content: "Attributs" },
         { id: "options", content: "Options" },
       );
 
@@ -447,6 +474,87 @@ export default function AdminProductsPage() {
       return a.name.localeCompare(b.name, "fr", { numeric: true, sensitivity: "base" });
     });
   }, [attributes]);
+
+  const combinationAttributeSearchTerm = normalizeSearchValue(
+    combinationAttributeSearch,
+  );
+
+  const filteredAttributesForCombinations = useMemo(() => {
+    if (!combinationAttributeSearchTerm) {
+      return sortedAttributesForCombinations.map((attribute) => ({
+        attribute,
+        terms: attribute.terms ?? [],
+      }));
+    }
+
+    return sortedAttributesForCombinations
+      .map((attribute) => {
+        const terms = attribute.terms ?? [];
+        const attributeMatches = normalizeSearchValue(attribute.name).includes(
+          combinationAttributeSearchTerm,
+        );
+        const matchingTerms = attributeMatches
+          ? terms
+          : terms.filter((term) =>
+              normalizeSearchValue(term.name).includes(
+                combinationAttributeSearchTerm,
+              ),
+            );
+
+        return {
+          attribute,
+          terms: matchingTerms,
+        };
+      })
+      .filter(({ terms }) => terms.length > 0);
+  }, [combinationAttributeSearchTerm, sortedAttributesForCombinations]);
+
+  const selectedAttributeRows = useMemo(
+    () =>
+      sortedAttributesForCombinations.filter(
+        (attribute) =>
+          (selectedTermIdsByAttribute[attribute.id] ?? []).length > 0,
+      ),
+    [selectedTermIdsByAttribute, sortedAttributesForCombinations],
+  );
+
+  const attributePickerSearchTerm = normalizeSearchValue(attributePickerSearch);
+  const selectableAttributes = useMemo(
+    () =>
+      sortedAttributesForCombinations.filter((attribute) => {
+        const hasTerms = (attribute.terms ?? []).length > 0;
+        const alreadySelected =
+          (selectedTermIdsByAttribute[attribute.id] ?? []).length > 0;
+        const isCurrentEditor = attribute.id === attributeEditorId;
+        if (alreadySelected && !isCurrentEditor) return false;
+        if (!hasTerms) return false;
+        if (!attributePickerSearchTerm) return true;
+        return normalizeSearchValue(attribute.name).includes(
+          attributePickerSearchTerm,
+        );
+      }),
+    [
+      attributeEditorId,
+      attributePickerSearchTerm,
+      selectedTermIdsByAttribute,
+      sortedAttributesForCombinations,
+    ],
+  );
+
+  const editingAttribute =
+    attributeEditorId && attributeEditorId !== NEW_ATTRIBUTE_EDITOR_ID
+      ? attributesById.get(attributeEditorId) ?? null
+      : null;
+  const editingAttributeTerms = editingAttribute?.terms ?? [];
+  const selectedEditingTermIds = editingAttribute
+    ? selectedTermIdsByAttribute[editingAttribute.id] ?? []
+    : [];
+  const termPickerSearchTerm = normalizeSearchValue(termPickerSearch);
+  const visibleEditingTerms = termPickerSearchTerm
+    ? editingAttributeTerms.filter((term) =>
+        normalizeSearchValue(term.name).includes(termPickerSearchTerm),
+      )
+    : editingAttributeTerms;
 
   const parseCombinationQuery = (query: string) => {
     const next: Record<string, string[]> = {};
@@ -1442,47 +1550,333 @@ export default function AdminProductsPage() {
             </BlockStack>
           ) : null}
 
-          {selectedTabId === "options" ? (
+          {selectedTabId === "attributes" ? (
             <BlockStack gap="300">
-              <Text as="h3" variant="headingMd">
-                Attributs et termes
-              </Text>
+              <div className="flex items-center justify-between gap-3">
+                <Text as="h3" variant="headingMd">
+                  Attributes
+                </Text>
+                <Button url="/admin_ben/products/attributs">+ Create attribute</Button>
+              </div>
+
               {attributes.length === 0 ? (
                 <Text as="p" tone="subdued">
                   Aucun attribut disponible.
                 </Text>
               ) : (
-                attributes.map((attribute) => {
-                  const termChoices =
-                    attribute.terms?.map((term) => ({
-                      label: term.name,
-                      value: term.id,
-                    })) ?? [];
-                  if (termChoices.length === 0) {
-                    return null;
-                  }
-                  return (
-                    <Box key={attribute.id}>
-                      <ChoiceList
-                        title={attribute.name}
-                        allowMultiple
-                        choices={termChoices}
-                        selected={
-                          selectedTermIdsByAttribute[attribute.id] ?? []
-                        }
-                        onChange={(selected) =>
-                          setSelectedTermIdsByAttribute((prev) => ({
-                            ...prev,
-                            [attribute.id]: selected,
-                          }))
-                        }
-                      />
-                    </Box>
-                  );
-                })
+                <div className="overflow-visible rounded-lg border border-border bg-[#e9e9e9]">
+                  <div className="space-y-0">
+                    {selectedAttributeRows
+                      .filter((attribute) => attribute.id !== attributeEditorId)
+                      .map((attribute) => {
+                        const selectedTermIds =
+                          selectedTermIdsByAttribute[attribute.id] ?? [];
+                        const selectedTermNames = selectedTermIds
+                          .map((termId) => termById.get(termId)?.name)
+                          .filter((value): value is string => Boolean(value));
+
+                        return (
+                          <button
+                            key={attribute.id}
+                            type="button"
+                            className="flex w-full items-start gap-4 border-b border-border/60 px-5 py-5 text-left transition hover:bg-black/[0.03]"
+                            onClick={() => {
+                              setAttributeEditorId(attribute.id);
+                              setAttributePickerOpen(false);
+                              setTermPickerOpen(false);
+                              setAttributePickerSearch("");
+                              setTermPickerSearch("");
+                            }}
+                          >
+                            <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0 space-y-2">
+                              <p className="text-sm font-semibold text-foreground">
+                                {attribute.name}
+                              </p>
+                              <span className="inline-flex max-w-full rounded-sm bg-white px-3 py-1 text-sm text-foreground shadow-xs">
+                                <span className="truncate">
+                                  {selectedTermNames.join(", ")}
+                                </span>
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                    {attributeEditorId ? (
+                      <div className="relative z-30 border-b border-border/60 px-5 py-5">
+                        <div className="grid gap-4 md:grid-cols-[18px_1fr]">
+                          <GripVertical className="mt-5 size-4 text-muted-foreground" />
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-semibold text-foreground">
+                                Option name
+                              </label>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  className="flex h-9 w-full items-center justify-between rounded-md border border-border bg-white px-3 text-left text-sm text-foreground shadow-xs"
+                                  onClick={() =>
+                                    setAttributePickerOpen((open) => !open)
+                                  }
+                                >
+                                  <span
+                                    className={
+                                      editingAttribute
+                                        ? "truncate"
+                                        : "truncate text-muted-foreground"
+                                    }
+                                  >
+                                    {editingAttribute?.name ??
+                                      "Select an attribute..."}
+                                  </span>
+                                  <ChevronDown className="size-4 text-muted-foreground" />
+                                </button>
+
+                                {attributePickerOpen ? (
+                                  <div className="absolute left-0 right-0 top-full z-80 overflow-hidden rounded-b-md border border-t-0 border-border bg-white shadow-lg">
+                                    <input
+                                      value={attributePickerSearch}
+                                      onChange={(event) =>
+                                        setAttributePickerSearch(
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="Search..."
+                                      className="h-9 w-full border-b border-border px-3 text-sm outline-none"
+                                    />
+                                    <div className="max-h-56 overflow-y-auto py-2">
+                                      {selectableAttributes.length === 0 ? (
+                                        <p className="px-4 py-2 text-sm text-muted-foreground">
+                                          Aucun attribut trouve.
+                                        </p>
+                                      ) : (
+                                        selectableAttributes.map((attribute) => (
+                                          <button
+                                            key={attribute.id}
+                                            type="button"
+                                            className="block w-full px-9 py-2 text-left text-sm transition hover:bg-muted"
+                                            onClick={() => {
+                                              setAttributeEditorId(attribute.id);
+                                              setSelectedTermIdsByAttribute(
+                                                (prev) => ({
+                                                  ...prev,
+                                                  [attribute.id]:
+                                                    prev[attribute.id] ?? [],
+                                                }),
+                                              );
+                                              setAttributePickerOpen(false);
+                                              setAttributePickerSearch("");
+                                              setTermPickerOpen(true);
+                                            }}
+                                          >
+                                            {attribute.name}
+                                          </button>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {editingAttribute ? (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <label className="text-sm font-medium text-foreground">
+                                    Option values
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+                                    onClick={() =>
+                                      setTermPickerOpen((open) => !open)
+                                    }
+                                  >
+                                    <Plus className="size-4" />
+                                    Add value
+                                  </button>
+                                </div>
+
+                                {selectedEditingTermIds.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {selectedEditingTermIds.map((termId) => {
+                                      const term = termById.get(termId);
+                                      if (!term) return null;
+                                      return (
+                                        <span
+                                          key={termId}
+                                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-foreground shadow-xs"
+                                        >
+                                          {term.name}
+                                          <button
+                                            type="button"
+                                            aria-label={`Remove ${term.name}`}
+                                            onClick={() =>
+                                              setSelectedTermIdsByAttribute(
+                                                (prev) => ({
+                                                  ...prev,
+                                                  [editingAttribute.id]: (
+                                                    prev[editingAttribute.id] ??
+                                                    []
+                                                  ).filter(
+                                                    (id) => id !== termId,
+                                                  ),
+                                                }),
+                                              )
+                                            }
+                                          >
+                                            <X className="size-4" />
+                                          </button>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    className="flex h-9 w-full items-center justify-between rounded-md border border-border bg-white px-3 text-left text-sm text-foreground shadow-xs"
+                                    onClick={() =>
+                                      setTermPickerOpen((open) => !open)
+                                    }
+                                  >
+                                    <span
+                                      className={
+                                        selectedEditingTermIds.length
+                                          ? "truncate"
+                                          : "truncate text-blue-900"
+                                      }
+                                    >
+                                      {selectedEditingTermIds.length
+                                        ? `${selectedEditingTermIds.length} selected`
+                                        : "Select values..."}
+                                    </span>
+                                    <ChevronDown className="size-4 text-muted-foreground" />
+                                  </button>
+
+                                  {termPickerOpen ? (
+                                    <div className="absolute left-0 right-0 top-full z-70 overflow-hidden rounded-b-md border border-t-0 border-border bg-white shadow-lg">
+                                      <input
+                                        value={termPickerSearch}
+                                        onChange={(event) =>
+                                          setTermPickerSearch(event.target.value)
+                                        }
+                                        placeholder="Search..."
+                                        className="h-9 w-full border-b border-border px-3 text-sm outline-none"
+                                      />
+                                      <div className="max-h-56 overflow-y-auto py-2">
+                                        {visibleEditingTerms.length === 0 ? (
+                                          <p className="px-4 py-2 text-sm text-muted-foreground">
+                                            Aucun terme trouve.
+                                          </p>
+                                        ) : (
+                                          visibleEditingTerms.map((term) => {
+                                            const checked =
+                                              selectedEditingTermIds.includes(
+                                                term.id,
+                                              );
+                                            return (
+                                              <button
+                                                key={term.id}
+                                                type="button"
+                                                className="flex w-full items-center gap-3 px-9 py-2 text-left text-sm transition hover:bg-muted"
+                                                onClick={() =>
+                                                  setSelectedTermIdsByAttribute(
+                                                    (prev) => {
+                                                      const current =
+                                                        prev[
+                                                          editingAttribute.id
+                                                        ] ?? [];
+                                                      const next = new Set(
+                                                        current,
+                                                      );
+                                                      if (checked) {
+                                                        next.delete(term.id);
+                                                      } else {
+                                                        next.add(term.id);
+                                                      }
+                                                      return {
+                                                        ...prev,
+                                                        [editingAttribute.id]:
+                                                          Array.from(next),
+                                                      };
+                                                    },
+                                                  )
+                                                }
+                                              >
+                                                <span className="grid size-4 place-items-center rounded border border-border text-[10px]">
+                                                  {checked ? (
+                                                    <Check className="size-3" />
+                                                  ) : null}
+                                                </span>
+                                                {term.name}
+                                              </button>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    className="h-8 rounded-md border border-border bg-white px-3 text-sm font-medium text-red-600 shadow-xs"
+                                    onClick={() => {
+                                      setSelectedTermIdsByAttribute((prev) => {
+                                        const next = { ...prev };
+                                        delete next[editingAttribute.id];
+                                        return next;
+                                      });
+                                      setAttributeEditorId(null);
+                                      setTermPickerOpen(false);
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="h-8 rounded-md bg-neutral-800 px-3 text-sm font-medium text-white shadow-xs"
+                                    onClick={() => {
+                                      setAttributeEditorId(null);
+                                      setTermPickerOpen(false);
+                                      setAttributePickerOpen(false);
+                                    }}
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-blue-600 transition hover:bg-black/[0.03]"
+                    onClick={() => {
+                      setAttributeEditorId(NEW_ATTRIBUTE_EDITOR_ID);
+                      setAttributePickerOpen(true);
+                      setTermPickerOpen(false);
+                      setAttributePickerSearch("");
+                      setTermPickerSearch("");
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    Add another option
+                  </button>
+                </div>
               )}
             </BlockStack>
           ) : null}
+
+          {selectedTabId === "options" ? <div className="min-h-24" /> : null}
 
           {selectedTabId === "combinations" && combinationMode === "with_combinations" ? (
             <InlineGrid columns={{ xs: 1, md: "2fr 1fr" }} gap="300">
@@ -1781,43 +2175,83 @@ export default function AdminProductsPage() {
                       Aucun attribut disponible.
                     </Text>
                   ) : (
-                    <div style={{ maxHeight: 520, overflow: "auto", paddingRight: 8 }}>
-                      <BlockStack gap="300">
-                        {sortedAttributesForCombinations.map((attribute) => {
-                          const terms = attribute.terms ?? [];
-                          if (terms.length === 0) return null;
-                          const selected = selectedTermIdsByAttribute[attribute.id] ?? [];
-                          return (
-                            <Box key={attribute.id}>
-                              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                                {attribute.name}
-                              </Text>
-                              <Box paddingBlockStart="150">
-                                <BlockStack gap="150">
-                                  {terms.map((term) => (
-                                    <Checkbox
-                                      key={term.id}
-                                      label={term.name}
-                                      checked={selected.includes(term.id)}
-                                      onChange={(checked) =>
-                                        setSelectedTermIdsByAttribute((prev) => {
-                                          const current = prev[attribute.id] ?? [];
-                                          const next = new Set(current);
-                                          if (checked) next.add(term.id);
-                                          else next.delete(term.id);
-                                          return { ...prev, [attribute.id]: Array.from(next) };
-                                        })
-                                      }
-                                    />
-                                  ))}
-                                </BlockStack>
-                              </Box>
-                              <Divider />
-                            </Box>
-                          );
-                        })}
-                      </BlockStack>
-                    </div>
+                    <>
+                      <TextField
+                        label=""
+                        labelHidden
+                        placeholder="Search attributes or terms"
+                        value={combinationAttributeSearch}
+                        onChange={setCombinationAttributeSearch}
+                        autoComplete="off"
+                      />
+
+                      {filteredAttributesForCombinations.length === 0 ? (
+                        <Box
+                          padding="400"
+                          borderColor="border"
+                          borderWidth="025"
+                          borderRadius="300">
+                          <Text as="p" tone="subdued">
+                            Aucun attribut ou terme ne correspond a cette recherche.
+                          </Text>
+                        </Box>
+                      ) : (
+                        <div style={{ maxHeight: 520, overflow: "auto", paddingRight: 8 }}>
+                          <Accordion
+                            key={combinationAttributeSearchTerm || "all-combination-attributes"}
+                            type="multiple"
+                            defaultValue={filteredAttributesForCombinations.map(
+                              ({ attribute }) => attribute.id,
+                            )}
+                            className="rounded-xl border border-border bg-background"
+                          >
+                            {filteredAttributesForCombinations.map(({ attribute, terms }) => {
+                              const allTerms = attribute.terms ?? [];
+                              const selected = selectedTermIdsByAttribute[attribute.id] ?? [];
+                              return (
+                                <AccordionItem
+                                  key={attribute.id}
+                                  value={attribute.id}
+                                  className="border-border px-4 last:border-b-0"
+                                >
+                                  <AccordionTrigger className="min-h-12 py-3 text-sm font-semibold hover:no-underline">
+                                    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                                      <span className="truncate">{attribute.name}</span>
+                                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                        {selected.length}/{allTerms.length}
+                                      </span>
+                                    </span>
+                                  </AccordionTrigger>
+                                  <AccordionContent className="pb-4">
+                                    <BlockStack gap="200">
+                                      {terms.map((term) => (
+                                        <Checkbox
+                                          key={term.id}
+                                          label={term.name}
+                                          checked={selected.includes(term.id)}
+                                          onChange={(checked) =>
+                                            setSelectedTermIdsByAttribute((prev) => {
+                                              const current = prev[attribute.id] ?? [];
+                                              const next = new Set(current);
+                                              if (checked) next.add(term.id);
+                                              else next.delete(term.id);
+                                              return {
+                                                ...prev,
+                                                [attribute.id]: Array.from(next),
+                                              };
+                                            })
+                                          }
+                                        />
+                                      ))}
+                                    </BlockStack>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+                        </div>
+                      )}
+                    </>
                   )}
                 </BlockStack>
               </Card>

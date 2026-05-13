@@ -1,5 +1,6 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, FolderTree, HandCoins } from "lucide-react";
 import Link from "next/link";
 import { getCategories, type Category } from "@/lib/api/categories";
 import { cn } from "@/lib/utils";
@@ -10,12 +11,19 @@ type ProfessionalsSideNavBlockProps = {
   categoryIds?: string;
 };
 
+type NavItem = {
+  id?: string;
+  label: string;
+  href: string;
+};
+
 export function ProfessionalsSideNavBlock({
   title = "Professionnels",
   subtitle = "Solutions Industrielles",
   categoryIds = "",
 }: ProfessionalsSideNavBlockProps) {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [hoveredCategoryId, setHoveredCategoryId] = useState<string | null>(
     null,
   );
@@ -31,6 +39,8 @@ export function ProfessionalsSideNavBlock({
         setCategories(data);
       } catch {
         setCategories([]);
+      } finally {
+        setLoading(false);
       }
     };
     void load();
@@ -69,43 +79,27 @@ export function ProfessionalsSideNavBlock({
     return map;
   }, [categories]);
 
-  const fallbackItems = [
+  const fallbackItems: NavItem[] = [
     {
       label: "Espace Pro",
-      icon: BriefcaseBusiness,
-      active: true,
       href: "#",
-      id: undefined as string | undefined,
     },
     {
       label: "Financement",
-      icon: HandCoins,
-      active: false,
       href: "#",
-      id: undefined as string | undefined,
     },
   ];
 
-  type NavItem =
-    | typeof fallbackItems[number]
-    | {
-        id: string;
-        label: string;
-        icon: typeof FolderTree;
-        active: boolean;
-        href: string;
-      };
-
   const categoryItems: NavItem[] =
     selectedCategories.length > 0
-      ? selectedCategories.map((category, index) => ({
+      ? selectedCategories.map((category) => ({
           id: category.id,
           label: category.title,
-          icon: FolderTree,
-          active: index === 0,
           href: `/${category.slug}`,
         }))
       : fallbackItems;
+
+  const skeletonRows = useMemo(() => Array.from({ length: 6 }), []);
 
   const clearCloseTimer = () => {
     if (closeTimer) {
@@ -125,149 +119,154 @@ export function ProfessionalsSideNavBlock({
   };
 
   const submenuClass =
-    "min-w-[220px] rounded-md border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-slate-700 dark:bg-slate-900 dark:ring-white/10";
+    "min-w-[232px] rounded-md border border-slate-200 bg-white py-1.5 text-left shadow-xl ring-1 ring-black/5 dark:border-slate-700 dark:bg-slate-900 dark:ring-white/10";
 
   return (
-    <aside className="sticky top-[72px] isolate z-100 hidden h-full w-full flex-col gap-2 rounded-r-lg border-r border-slate-200 bg-slate-50/50 p-4 text-sm text-blue-700 shadow-sm md:flex dark:border-slate-800 dark:bg-slate-950/50 dark:text-blue-400">
-      <div className="mb-6 px-4">
-        <h2 className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+    <aside className="sticky top-18! isolate z-100 hidden h-full w-full flex-col gap-2 rounded-r-lg border-r border-slate-200 bg-white/85 p-4 text-sm text-blue-700 shadow-sm backdrop-blur md:flex dark:border-slate-800 dark:bg-slate-950/75 dark:text-blue-400">
+      <div className="mb-6 border-b border-slate-200/80 px-4 pb-5 dark:border-slate-800">
+        <h2 className="text-2xl! font-bold! tracking-normal text-blue-700 dark:text-blue-300">
           {title}
         </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1! text-sm! text-slate-500 dark:text-slate-400">
           {subtitle}
         </p>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1" onMouseLeave={scheduleClose}>
-        {categoryItems.map((item) => {
-          const Icon = item.icon;
-          const itemId = "id" in item ? item.id : undefined;
-          const children = itemId
-            ? childrenByParent.get(itemId) ?? []
-            : [];
-          const hasChildren = children.length > 0;
-
-          const baseClass = cn(
-            "flex cursor-pointer items-center gap-3 rounded px-4 py-3 text-sm transition-transform",
-            item.active
-              ? "rounded-r border-l-4 border-blue-700 bg-blue-50 py-3 font-semibold text-blue-700 hover:translate-x-1 dark:bg-blue-900/20 dark:text-blue-300"
-              : "font-medium text-slate-600 hover:translate-x-1 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-          );
-
-          const openPanel = () => {
-            clearCloseTimer();
-            if (itemId && hasChildren) {
-              setHoveredCategoryId(itemId);
-            } else {
-              setHoveredCategoryId(null);
-              setHoveredChildId(null);
-            }
-          };
-
-          const innerLink =
-            item.href === "#" ? (
-              <div className={baseClass}>
-                <Icon size={18} />
-                <span>{item.label}</span>
+      <nav
+        className="flex flex-1 flex-col gap-1"
+        aria-busy={loading}
+        onMouseLeave={scheduleClose}>
+        {loading ? (
+          <div className="space-y-2" aria-hidden="true">
+            {skeletonRows.map((_, index) => (
+              <div
+                key={index}
+                className="h-11 overflow-hidden rounded-md border border-slate-200/70 bg-slate-100/90 dark:border-slate-800 dark:bg-slate-800/70">
+                <div className="h-full animate-pulse rounded-md bg-gradient-to-r from-transparent via-white/65 to-transparent dark:via-white/5" />
               </div>
-            ) : (
-              <Link href={item.href} className={baseClass}>
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </Link>
-            );
+            ))}
+          </div>
+        ) : null}
 
-          return (
-            <div
-              key={"id" in item && item.id ? item.id : item.label}
-              className={cn(
-                "relative isolate",
-                itemId && hoveredCategoryId === itemId && hasChildren
-                  ? "z-110"
-                  : "z-100",
-              )}
-              onMouseEnter={openPanel}
-            >
-              {innerLink}
+        {!loading
+          ? categoryItems.map((item) => {
+              const children = item.id
+                ? (childrenByParent.get(item.id) ?? [])
+                : [];
+              const hasChildren = children.length > 0;
 
-              {itemId &&
-              hoveredCategoryId === itemId &&
-              hasChildren ? (
+              const baseClass = cn(
+                "flex min-h-11 cursor-pointer items-center rounded-md border border-transparent px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-blue-100 hover:bg-blue-50/80 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-slate-300 dark:hover:border-blue-900/40 dark:hover:bg-blue-950/35 dark:hover:text-blue-300",
+                item.id &&
+                  hoveredCategoryId === item.id &&
+                  hasChildren &&
+                  "border-blue-100 bg-blue-50/80 text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/35 dark:text-blue-300",
+              );
+
+              const openPanel = () => {
+                clearCloseTimer();
+                if (item.id && hasChildren) {
+                  setHoveredCategoryId(item.id);
+                } else {
+                  setHoveredCategoryId(null);
+                  setHoveredChildId(null);
+                }
+              };
+
+              const innerLink =
+                item.href === "#" ? (
+                  <div className={baseClass}>
+                    <span>{item.label}</span>
+                  </div>
+                ) : (
+                  <Link href={item.href} className={baseClass}>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+
+              return (
                 <div
-                  role="menu"
-                  aria-label="Sous-catégories"
+                  key={item.id ?? item.label}
                   className={cn(
-                    "absolute left-full top-0 z-120 ml-2",
-                    submenuClass,
+                    "relative isolate",
+                    item.id && hoveredCategoryId === item.id && hasChildren
+                      ? "z-110"
+                      : "z-100",
                   )}
-                  onMouseEnter={() => {
-                    clearCloseTimer();
-                    setHoveredCategoryId(itemId);
-                  }}
-                  onMouseLeave={() => setHoveredChildId(null)}
-                >
-                  <ul>
-                    {children.map((child) => {
-                      const grand =
-                        childrenByParent.get(child.id) ?? [];
-                      return (
-                        <li
-                          key={child.id}
-                          className="relative"
-                          onMouseEnter={() => {
-                            clearCloseTimer();
-                            setHoveredChildId(child.id);
-                          }}
-                          onMouseLeave={() =>
-                            setHoveredChildId((cur) =>
-                              cur === child.id ? null : cur,
-                            )
-                          }
-                        >
-                          <Link
-                            href={`/${child.slug}`}
-                            className={cn(
-                              "block px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300",
-                              hoveredChildId === child.id &&
-                                grand.length > 0 &&
-                                "bg-blue-50/80 dark:bg-slate-800/80",
-                            )}
-                          >
-                            {child.title}
-                          </Link>
-                          {grand.length > 0 &&
-                          hoveredChildId === child.id ? (
-                            <div
-                              role="menu"
-                              className={cn(
-                                "absolute left-full top-0 z-130 ml-1",
-                                submenuClass,
-                              )}
-                              onMouseEnter={clearCloseTimer}
-                            >
-                              <ul className="max-h-[min(320px,calc(100vh-140px))] overflow-y-auto">
-                                {grand.map((leaf) => (
-                                  <li key={leaf.id}>
-                                    <Link
-                                      href={`/${leaf.slug}`}
-                                      className="block whitespace-nowrap px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"
-                                    >
-                                      {leaf.title}
-                                    </Link>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  onMouseEnter={openPanel}>
+                  {innerLink}
+
+                  {item.id && hoveredCategoryId === item.id && hasChildren ? (
+                    <div
+                      role="menu"
+                      aria-label="Sous-categories"
+                      className={cn(
+                        "absolute left-full top-0 z-120 ml-2",
+                        submenuClass,
+                      )}
+                      onMouseEnter={() => {
+                        clearCloseTimer();
+                        setHoveredCategoryId(item.id ?? null);
+                      }}
+                      onMouseLeave={() => setHoveredChildId(null)}>
+                      <ul>
+                        {children.map((child) => {
+                          const grand = childrenByParent.get(child.id) ?? [];
+                          return (
+                            <li
+                              key={child.id}
+                              className="relative"
+                              onMouseEnter={() => {
+                                clearCloseTimer();
+                                setHoveredChildId(child.id);
+                              }}
+                              onMouseLeave={() =>
+                                setHoveredChildId((cur) =>
+                                  cur === child.id ? null : cur,
+                                )
+                              }>
+                              <Link
+                                href={`/${child.slug}`}
+                                className={cn(
+                                  "block px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300",
+                                  hoveredChildId === child.id &&
+                                    grand.length > 0 &&
+                                    "bg-blue-50/80 dark:bg-slate-800/80",
+                                )}>
+                                {child.title}
+                              </Link>
+                              {grand.length > 0 &&
+                              hoveredChildId === child.id ? (
+                                <div
+                                  role="menu"
+                                  className={cn(
+                                    "absolute left-full top-0 z-130 ml-1",
+                                    submenuClass,
+                                  )}
+                                  onMouseEnter={clearCloseTimer}>
+                                  <ul className="max-h-[min(320px,calc(100vh-140px))] overflow-y-auto">
+                                    {grand.map((leaf) => (
+                                      <li key={leaf.id}>
+                                        <Link
+                                          href={`/${leaf.slug}`}
+                                          className="block whitespace-nowrap px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300">
+                                          {leaf.title}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
+              );
+            })
+          : null}
       </nav>
     </aside>
   );

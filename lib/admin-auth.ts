@@ -1,12 +1,59 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getBackendBaseUrl } from "@/lib/backend-url";
 
 export const ADMIN_TOKEN_COOKIE = "admin_ben_token";
 const ADMIN_ROLES = new Set(["ADMIN", "STORE_MANAGER"]);
 
 const API_BASE_URL = getBackendBaseUrl();
+
+function readBooleanEnv(value: string | undefined): boolean | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (["1", "true", "yes", "on"].includes(normalizedValue)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalizedValue)) {
+    return false;
+  }
+
+  return null;
+}
+
+async function shouldUseSecureAdminCookie(): Promise<boolean> {
+  const configuredValue = readBooleanEnv(process.env.ADMIN_COOKIE_SECURE);
+  if (configuredValue !== null) {
+    return configuredValue;
+  }
+
+  const headerStore = await headers();
+  const forwardedProto = headerStore
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+
+  if (forwardedProto) {
+    return forwardedProto === "https";
+  }
+
+  const requestProto =
+    headerStore.get("x-forwarded-protocol") ??
+    headerStore.get("x-url-scheme") ??
+    headerStore.get("x-scheme");
+
+  if (requestProto) {
+    return requestProto.toLowerCase() === "https";
+  }
+
+  return false;
+}
 
 export type AdminUser = {
   id: string;
@@ -68,7 +115,7 @@ export async function loginAdmin(
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: await shouldUseSecureAdminCookie(),
     maxAge: 60 * 60 * 24 * 7,
   });
 

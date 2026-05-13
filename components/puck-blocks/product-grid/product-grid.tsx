@@ -6,6 +6,13 @@ import { Package } from "lucide-react";
 
 import { ProductCard } from "@/components/product-card";
 import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import {
   fetchCategoryProducts,
   type CategoryProductItem,
 } from "@/lib/category-catalog-api";
@@ -95,16 +102,20 @@ export function ProductGrid({
     void loadProducts();
   }, [loadProducts]);
 
-  const gridClassName = useMemo(
+  const carouselItemClassName = useMemo(
     () =>
       cn(
-        "grid gap-4 sm:grid-cols-2 lg:gap-5",
-        visibleCards === 4 && "lg:grid-cols-4",
-        visibleCards === 6 && "lg:grid-cols-3 xl:grid-cols-6",
-        visibleCards === 8 && "lg:grid-cols-4 xl:grid-cols-8",
+        "basis-1/2 pl-4 lg:pl-5",
+        visibleCards === 4 && "lg:basis-1/4",
+        visibleCards === 6 && "lg:basis-1/3 xl:basis-[16.666%]",
+        visibleCards === 8 && "lg:basis-1/4 xl:basis-[16.666%] 2xl:basis-[12.5%]",
       ),
     [visibleCards],
   );
+
+  const carouselContentClassName = "items-stretch -ml-4 lg:-ml-5";
+  const carouselButtonClassName =
+    "hidden border-border/70 bg-background/95 shadow-md backdrop-blur transition hover:bg-background sm:inline-flex";
 
   if (!normalizedCategoryId || normalizedCategoryId === "__none__") {
     return (
@@ -154,24 +165,32 @@ export function ProductGrid({
           {error}
         </div>
       ) : loading ? (
-        <div className={gridClassName}>
-          {Array.from({ length: visibleCards }).map((_, index) => (
-            <div
-              key={index}
-              className="aspect-[3/4] animate-pulse rounded-2xl bg-muted"
-            />
-          ))}
-        </div>
+        <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
+          <CarouselContent className={carouselContentClassName}>
+            {Array.from({ length: visibleCards }).map((_, index) => (
+              <CarouselItem key={index} className={carouselItemClassName}>
+                <div className="aspect-[3/4] h-full animate-pulse rounded-2xl bg-muted" />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className={cn("-left-3", carouselButtonClassName)} />
+          <CarouselNext className={cn("-right-3", carouselButtonClassName)} />
+        </Carousel>
       ) : products.length ? (
-        <div className={gridClassName}>
-          {products.slice(0, visibleCards).map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              categorySlug={category?.slug}
-            />
-          ))}
-        </div>
+        <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
+          <CarouselContent className={carouselContentClassName}>
+            {products.slice(0, visibleCards).map((product) => (
+              <CarouselItem
+                key={product.id}
+                className={cn(carouselItemClassName, "[&>article]:h-full")}
+              >
+                <ProductCard product={product} categorySlug={category?.slug} />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className={cn("-left-3", carouselButtonClassName)} />
+          <CarouselNext className={cn("-right-3", carouselButtonClassName)} />
+        </Carousel>
       ) : (
         <div className="rounded-2xl border border-border/60 bg-muted/20 py-16 text-center text-muted-foreground">
           <Package className="mx-auto mb-4 size-14" />
