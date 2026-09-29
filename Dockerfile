@@ -10,10 +10,10 @@ RUN npm i --legacy-peer-deps
 COPY . .
 
 # Build time environment variables
-ARG BACKEND_API_URL=http://fgmcapi-16-170-208-37.traefik.me
+ARG BACKEND_API_URL=http://fgmc-backend-xnkz3o-31d5bf-187-7-29-93.sslip.io/
 ENV BACKEND_API_URL=$BACKEND_API_URL
 
-ARG NEXT_PUBLIC_BACKEND_API_URL=http://fgmcapi-16-170-208-37.traefik.me
+ARG NEXT_PUBLIC_BACKEND_API_URL=http://fgmc-backend-xnkz3o-31d5bf-187-7-29-93.sslip.io/
 ENV NEXT_PUBLIC_BACKEND_API_URL=$NEXT_PUBLIC_BACKEND_API_URL
 # Build Next.js
 RUN npm run build
