@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
+import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ComponentType, KeyboardEvent, ReactNode, SVGProps } from "react";
 import countries from "world-countries";
 import {
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createClientAddress, deleteClientAddress, getClientAddresses, updateClientAddress } from "@/lib/api/orders";
 import {
   Select,
   SelectContent,
@@ -235,6 +236,54 @@ export function AdressesClient() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  useEffect(() => {
+    if (!session?.token) return;
+    let cancelled = false;
+    setLoadingAddresses(true);
+    void getClientAddresses(session.token)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const cached = parseAddresses(getAddressStorageSnapshot(currentStorageKey));
+        const cachedById = new Map(cached.map((address) => [address.id, address]));
+        const loaded: CustomerAddress[] = data.map((address, index) => {
+          const saved = cachedById.get(address.id);
+          const streetParts = address.street.split(",").map((part) => part.trim());
+          const timestamp = address.createdAt ?? new Date().toISOString();
+          return {
+            ...(saved ?? EMPTY_FORM),
+            id: address.id,
+            label: saved?.label ?? "Mon adresse",
+            kind: saved?.kind ?? "mixte",
+            firstName: saved?.firstName ?? session.user?.firstName ?? "",
+            lastName: saved?.lastName ?? session.user?.lastName ?? "",
+            company: saved?.company ?? session.user?.company ?? "",
+            phone: saved?.phone ?? "",
+            street: saved?.street ?? streetParts[0] ?? address.street,
+            apartment: saved?.apartment ?? streetParts.slice(1).join(", "),
+            city: address.City,
+            postalCode: address.zipCode,
+            country: address.country,
+            isDefault: saved?.isDefault ?? index === 0,
+            createdAt: saved?.createdAt ?? timestamp,
+            updatedAt: saved?.updatedAt ?? timestamp,
+          };
+        });
+        writeAddresses(currentStorageKey, normalizeAddresses(loaded));
+        setError(null);
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Impossible de charger vos adresses.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAddresses(false);
+      });
+    return () => { cancelled = true; };
+  }, [session?.token, session?.user?.firstName, session?.user?.lastName, session?.user?.company, currentStorageKey]);
 
   const addresses = useMemo(() => {
     return parseAddresses(rawAddresses);
@@ -282,7 +331,7 @@ export function AdressesClient() {
     setError(null);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setSuccess(null);
@@ -312,36 +361,49 @@ export function AdressesClient() {
       country: form.country.trim(),
     };
 
-    if (editingId) {
-      persist(
-        addresses.map((address) =>
+    setSavingAddress(true);
+    try {
+      const apiFields = {
+        country: cleanForm.country,
+        street: [cleanForm.street, cleanForm.apartment].filter(Boolean).join(", "),
+        City: cleanForm.city,
+        state: cleanForm.city || cleanForm.country,
+        zipCode: cleanForm.postalCode || "-",
+      };
+      const saved = session?.token
+        ? editingId
+          ? await updateClientAddress(session.token, editingId, apiFields)
+          : await createClientAddress(session.token, apiFields)
+        : null;
+
+      if (editingId) {
+        persist(addresses.map((address) =>
           address.id === editingId
             ? { ...address, ...cleanForm, updatedAt: now }
-            : cleanForm.isDefault
-              ? { ...address, isDefault: false }
-              : address,
-        ),
-      );
-      setSuccess("Adresse mise a jour.");
-    } else {
-      const nextAddress: CustomerAddress = {
-        id: createId(),
-        ...cleanForm,
-        isDefault: cleanForm.isDefault || addresses.length === 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      persist(
-        nextAddress.isDefault
+            : cleanForm.isDefault ? { ...address, isDefault: false } : address,
+        ));
+        setSuccess("Adresse mise a jour.");
+      } else {
+        const nextAddress: CustomerAddress = {
+          id: saved?.id ?? createId(),
+          ...cleanForm,
+          isDefault: cleanForm.isDefault || addresses.length === 0,
+          createdAt: saved?.createdAt ?? now,
+          updatedAt: saved?.createdAt ?? now,
+        };
+        persist(nextAddress.isDefault
           ? addresses.map((address) => ({ ...address, isDefault: false })).concat(nextAddress)
-          : addresses.concat(nextAddress),
-      );
-      setSuccess("Adresse ajoutee.");
+          : addresses.concat(nextAddress));
+        setSuccess("Adresse ajoutee.");
+      }
+      setForm(formFromSession(session));
+      setEditingId(null);
+      setIsFormOpen(false);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Impossible d'enregistrer l'adresse.");
+    } finally {
+      setSavingAddress(false);
     }
-
-    setForm(formFromSession(session));
-    setEditingId(null);
-    setIsFormOpen(false);
   }
 
   function handleSetDefault(id: string) {
@@ -354,7 +416,16 @@ export function AdressesClient() {
     setSuccess("Adresse par defaut mise a jour.");
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
+    if (session?.token) {
+      try {
+        await deleteClientAddress(session.token, id);
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "Impossible de supprimer l'adresse.");
+        setDeleteId(null);
+        return;
+      }
+    }
     const nextAddresses = addresses.filter((address) => address.id !== id);
     persist(nextAddresses);
     setDeleteId(null);
@@ -438,7 +509,11 @@ export function AdressesClient() {
                 </div>
               ) : null}
 
-              {addresses.length === 0 ? (
+              {session && loadingAddresses ? (
+                <p className="mb-4 rounded-md border border-border bg-white px-4 py-3 text-sm text-[#667085]">Chargement de vos adresses…</p>
+              ) : null}
+
+              {addresses.length === 0 && !loadingAddresses ? (
                 <EmptyState onCreate={startCreate} />
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -488,6 +563,7 @@ export function AdressesClient() {
                     onSubmit={handleSubmit}
                     onCancel={cancelForm}
                     onFieldChange={updateField}
+                    isSaving={savingAddress}
                   />
                 ) : (
                   <div className="rounded-md border border-dashed border-[#c8d0dc] bg-white p-5 text-sm leading-6 text-[#667085]">
@@ -637,11 +713,13 @@ function AddressForm({
   onSubmit,
   onCancel,
   onFieldChange,
+  isSaving,
 }: {
   form: AddressFormState;
   editingId: string | null;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  isSaving: boolean;
   onFieldChange: <K extends keyof AddressFormState>(
     key: K,
     value: AddressFormState[K],
@@ -749,14 +827,15 @@ function AddressForm({
       </label>
 
       <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-        <Button type="submit" className="h-11 flex-1">
+        <Button type="submit" className="h-11 flex-1" disabled={isSaving}>
           <Save className="size-4" />
-          {editingId ? "Enregistrer" : "Ajouter"}
+          {isSaving ? "Enregistrement…" : editingId ? "Enregistrer" : "Ajouter"}
         </Button>
         <Button
           type="button"
           variant="outline"
           className="h-11 flex-1"
+          disabled={isSaving}
           onClick={onCancel}>
           Annuler
         </Button>

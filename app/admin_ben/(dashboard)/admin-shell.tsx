@@ -85,7 +85,7 @@ const NAV_ITEMS = [
     icon: ColorIcon,
     subNavigationItems: [
       { label: "Header", url: "/admin_ben/apparence/header", icon: MenuHorizontalIcon },
-      { label: "Hero accueil", url: "/admin_ben/apparence/hero", icon: ImageIcon },
+      { label: "Accueil & hero", url: "/admin_ben/apparence/hero", icon: ImageIcon },
       { label: "Media", url: "/admin_ben/apparence/media", icon: ImageIcon },
     ],
   },

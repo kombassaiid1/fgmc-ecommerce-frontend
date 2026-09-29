@@ -24,11 +24,17 @@ export type HomeFeaturedProductsConfig = {
   categoryId: string | null;
 };
 
+export type HomePopularCategoriesConfig = {
+  title: string;
+  categoryIds: string[] | null;
+};
+
 export type HomeHeroConfig = {
   slides: HomeHeroSlide[];
   professionalsCategoryIds: string[] | null;
   individualsCategoryIds: string[] | null;
   featuredProducts: HomeFeaturedProductsConfig;
+  popularCategories: HomePopularCategoriesConfig;
 };
 
 export const DEFAULT_HOME_HERO_CONFIG: HomeHeroConfig = {
@@ -36,6 +42,7 @@ export const DEFAULT_HOME_HERO_CONFIG: HomeHeroConfig = {
   professionalsCategoryIds: null,
   individualsCategoryIds: null,
   featuredProducts: { title: "Meilleures ventes", categoryId: null },
+  popularCategories: { title: "Explore Popular Categories", categoryIds: null },
 };
 
 export type HeaderConfig = {
@@ -139,6 +146,14 @@ export function normalizeHomeHeroConfig(
         config.featuredProducts.categoryId.trim()
           ? config.featuredProducts.categoryId
           : null,
+    },
+    popularCategories: {
+      title:
+        typeof config.popularCategories?.title === "string" &&
+        config.popularCategories.title.trim()
+          ? config.popularCategories.title.trim()
+          : DEFAULT_HOME_HERO_CONFIG.popularCategories.title,
+      categoryIds: categories(config.popularCategories?.categoryIds),
     },
   };
 }

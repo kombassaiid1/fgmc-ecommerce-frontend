@@ -10,6 +10,7 @@ import { getCategories, type Category } from "@/lib/api/categories";
 import { getAdminHeaderSettings, updateHomeHeroConfig } from "@/lib/api/header";
 import { getImageUrl } from "@/lib/api";
 import { normalizeHomeHeroConfig, type HomeHeroConfig } from "@/lib/header-config";
+import { getDefaultPopularCategoryIds } from "@/lib/popular-category-defaults";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -54,6 +55,8 @@ export default function AdminHomeHeroPage() {
   });
   const config = draft ?? settingsQuery.data?.heroConfig ?? normalizeHomeHeroConfig(null);
   const allCategories = categoriesQuery.data ?? [];
+  const defaultPopularIds = useMemo(() => getDefaultPopularCategoryIds(allCategories), [allCategories]);
+  const popularCategoryIds = config.popularCategories.categoryIds ?? defaultPopularIds;
   const professionalsGroup = useMemo(() => groupCategories(allCategories, "professionnels"), [allCategories]);
   const individualsGroup = useMemo(() => groupCategories(allCategories, "particuliers"), [allCategories]);
 
@@ -108,8 +111,8 @@ export default function AdminHomeHeroPage() {
     <BlockStack gap="400">
       <InlineStack align="space-between" blockAlign="center">
         <BlockStack gap="100">
-          <Text as="h1" variant="headingLg">Homepage hero</Text>
-          <Text as="p" tone="subdued">Manage the image slider and the two category panels on the home page.</Text>
+          <Text as="h1" variant="headingLg">Homepage sections</Text>
+          <Text as="p" tone="subdued">Manage the home page slider, category panels, popular categories, and product carousel.</Text>
         </BlockStack>
         <Button icon={SaveIcon} variant="primary" onClick={() => void save()} loading={saving}>Save and publish</Button>
       </InlineStack>
@@ -180,6 +183,53 @@ export default function AdminHomeHeroPage() {
               },
             })}
           />
+        </BlockStack>
+      </Card>
+
+      <Card>
+        <BlockStack gap="400">
+          <BlockStack gap="100">
+            <Text as="h2" variant="headingMd">Popular categories</Text>
+            <Text as="p" tone="subdued">Choose which categories appear in the circular carousel on the storefront, and set their order.</Text>
+          </BlockStack>
+          <TextField
+            label="Section title"
+            value={config.popularCategories.title}
+            onChange={(title) => update({ ...config, popularCategories: { ...config.popularCategories, title } })}
+            autoComplete="off"
+          />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <BlockStack gap="200">
+              <Text as="h3" variant="headingSm">Available categories</Text>
+              {allCategories.length === 0 ? <Text as="p" tone="subdued">No categories found.</Text> : allCategories.map((category) => (
+                <Checkbox
+                  key={category.id}
+                  label={category.title}
+                  checked={popularCategoryIds.includes(category.id)}
+                  onChange={(checked) => {
+                    const ids = checked
+                      ? [...popularCategoryIds, category.id].filter((id, index, values) => values.indexOf(id) === index)
+                      : popularCategoryIds.filter((id) => id !== category.id);
+                    update({ ...config, popularCategories: { ...config.popularCategories, categoryIds: ids } });
+                  }}
+                />
+              ))}
+            </BlockStack>
+            <BlockStack gap="200">
+              <Text as="h3" variant="headingSm">Visible order</Text>
+              {popularCategoryIds.length === 0 ? <Text as="p" tone="subdued">No popular categories selected.</Text> : popularCategoryIds.map((id, index) => {
+                const category = allCategories.find((item) => item.id === id);
+                if (!category) return null;
+                return <InlineStack key={id} align="space-between" blockAlign="center">
+                  <Text as="span">{index + 1}. {category.title}</Text>
+                  <InlineStack gap="100">
+                    <Button icon={ArrowUpIcon} accessibilityLabel={`Move ${category.title} up`} disabled={index === 0} onClick={() => update({ ...config, popularCategories: { ...config.popularCategories, categoryIds: moveItem(popularCategoryIds, index, -1) } })} />
+                    <Button icon={ArrowDownIcon} accessibilityLabel={`Move ${category.title} down`} disabled={index === popularCategoryIds.length - 1} onClick={() => update({ ...config, popularCategories: { ...config.popularCategories, categoryIds: moveItem(popularCategoryIds, index, 1) } })} />
+                  </InlineStack>
+                </InlineStack>;
+              })}
+            </BlockStack>
+          </div>
         </BlockStack>
       </Card>
 

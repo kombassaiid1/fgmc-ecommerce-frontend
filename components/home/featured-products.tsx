@@ -45,7 +45,10 @@ export function FeaturedProducts() {
     (category) => category.id === categoryId,
   );
 
-  if (!settingsQuery.data || (!productsQuery.isLoading && products.length === 0)) {
+  if (
+    !settingsQuery.data ||
+    (!productsQuery.isLoading && products.length === 0)
+  ) {
     return null;
   }
 
@@ -67,15 +70,17 @@ export function FeaturedProducts() {
     <section
       className="bg-[#f2f5fa] px-4 py-7 sm:px-6 lg:py-9"
       aria-labelledby="featured-products-title">
-      <div className="mx-auto max-w-[1550px]">
+      <div className="mx-auto max-w-387.5!">
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h2
               id="featured-products-title"
-              className="text-2xl font-extrabold uppercase tracking-wide text-[#0a224f] sm:text-3xl">
+              className="text-2xl! font-extrabold uppercase tracking-wide text-[#0a224f] sm:text-3xl!">
               {title}
             </h2>
-            <div className="mt-2 flex h-1 w-16 overflow-hidden rounded-full" aria-hidden="true">
+            <div
+              className="mt-2 flex h-1 w-16 overflow-hidden rounded-full"
+              aria-hidden="true">
               <span className="w-1/2 bg-[#0a224f]" />
               <span className="w-1/2 bg-[#d6202e]" />
             </div>
@@ -84,7 +89,10 @@ export function FeaturedProducts() {
             <Link
               href={viewAllHref}
               className="hidden min-h-11 items-center px-2 text-xs font-bold uppercase text-[#153675] hover:text-[#d6202e] sm:inline-flex">
-              Voir tout <span className="ml-1" aria-hidden="true">→</span>
+              Voir tout{" "}
+              <span className="ml-1" aria-hidden="true">
+                →
+              </span>
             </Link>
             <button
               type="button"
@@ -105,7 +113,7 @@ export function FeaturedProducts() {
 
         <div
           ref={trackRef}
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-3 [scrollbar-width:thin]">
+          className="flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto scroll-smooth pb-3 [scrollbar-width:thin]">
           {productsQuery.isLoading
             ? Array.from({ length: 6 }, (_, index) => (
                 <div
@@ -121,15 +129,18 @@ export function FeaturedProducts() {
             : products.map((product) => (
                 <div
                   key={product.id}
-                  className="w-[78%] shrink-0 snap-start sm:w-[calc((100%_-_1rem)_/_2)] lg:w-[calc((100%_-_3rem)_/_4)] xl:w-[calc((100%_-_5rem)_/_6)]">
-                  <ProductCard product={product} />
+                  className="flex w-[78%] shrink-0 snap-start sm:w-[calc((100%_-_1rem)_/_2)] lg:w-[calc((100%_-_3rem)_/_4)] xl:w-[calc((100%_-_5rem)_/_6)]">
+                  <ProductCard product={product} variant="featured" />
                 </div>
               ))}
         </div>
         <Link
           href={viewAllHref}
           className="mt-2 inline-flex min-h-11 items-center text-xs font-bold uppercase text-[#153675] hover:text-[#d6202e] sm:hidden">
-          Voir tout <span className="ml-1" aria-hidden="true">→</span>
+          Voir tout{" "}
+          <span className="ml-1" aria-hidden="true">
+            →
+          </span>
         </Link>
       </div>
     </section>

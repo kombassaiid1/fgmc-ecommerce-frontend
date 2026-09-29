@@ -41,7 +41,7 @@ export type ProductCardProduct = {
   createdAt?: string;
 };
 
-export type ProductCardVariant = "grid" | "list";
+export type ProductCardVariant = "grid" | "list" | "featured";
 
 function buildProductHref(categorySlug: string | undefined, productSlug: string): string {
   const cat = (categorySlug ?? "").trim().replace(/^\/+|\/+$/g, "");
@@ -129,6 +129,7 @@ export function ProductCard({
       className={cn(
         "group overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all duration-300 hover:border-primary/20 hover:shadow-md",
         variant === "list" && "flex",
+        variant === "featured" && "flex h-full flex-col",
       )}>
       <Link
         href={href}
@@ -139,7 +140,7 @@ export function ProductCard({
         <div
           className={cn(
             "relative overflow-hidden bg-muted/50",
-            variant === "list" ? "h-full w-full" : "aspect-square",
+          variant === "list" ? "h-full w-full" : "aspect-square",
           )}>
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -147,7 +148,10 @@ export function ProductCard({
               src={imageUrl}
               alt={product.title}
               loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className={cn(
+                "h-full w-full transition-transform duration-300 group-hover:scale-[1.02]",
+                variant === "featured" ? "bg-white object-cover" : "object-cover",
+              )}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
@@ -157,23 +161,27 @@ export function ProductCard({
         </div>
       </Link>
 
-      <div className={cn("p-4", variant === "list" && "min-w-0 flex-1")}>
+      <div className={cn(
+        "p-4",
+        variant === "list" && "min-w-0 flex-1",
+        variant === "featured" && "flex flex-1 flex-col",
+      )}>
         <Link href={href} className="block">
           {categoryLabel ? (
-            <p className="mb-1 line-clamp-1 text-xs font-medium text-muted-foreground">
+            <p className={cn("mb-1 line-clamp-1 text-xs font-medium text-muted-foreground", variant === "featured" && "min-h-4")}>
               {categoryLabel}
             </p>
-          ) : null}
-          <h3 className="line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-primary sm:text-base">
+          ) : variant === "featured" ? <p className="mb-1 min-h-4" aria-hidden="true" /> : null}
+          <h3 className={cn("line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-primary sm:text-base", variant === "featured" && "min-h-10")}>
             {product.title}
           </h3>
           {hasDiscount ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className={cn("mt-2 flex flex-wrap items-center gap-2", variant === "featured" && "min-h-5")}>
               <span className="rounded bg-[#d6202e] px-1.5 py-0.5 text-[10px] font-bold text-white">-{discountPercent}%</span>
               <span className="text-xs text-muted-foreground line-through">{formatEur(originalTtc)} TTC</span>
             </div>
-          ) : null}
-          <p className="mt-1 text-sm font-semibold tabular-nums sm:text-base">
+          ) : variant === "featured" ? <div className="mt-2 min-h-5" aria-hidden="true" /> : null}
+          <p className={cn("mt-1 text-sm font-semibold tabular-nums sm:text-base", variant === "featured" && "whitespace-nowrap text-[13px]")}>
             <span className={hasDiscount ? "text-[#d6202e]" : "text-foreground"}>{formatEur(ttc)} TTC</span>
             <span className="text-muted-foreground"> - </span>
             <span className="text-[#0858B1]">{formatEur(displayedHt)} HT</span>
