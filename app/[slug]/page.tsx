@@ -4,8 +4,6 @@ import {
   HydrationBoundary,
   dehydrate,
 } from "@tanstack/react-query";
-import { fetchPageBySlug } from "@/lib/pages-api";
-import { StorefrontClient } from "@/components/storefront-client";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
 import {
   categoryFiltersQueryKey,
@@ -98,17 +96,13 @@ const defaultProductsParams = {
 /**
  * Category product page: /categorie-produit/[slug]
  *
- * - If a page with slug "categorie-produit/[slug]" exists in the builder, that
- *   custom page is rendered (so you can edit its UI/UX in the page builder).
- * - Otherwise, the default category page is shown (category header + products).
+ * Category pages are implemented in code and use the default catalog layout.
  */
 export default async function CategoryProductPage({ params }: Props) {
   const { slug } = await params;
-  const pageSlug = `categorie-produit/${slug}`;
   const slugTrim = slug?.trim() ?? "";
 
-  const [customPageResult, filtersResult, productsResult] = await Promise.all([
-    fetchPageBySlug(pageSlug).catch(() => null),
+  const [filtersResult, productsResult] = await Promise.all([
     slugTrim
       ? fetchCategoryFilters(slugTrim).catch(() => null)
       : Promise.resolve(null),
@@ -119,17 +113,6 @@ export default async function CategoryProductPage({ params }: Props) {
         }).catch(() => null)
       : Promise.resolve(null),
   ]);
-
-  const customPage = customPageResult;
-  const hasCustomPage =
-    customPage != null &&
-    (customPage.updatedAt != null ||
-      (Array.isArray(customPage.data?.content) &&
-        customPage.data.content.length > 0));
-
-  if (hasCustomPage && customPage?.data) {
-    return <StorefrontClient pageName={pageSlug} initialData={customPage} />;
-  }
 
   const queryClient = new QueryClient();
   if (slugTrim && filtersResult != null) {

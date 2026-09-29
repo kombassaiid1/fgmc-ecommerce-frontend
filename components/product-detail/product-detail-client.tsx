@@ -1,32 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Minus,
   Package,
   Plus,
+  ShieldCheck,
   ShoppingCart,
   Star,
-  X,
+  Truck,
 } from "lucide-react";
 
-import type { ProductDetailsResponse } from "@/lib/product-details-api";
+import { fetchProductReviews, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
 import { getImageUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { resolveSpecificPrice } from "@/lib/specific-pricing";
 import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { ProductCard, type ProductCardProduct } from "@/components/product-card";
+import { getProductById, getProducts } from "@/lib/api/products";
 import { toast } from "sonner";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 
 function parsePrice(value: string | null | undefined): number {
   const n = parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
@@ -96,10 +94,47 @@ function optionKey(options: Array<{ attributeId: string; termId: string }>) {
 export function ProductDetailClient({ categorySlug, product }: Props) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const router = useRouter();
+  const [productReviews, setProductReviews] = useState<ProductReviewsResponse | null>(null);
+  const [recommendationTab, setRecommendationTab] = useState<"similar" | "spareParts">("similar");
+  const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
+  const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
   const addItem = useCartStore((s) => s.addItem);
   const [tab, setTab] = useState<"description" | "details" | "comments">(
     "description",
   );
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchProductReviews(product.id)
+      .then((data) => { if (active) setProductReviews(data); })
+      .catch(() => { if (active) setProductReviews(null); });
+    return () => { active = false; };
+  }, [product.id]);
+
+  useEffect(() => {
+    let active = true;
+    const categoryId = product.categories?.find((entry) => entry.category?.slug === categorySlug)?.categoryId
+      ?? product.categories?.[0]?.categoryId;
+    if (categoryId) {
+      getProducts({ page: 1, limit: 12, categoryId, includeDescendants: true, status: "PUBLIC" })
+        .then((result) => {
+          if (active) setSimilarProducts(result.data.filter((item) => item.id !== product.id));
+        })
+        .catch(() => { if (active) setSimilarProducts([]); });
+    } else {
+      setSimilarProducts([]);
+    }
+
+    const ids = (product.sparePartIds ?? []).filter((id) => id !== product.id);
+    Promise.allSettled(ids.map((id) => getProductById(id)))
+      .then((results) => {
+        if (!active) return;
+        setSpareParts(results.flatMap((result) => result.status === "fulfilled" && result.value.status === "PUBLIC" ? [result.value] : []));
+      });
+    return () => { active = false; };
+  }, [categorySlug, product.categories, product.id, product.sparePartIds]);
 
   const images = product.images ?? [];
   const selectedImageUrl = images[selectedImageIndex]
@@ -225,11 +260,17 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     selectedOptionByAttributeId,
   ]);
 
-  const displayedHt = hasCombinaisons
+  const originalHt = hasCombinaisons
     ? parsePrice(selectedCombinaison?.price ?? product.price)
     : parsePrice(product.price);
   const vat = rateToFraction(product.taxRelation?.rate);
-  const displayedTtc = displayedHt * (1 + vat);
+  const originalTtc = originalHt * (1 + vat);
+  const displayedTtc = resolveSpecificPrice(product.specificPrices, originalHt, vat, quantity).saleTtc;
+  const hasDiscount = displayedTtc < originalTtc;
+  const displayedHt = displayedTtc / (1 + vat);
+  const discountPercent = originalTtc > 0
+    ? Math.min(100, Math.max(1, Math.round(((originalTtc - displayedTtc) / originalTtc) * 100)))
+    : 0;
 
   const displayedStockStatus = hasCombinaisons
     ? (selectedCombinaison?.stockStatus ?? product.stockStatus)
@@ -275,12 +316,8 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     );
   }, [product.attributes]);
 
-  const reviewCount = product?.["reviewCount" as never] as unknown as
-    | number
-    | undefined;
-  const ratingScore = product?.["reviewRating" as never] as unknown as
-    | number
-    | undefined;
+  const reviewCount = productReviews?.total ?? product.reviewCount;
+  const ratingScore = productReviews?.avgRating || product.reviewRating;
 
   return (
     <main className="min-h-screen! bg-muted/30">
@@ -309,159 +346,57 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
 
         <section>
           <div className="grid gap-5 lg:grid-cols-2">
-            {/* Left: Image gallery */}
-            <div className="">
-              <div className="relative rounded-xl">
-                <div className="flex flex-col items-center gap-5 lg:flex-row lg:items-stretch lg:justify-center lg:gap-4">
+            {/* Product image gallery */}
+            <div className="lg:sticky lg:top-24 lg:self-start">
+              <div className="relative mx-auto w-full overflow-hidden rounded-2xl border border-slate-200 bg-[#f8fafc] shadow-sm lg:max-w-[680px]">
+                <div className="relative aspect-square w-full">
+                  {selectedImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selectedImageUrl} alt={product.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-slate-400"><Package className="size-20" /></div>
+                  )}
+
                   {images.length > 1 ? (
-                    <div className="order-2 flex items-center justify-center lg:order-1">
-                      {/* Mobile: horizontal carousel */}
-                      <div className="w-full max-w-[340px] lg:hidden">
-                        <Carousel opts={{ align: "center", dragFree: true }}>
-                          <CarouselContent>
+                    <>
+                      <div className="absolute inset-x-4 top-4 z-10 flex gap-1.5" aria-hidden="true">
+                        {images.slice(0, 6).map((image, index) => (
+                          <span key={`${image}-indicator-${index}`} className={cn("h-1 flex-1 rounded-full", index === selectedImageIndex ? "bg-[#153675]" : "bg-slate-300/80")} />
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => setSelectedImageIndex((prev) => prev === 0 ? images.length - 1 : prev - 1)} className="absolute left-3 top-1/2 z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-white/90 text-slate-700 shadow-md transition hover:bg-white" aria-label="Image précédente">
+                        <ChevronLeft className="size-5" />
+                      </button>
+                      <button type="button" onClick={() => setSelectedImageIndex((prev) => prev === images.length - 1 ? 0 : prev + 1)} className="absolute right-3 top-1/2 z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-white/90 text-slate-700 shadow-md transition hover:bg-white" aria-label="Image suivante">
+                        <ChevronRight className="size-5" />
+                      </button>
+                      <span className="absolute right-4 top-4 rounded-full bg-slate-900/65 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                        {String(selectedImageIndex + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}
+                      </span>
+                      <div className="absolute inset-x-3 bottom-3 z-10 flex justify-center">
+                        <div className="max-w-full overflow-x-auto rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md">
+                          <div className="flex gap-2">
                             {images.map((img, idx) => {
-                              const url = getImageUrl(img);
                               const active = idx === selectedImageIndex;
                               return (
-                                <CarouselItem
-                                  key={`${img}-${idx}`}
-                                  className="basis-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedImageIndex(idx)}
-                                    className={cn(
-                                      "h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-white",
-                                      active
-                                        ? "border-slate-800 ring-2 ring-slate-900/10"
-                                        : "border-slate-200 hover:border-slate-400",
-                                    )}
-                                    aria-pressed={active}>
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={url}
-                                      alt=""
-                                      className="h-full w-full object-contain"
-                                      loading="lazy"
-                                    />
-                                  </button>
-                                </CarouselItem>
+                                <button key={`${img}-${idx}`} type="button" onClick={() => setSelectedImageIndex(idx)} className={cn("size-16 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition sm:size-[76px]", active ? "border-[#2456b1] ring-2 ring-[#2456b1]/20" : "border-transparent opacity-75 hover:border-slate-300 hover:opacity-100")} aria-label={`Afficher l’image ${idx + 1}`} aria-pressed={active}>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={getImageUrl(img)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                </button>
                               );
                             })}
-                          </CarouselContent>
-                          <CarouselPrevious className="-left-10" />
-                          <CarouselNext className="-right-10" />
-                        </Carousel>
+                          </div>
+                        </div>
                       </div>
-
-                      {/* Desktop: vertical carousel */}
-                      <div className="hidden lg:block">
-                        <Carousel
-                          orientation="vertical"
-                          opts={{ align: "start", dragFree: true }}
-                          className="w-[76px]">
-                          <CarouselContent className="max-h-[292px]">
-                            {images.map((img, idx) => {
-                              const url = getImageUrl(img);
-                              const active = idx === selectedImageIndex;
-                              return (
-                                <CarouselItem
-                                  key={`${img}-${idx}`}
-                                  className="basis-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedImageIndex(idx)}
-                                    className={cn(
-                                      "h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-white",
-                                      active
-                                        ? "border-slate-800 ring-2 ring-slate-900/10"
-                                        : "border-slate-200 hover:border-slate-400",
-                                    )}
-                                    aria-pressed={active}>
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={url}
-                                      alt=""
-                                      className="h-full w-full object-contain"
-                                      loading="lazy"
-                                    />
-                                  </button>
-                                </CarouselItem>
-                              );
-                            })}
-                          </CarouselContent>
-                          <CarouselPrevious className="-top-10" />
-                          <CarouselNext className="-bottom-10" />
-                        </Carousel>
-                      </div>
-                    </div>
+                    </>
                   ) : null}
-
-                  <div className="order-1 relative mx-auto aspect-4/3 w-full overflow-hidden lg:order-2">
-                    {selectedImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={selectedImageUrl}
-                        alt={product.title}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-slate-400">
-                        <Package className="size-20" />
-                      </div>
-                    )}
-
-                    {images.length > 1 ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedImageIndex((prev) =>
-                              prev === 0 ? images.length - 1 : prev - 1,
-                            )
-                          }
-                          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow ring-1 ring-slate-200 hover:bg-white"
-                          aria-label="Previous image">
-                          <ChevronLeft className="size-6 text-slate-600" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedImageIndex((prev) =>
-                              prev === images.length - 1 ? 0 : prev + 1,
-                            )
-                          }
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow ring-1 ring-slate-200 hover:bg-white"
-                          aria-label="Next image">
-                          <ChevronRight className="size-6 text-slate-600" />
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
                 </div>
               </div>
             </div>
-
             {/* Right: Info & actions */}
-            <div className="p-6 lg:p-10 rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="mx-auto max-w-xl text-center">
-                {typeof ratingScore === "number" &&
-                typeof reviewCount === "number" &&
-                reviewCount > 0 ? (
-                  <div className="mx-auto mb-5 inline-flex items-center gap-1 rounded-full bg-slate-50 px-4 py-2 shadow-sm ring-1 ring-slate-200">
-                    <div className="flex items-center gap-0.5 text-amber-400">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star
-                          key={s}
-                          className={cn(
-                            "size-5",
-                            ratingScore >= s ? "fill-current" : "",
-                          )}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-10">
+              <div className="mx-auto max-w-xl text-left">
+                {product.brand?.title ? <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#2456b1]">{product.brand.title}</p> : null}
                 <h1 className="text-2xl! font-semibold! tracking-tight! text-slate-900! sm:text-3xl!">
                   {product.title}
                 </h1>
@@ -474,80 +409,93 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 ) : null}
                 {product.shortDescription?.trim() ? (
                   <div
-                    className="mx-auto mt-3 max-w-prose text-sm text-slate-600"
+                    className="mt-3 max-w-prose text-sm text-slate-600"
                     dangerouslySetInnerHTML={{
                       __html: product.shortDescription.trim(),
                     }}
                   />
                 ) : null}
 
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                  {typeof ratingScore === "number" && reviewCount != null && reviewCount > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 text-slate-700">
+                      <Star className="size-4 fill-amber-400 text-amber-400" />
+                      <span className="font-semibold">{ratingScore.toFixed(1)}</span>
+                      <span className="text-slate-500">({reviewCount} avis)</span>
+                    </span>
+                  ) : null}
+                  <span className={cn("inline-flex items-center gap-2", stockBadgeLabel === "Rupture de stock" ? "text-rose-700" : "text-emerald-700")}>
+                    <span className={cn("size-2 rounded-full", stockBadgeLabel === "Rupture de stock" ? "bg-rose-500" : "bg-emerald-500")} />
+                    <span className="font-medium">{stockBadgeLabel}</span>
+                    {stockBadgeLabel === "En stock" ? <span className="text-slate-500">— expédié sous 48–72 h</span> : null}
+                  </span>
+                </div>
+
+                <div className="mt-5 rounded-xl border border-[#dce5f2] bg-[#f7f9fd] p-4 text-left sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e1e8f2] pb-3">
+                    {hasDiscount ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-[#d6202e] px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                        Promo <span>-{discountPercent}%</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold uppercase tracking-wide text-[#536784]">Prix du produit</span>
+                    )}
+                    {hasDiscount ? (
+                      <span className="text-sm text-slate-500 line-through">
+                        {originalTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} TTC
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-end justify-between gap-3 pt-3">
+                    <div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-bold tracking-tight text-[#d6202e] sm:text-4xl">
+                          {displayedTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"}
+                        </span>
+                        <span className="text-sm font-semibold text-[#536784]">TTC</span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#536784]">
+                        soit <strong className="font-semibold text-[#142c5b]">{displayedHt.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} HT</strong>
+                      </p>
+                    </div>
+                    {hasDiscount ? (
+                      <p className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-[#153675] ring-1 ring-[#e1e8f2]">
+                        Vous &eacute;conomisez <strong>{(originalTtc - displayedTtc).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} TTC</strong>
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
                 {hasCombinaisons && optionGroups.length > 0 ? (
-                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    {optionGroups.slice(0, 3).map((group) => {
-                      const value =
-                        selectedOptionByAttributeId[group.attributeId] ??
-                        group.terms[0]?.termId ??
-                        "";
+                  <div className="mt-5 space-y-4">
+                    {optionGroups.map((group) => {
+                      const value = selectedOptionByAttributeId[group.attributeId] ?? group.terms[0]?.termId ?? "";
                       return (
-                        <div key={group.attributeId} className="text-left">
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">
-                            {group.attributeName}
-                          </label>
-                          <select
-                            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                            value={value}
-                            onChange={(e) =>
-                              (setSelectedOptionByAttributeId((prev) => ({
-                                ...prev,
-                                [group.attributeId]: e.target.value,
-                              })),
-                              setQuantity(1))
-                            }>
-                            {group.terms.map((t) => (
-                              <option key={t.termId} value={t.termId}>
-                                {t.termName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <fieldset key={group.attributeId}>
+                          <legend className="mb-2 text-sm font-medium text-slate-800">{group.attributeName}</legend>
+                          <div className="flex flex-wrap gap-2">
+                            {group.terms.map((term) => {
+                              const active = value === term.termId;
+                              return (
+                                <button key={term.termId} type="button" aria-pressed={active}
+                                  className={cn("min-h-10 rounded-full border px-4 text-sm transition", active ? "border-[#153675] bg-[#153675] text-white" : "border-slate-200 bg-white text-slate-700 hover:border-[#2456b1]")}
+                                  onClick={() => {
+                                    setSelectedOptionByAttributeId((prev) => ({ ...prev, [group.attributeId]: term.termId }));
+                                    setQuantity(1);
+                                  }}>
+                                  {term.termName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
                       );
                     })}
                   </div>
                 ) : null}
 
-                <div className="mt-8">
-                  <div className="text-3xl font-semibold text-rose-600">
-                    {displayedTtc.toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    €
-                    <span className="text-base font-medium text-slate-500">
-                      {" "}
-                      TTC
-                    </span>
-                  </div>
-                  <div className="mt-1 text-lg text-slate-500">
-                    {displayedHt.toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    € HT
-                  </div>
-                </div>
-
-                <div className="mt-4 inline-flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200">
-                  {stockBadgeLabel === "En stock" ? (
-                    <Check className="size-5 text-emerald-600" />
-                  ) : stockBadgeLabel === "Rupture de stock" ? (
-                    <X className="size-5 text-rose-600" />
-                  ) : (
-                    <Package className="size-5 text-slate-500" />
-                  )}
-                  {stockBadgeLabel}
-                </div>
-
-                <div className="mt-7 flex items-center justify-center gap-4">
+                <div className="mt-5">
+                  <p className="mb-2 text-sm font-medium text-slate-800">Quantité</p>
+                  <div className="flex items-center justify-start gap-3">
                   <div className="flex items-center rounded-md border border-slate-200 bg-white shadow-sm">
                     <button
                       type="button"
@@ -579,7 +527,9 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                       <Plus className="size-5" />
                     </button>
                   </div>
+                  </div>
 
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     disabled={maxPurchasableQty != null && maxPurchasableQty <= 0}
@@ -592,11 +542,8 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                           image: product.images?.[0] ?? null,
                           categorySlug: categorySlug ?? null,
                           variantId: selectedCombinaison?.id ?? null,
-                          price: String(
-                            hasCombinaisons
-                              ? selectedCombinaison?.price ?? product.price
-                              : product.price,
-                          ),
+                          price: String(displayedHt),
+                          taxRate: product.taxRelation?.rate ?? null,
                         },
                         effectiveQuantity,
                       );
@@ -604,12 +551,38 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                         description: `${effectiveQuantity} × ${product.title}`,
                       });
                     }}
-                    className={cn(
-                      "inline-flex h-11 items-center gap-2 rounded-md bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60",
-                    )}>
+                    className="inline-flex h-12 min-w-[180px] flex-1 items-center justify-center gap-2 rounded-full bg-[#153675] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2456b1] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
                     <ShoppingCart className="size-5" />
                     Ajouter au panier
                   </button>
+                  <button
+                    type="button"
+                    disabled={maxPurchasableQty != null && maxPurchasableQty <= 0}
+                    onClick={() => {
+                      addItem(
+                        {
+                          productId: product.id,
+                          productSlug: product.slug,
+                          title: product.title,
+                          image: product.images?.[0] ?? null,
+                          categorySlug: categorySlug ?? null,
+                          variantId: selectedCombinaison?.id ?? null,
+                          price: String(displayedHt),
+                          taxRate: product.taxRelation?.rate ?? null,
+                        },
+                        effectiveQuantity,
+                      );
+                      router.push("/checkout");
+                    }}
+                    className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:border-[#153675] hover:text-[#153675] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
+                    Acheter maintenant
+                  </button>
+                  </div>
+                </div>
+                <div className="mt-6 grid gap-3 border-t border-slate-200 pt-5 text-xs text-slate-600 sm:grid-cols-3">
+                  <div className="flex items-start gap-2"><Truck className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Livraison France &amp; Europe<br /><strong className="font-semibold text-slate-800">48-72 h</strong></span></div>
+                  <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Garantie &amp; SAV<br /><strong className="font-semibold text-slate-800">Atelier agr&eacute;&eacute;</strong></span></div>
+                  <div className="flex items-start gap-2"><CreditCard className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Paiement s&eacute;curis&eacute;<br /><strong className="font-semibold text-slate-800">Options au panier</strong></span></div>
                 </div>
               </div>
             </div>
@@ -618,7 +591,9 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
 
         <hr className="my-12 border-slate-200" />
 
-        {/* Tabs (same style as requested) */}
+        <section className="grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]" id="product-reviews">
+        <div>
+        {/* Product information */}
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 pt-2">
             <button
@@ -643,26 +618,28 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
               )}>
               Détail de produit
             </button>
-            <button
-              type="button"
-              onClick={() => setTab("comments")}
-              className={cn(
-                "rounded-t-xl border border-transparent px-4 py-2 text-sm font-semibold transition",
-                tab === "comments"
-                  ? "border-slate-200 bg-white text-slate-900"
-                  : "text-slate-500 hover:text-slate-900",
-              )}>
-              Commentaires
-            </button>
           </div>
 
           <div className="px-5 py-6">
             {tab === "description" ? (
               product.description?.trim() ? (
-                <RichTextDisplay
-                  content={product.description}
-                  className="text-slate-600"
-                />
+                <>
+                  <div className={cn("overflow-hidden transition-[max-height] duration-300", !descriptionExpanded && "max-h-40")}>
+                    <RichTextDisplay
+                      content={product.description}
+                      className="text-slate-600"
+                    />
+                  </div>
+                  {product.description.replace(/<[^>]*>/g, " ").trim().length > 500 ? (
+                    <button
+                      type="button"
+                      onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+                      aria-expanded={descriptionExpanded}
+                      className="mt-3 text-sm font-semibold text-[#153675] underline-offset-4 hover:underline">
+                      {descriptionExpanded ? "Voir moins" : "Voir plus"}
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-sm text-slate-500">Aucune description.</p>
               )
@@ -705,6 +682,65 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 </p>
               </div>
             ) : null}
+          </div>
+        </section>
+        </div>
+
+        <aside className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <h2 className="border-b border-slate-200 px-5 py-4 text-base font-semibold text-slate-900">Avis clients</h2>
+          <div className="grid grid-cols-[auto_1fr] gap-5 p-5">
+            <div className="min-w-24 text-center">
+              <div className="text-5xl font-semibold tracking-tight text-slate-900">{productReviews?.total ? productReviews.avgRating.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "—"}<span className="text-lg font-normal text-slate-400">/5</span></div>
+              <p className="mt-1 text-xs text-slate-500">({productReviews?.total ?? 0} avis)</p>
+            </div>
+            <div className="space-y-2 pt-1">
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = productReviews?.distribution[star as 1 | 2 | 3 | 4 | 5] ?? 0;
+                const percentage = productReviews?.total ? (count / productReviews.total) * 100 : 0;
+                return <div key={star} className="flex items-center gap-2 text-xs"><span className="flex w-7 items-center gap-1 text-slate-600">{star}<Star className="size-3 fill-amber-400 text-amber-400" /></span><span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-amber-400" style={{ width: `${percentage}%` }} /></span><span className="w-5 text-right text-slate-500">{count}</span></div>;
+              })}
+            </div>
+          </div>
+          <div className="max-h-[460px] divide-y divide-slate-200 overflow-y-auto px-5">
+            {productReviews?.reviews.length ? productReviews.reviews.map((review) => (
+              <article key={review.id} className="py-4">
+                <div className="flex items-center gap-1 text-amber-400" aria-label={`${review.rating} sur 5`}>{[1, 2, 3, 4, 5].map((star) => <Star key={star} className={cn("size-4", review.rating >= star ? "fill-current" : "text-slate-200")} />)}</div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{review.review}</p>
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-500"><span className="font-medium text-slate-700">{review.name}</span><time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString("fr-FR")}</time></div>
+              </article>
+            )) : <p className="py-5 text-sm text-slate-500">Aucun avis client pour le moment.</p>}
+          </div>
+        </aside>
+        </section>
+
+        <section className="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+            <h2 className="text-lg font-semibold text-slate-900">À découvrir aussi</h2>
+            <div className="flex rounded-full bg-slate-100 p-1" role="tablist" aria-label="Produits associés">
+              <button type="button" role="tab" aria-selected={recommendationTab === "similar"}
+                onClick={() => setRecommendationTab("similar")}
+                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "similar" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                Produits similaires
+              </button>
+              <button type="button" role="tab" aria-selected={recommendationTab === "spareParts"}
+                onClick={() => setRecommendationTab("spareParts")}
+                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "spareParts" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                Pièces de rechange
+              </button>
+            </div>
+          </div>
+          <div className="p-4 sm:p-6">
+            {(recommendationTab === "similar" ? similarProducts : spareParts).length ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                {(recommendationTab === "similar" ? similarProducts : spareParts).slice(0, 6).map((relatedProduct) => (
+                  <ProductCard key={relatedProduct.id} product={relatedProduct} categorySlug={categorySlug} />
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-500">
+                {recommendationTab === "similar" ? "Aucun autre produit disponible dans cette catégorie." : "Aucune pièce de rechange associée à ce produit."}
+              </p>
+            )}
           </div>
         </section>
       </div>

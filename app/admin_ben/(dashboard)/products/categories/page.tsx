@@ -28,6 +28,7 @@ import {
   DeleteIcon,
   EditIcon,
   PlusCircleIcon,
+  ProductAddIcon,
 } from "@shopify/polaris-icons";
 
 import {
@@ -657,6 +658,13 @@ export default function AdminProductCategoriesPage() {
                     <IndexTable.Cell>{item._count?.subcategories ?? 0}</IndexTable.Cell>
                     <IndexTable.Cell>
                       <InlineStack gap="100" align="end" blockAlign="center">
+                        <Tooltip content="Ajouter un produit">
+                          <Button
+                            icon={ProductAddIcon}
+                            accessibilityLabel={`Ajouter un produit dans ${item.title}`}
+                            url={`/admin_ben/products/add_product?categoryId=${encodeURIComponent(item.id)}`}
+                          />
+                        </Tooltip>
                         <Tooltip content="Ajouter une sous-categorie">
                           <Button
                             icon={PlusCircleIcon}

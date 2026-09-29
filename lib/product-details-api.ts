@@ -13,8 +13,14 @@ export type ProductDetailsResponse = {
   /** Stock quantity as string in API payload. */
   qty?: string | null;
   stockStatus?: string;
-  discount?: string;
-  discountType?: string;
+  specificPrices?: Array<{
+    currency?: string; country?: string; group?: string; customer?: string;
+    fromDate?: string; toDate?: string; fromQuantity?: number; leaveInitialPrice?: boolean;
+    fixedPrice?: string; discount?: string; discountType?: string; taxIncluded?: boolean;
+  }>;
+  reviewCount?: number;
+  reviewRating?: number;
+  sparePartIds?: string[];
   taxRelation?: { rate: number; name?: string } | null;
   brand?: {
     id: string;
@@ -53,6 +59,30 @@ export type ProductDetailsResponse = {
     options?: unknown;
   }>;
 };
+
+export type ProductReviewsResponse = {
+  reviews: Array<{
+    id: string;
+    review: string;
+    rating: number;
+    name: string;
+    createdAt: string;
+  }>;
+  total: number;
+  avgRating: number;
+  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
+};
+
+export async function fetchProductReviews(
+  productId: string,
+): Promise<ProductReviewsResponse> {
+  const base = getBaseUrl();
+  const res = await fetch(`${base}/reviews/product/${encodeURIComponent(productId)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Unable to load product reviews (${res.status})`);
+  return (await res.json()) as ProductReviewsResponse;
+}
 
 export type ProductFetchDebug = {
   url: string;

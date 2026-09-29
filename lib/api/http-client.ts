@@ -10,6 +10,8 @@ type ErrorResponse = {
   message?: string | string[];
 };
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
 export class ApiError extends Error {
   status: number;
 
@@ -27,15 +29,35 @@ export async function apiRequest<T>({
 }: RequestOptions): Promise<T> {
   const isFormDataPayload =
     typeof FormData !== "undefined" && options.body instanceof FormData;
+  const controller =
+    options.signal == null ? new AbortController() : null;
+  const timeoutId =
+    controller == null
+      ? null
+      : setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(isFormDataPayload ? {} : { "Content-Type": "application/json" }),
-      ...headers,
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? controller?.signal,
+      headers: {
+        ...(isFormDataPayload ? {} : { "Content-Type": "application/json" }),
+        ...headers,
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("La requete a expire.", 408);
+    }
+    throw error;
+  } finally {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId);
+    }
+  }
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as

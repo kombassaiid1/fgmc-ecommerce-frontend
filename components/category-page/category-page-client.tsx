@@ -560,7 +560,7 @@ export function CategoryPageClient({ slug }: Props) {
           variant="secondary"
           className="gap-1 pr-1 text-xs font-normal">
           <span className="max-w-[120px] truncate">
-            Prix: {appliedPriceRange[0]}–{appliedPriceRange[1]} TND
+            Prix: {appliedPriceRange[0]}–{appliedPriceRange[1]} €
           </span>
           <button
             type="button"
@@ -858,7 +858,7 @@ export function CategoryPageClient({ slug }: Props) {
 
                   <AccordionItem value="price" className="border-none">
                     <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
-                      Prix (TND)
+                      Prix (EUR)
                     </AccordionTrigger>
                     <AccordionContent className="pb-3 pt-0">
                       <Slider
@@ -870,8 +870,8 @@ export function CategoryPageClient({ slug }: Props) {
                         onValueChange={setSelectedPriceRange}
                       />
                       <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                        <span>{selectedPriceRange[0]} TND</span>
-                        <span>{selectedPriceRange[1]} TND</span>
+                        <span>{selectedPriceRange[0]} €</span>
+                        <span>{selectedPriceRange[1]} €</span>
                       </div>
                       <div className="mt-3 flex gap-2">
                         <Button
@@ -1073,7 +1073,7 @@ export function CategoryPageClient({ slug }: Props) {
                           <div className="border-b border-border/60">
                             <div className="p-4">
                               <h3 className="mb-3 text-sm font-medium">
-                                Prix (TND)
+                                Prix (EUR)
                               </h3>
                               <Slider
                                 className="w-full"
@@ -1084,8 +1084,8 @@ export function CategoryPageClient({ slug }: Props) {
                                 onValueChange={setSelectedPriceRange}
                               />
                               <div className="mt-2 flex justify-between text-muted-foreground text-xs">
-                                <span>{selectedPriceRange[0]} TND</span>
-                                <span>{selectedPriceRange[1]} TND</span>
+                                <span>{selectedPriceRange[0]} €</span>
+                                <span>{selectedPriceRange[1]} €</span>
                               </div>
                               <Button
                                 className="mt-3 w-full rounded-lg"

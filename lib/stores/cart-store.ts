@@ -14,6 +14,8 @@ export type CartItem = {
   variantId?: string | null;
   /** Unit price (as received from API, string). */
   price: string;
+  /** Product tax rate, either as percent (20) or fraction (0.2). */
+  taxRate?: number | null;
   qty: number;
 };
 
@@ -73,7 +75,8 @@ export const useCartStore = create<CartState>()(
         set((state) => {
           if (!state.items[key]) return state;
           if (safeQty <= 0) {
-            const { [key]: _, ...rest } = state.items;
+            const rest = { ...state.items };
+            delete rest[key];
             return { items: rest };
           }
           return {
@@ -88,7 +91,8 @@ export const useCartStore = create<CartState>()(
       removeItem: (key) => {
         set((state) => {
           if (!state.items[key]) return state;
-          const { [key]: _, ...rest } = state.items;
+          const rest = { ...state.items };
+          delete rest[key];
           return { items: rest };
         });
       },

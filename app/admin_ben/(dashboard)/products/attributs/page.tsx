@@ -8,7 +8,9 @@ import {
   Box,
   Button,
   Card,
+  Autocomplete,
   Divider,
+  Icon,
   IndexTable,
   InlineGrid,
   InlineStack,
@@ -18,7 +20,12 @@ import {
   TextField,
   useIndexResourceState,
 } from "@shopify/polaris";
-import { DeleteIcon, EditIcon, PlusCircleIcon } from "@shopify/polaris-icons";
+import {
+  DeleteIcon,
+  EditIcon,
+  PlusCircleIcon,
+  SearchIcon,
+} from "@shopify/polaris-icons";
 
 import {
   createAttribute,
@@ -81,6 +88,7 @@ export default function AdminProductAttributesPage() {
 
   const [search, setSearch] = useState("");
   const [selectedAttributeId, setSelectedAttributeId] = useState<string>("");
+  const [activeAttributeSearch, setActiveAttributeSearch] = useState("");
 
   const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
   const [isTermModalOpen, setIsTermModalOpen] = useState(false);
@@ -106,12 +114,13 @@ export default function AdminProductAttributesPage() {
       setAttributes(attributesResponse.data);
       setTerms(termsData);
 
-      setSelectedAttributeId((prev) => {
-        if (prev && attributesResponse.data.some((item) => item.id === prev)) {
-          return prev;
-        }
-        return attributesResponse.data[0]?.id ?? "";
-      });
+      const nextSelectedAttribute =
+        attributesResponse.data.find((item) => item.id === selectedAttributeId) ??
+        attributesResponse.data[0] ??
+        null;
+
+      setSelectedAttributeId(nextSelectedAttribute?.id ?? "");
+      setActiveAttributeSearch(nextSelectedAttribute?.name ?? "");
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -162,6 +171,50 @@ export default function AdminProductAttributesPage() {
   const attributeOptions = useMemo(
     () => attributesSorted.map((item) => ({ label: item.name, value: item.id })),
     [attributesSorted]
+  );
+
+  const activeAttributeOptions = useMemo(() => {
+    const query = activeAttributeSearch.trim().toLowerCase();
+    const selectedName = selectedAttribute?.name.toLowerCase() ?? "";
+    const shouldShowAll = !query || query === selectedName;
+
+    const visibleAttributes = shouldShowAll
+      ? attributesSorted
+      : attributesSorted.filter(
+          (item) =>
+            item.name.toLowerCase().includes(query) ||
+            item.slug.toLowerCase().includes(query)
+        );
+
+    return visibleAttributes.map((item) => ({
+      label: item.name,
+      value: item.id,
+    }));
+  }, [activeAttributeSearch, attributesSorted, selectedAttribute]);
+
+  const selectActiveAttributeById = (nextAttributeId: string) => {
+    const nextAttribute = attributes.find((item) => item.id === nextAttributeId);
+
+    setSelectedAttributeId(nextAttributeId);
+    setActiveAttributeSearch(nextAttribute?.name ?? "");
+  };
+
+  const onActiveAttributeSelect = (selected: string[]) => {
+    selectActiveAttributeById(selected[0] ?? "");
+  };
+
+  const activeAttributeTextField = (
+    <Autocomplete.TextField
+      label="Attribut actif"
+      prefix={<Icon source={SearchIcon} tone="subdued" />}
+      value={activeAttributeSearch}
+      onChange={setActiveAttributeSearch}
+      placeholder="Rechercher un attribut"
+      autoComplete="off"
+      clearButton
+      onClearButtonClick={() => setActiveAttributeSearch("")}
+      disabled={attributeOptions.length === 0}
+    />
   );
 
   const {
@@ -450,7 +503,7 @@ export default function AdminProductAttributesPage() {
                   key={item.id}
                   position={index}
                   selected={selectedAttributeResources.includes(item.id)}
-                  onClick={() => setSelectedAttributeId(item.id)}
+                  onClick={() => selectActiveAttributeById(item.id)}
                 >
                   <IndexTable.Cell>
                     <Text as="span" fontWeight={selectedAttributeId === item.id ? "semibold" : "regular"}>
@@ -465,7 +518,7 @@ export default function AdminProductAttributesPage() {
                         icon={PlusCircleIcon}
                         accessibilityLabel="Ajouter terme"
                         onClick={() => {
-                          setSelectedAttributeId(item.id);
+                          selectActiveAttributeById(item.id);
                           openCreateTermModal();
                         }}
                       />
@@ -495,16 +548,19 @@ export default function AdminProductAttributesPage() {
                 Termes
               </Text>
               <Box minWidth="220px">
-                <Select
-                  label="Attribut actif"
-                  options={
-                    attributeOptions.length > 0
-                      ? attributeOptions
-                      : [{ label: "Aucun attribut", value: "" }]
+                <Autocomplete
+                  options={activeAttributeOptions}
+                  selected={selectedAttributeId ? [selectedAttributeId] : []}
+                  textField={activeAttributeTextField}
+                  onSelect={onActiveAttributeSelect}
+                  preferredPosition="below"
+                  emptyState={
+                    <Box padding="300">
+                      <Text as="span" tone="subdued">
+                        Aucun attribut trouve
+                      </Text>
+                    </Box>
                   }
-                  value={selectedAttributeId}
-                  onChange={setSelectedAttributeId}
-                  disabled={attributeOptions.length === 0}
                 />
               </Box>
             </InlineStack>

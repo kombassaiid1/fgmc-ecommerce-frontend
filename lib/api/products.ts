@@ -6,9 +6,15 @@ export type ProductListItem = {
   slug: string;
   images: string[];
   price: string;
+  specificPrices?: SpecificPriceRule[];
+  taxRelation?: {
+    rate: number;
+    name?: string;
+  } | null;
   sku: string;
   qty: string;
   stockStatus: string;
+  sparePartIds?: string[];
   status: "DRAFT" | "PUBLIC";
   brandId: string;
   brand?: {
@@ -17,6 +23,14 @@ export type ProductListItem = {
     slug: string;
     image: string;
   } | null;
+  categories?: Array<{
+    categoryId?: string;
+    category?: {
+      id: string;
+      title: string;
+      slug: string;
+    } | null;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -24,8 +38,6 @@ export type ProductListItem = {
 export type ProductDetails = ProductListItem & {
   description: string;
   shortDescription: string;
-  discount: string;
-  discountType: string;
   tag: string;
   allowBackorders?: string | null;
   lowStockThreshold?: string | null;
@@ -47,6 +59,22 @@ export type ProductDetails = ProductListItem & {
     termId: string;
   }>;
   combinaisons?: ProductVariantPayload[];
+};
+
+export type SpecificPriceRule = {
+  id: string;
+  currency: string;
+  country: string;
+  group: string;
+  customer: string;
+  fromDate: string;
+  toDate: string;
+  fromQuantity: number;
+  leaveInitialPrice: boolean;
+  fixedPrice: string;
+  discount: string;
+  discountType: "amount" | "percent";
+  taxIncluded: boolean;
 };
 
 export type PaginatedProductsResponse = {
@@ -99,8 +127,7 @@ export type CreateProductPayload = {
   sellPriceHT?: string;
   benefit?: string;
   benefitType?: string;
-  discount: string;
-  discountType: string;
+  specificPrices?: SpecificPriceRule[];
   tag: string;
   sku: string;
   qty: string;
@@ -115,6 +142,7 @@ export type CreateProductPayload = {
   metaKeywords?: string | null;
   reviewRating?: number | null;
   reviewCount?: number | null;
+  sparePartIds?: string[];
   categoryIds?: string[];
   attributeTerms?: ProductAttributeTermPayload[];
   combinaisons?: ProductVariantPayload[];
@@ -140,6 +168,8 @@ export async function getProducts(params?: {
   page?: number;
   limit?: number;
   search?: string;
+  categoryId?: string;
+  includeDescendants?: boolean;
   status?: "DRAFT" | "PUBLIC";
 }): Promise<PaginatedProductsResponse> {
   const query = new URLSearchParams();
@@ -151,6 +181,12 @@ export async function getProducts(params?: {
   }
   if (params?.search?.trim()) {
     query.set("search", params.search.trim());
+  }
+  if (params?.categoryId?.trim()) {
+    query.set("categoryId", params.categoryId.trim());
+  }
+  if (params?.includeDescendants) {
+    query.set("includeDescendants", "true");
   }
   if (params?.status) {
     query.set("status", params.status);

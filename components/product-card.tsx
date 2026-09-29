@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { getImageUrl } from "@/lib/api";
 import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
 import { toast } from "sonner";
+import { resolveSpecificPrice, type StorefrontSpecificPrice } from "@/lib/specific-pricing";
 
 function parsePrice(value: string): number {
   const n = parseFloat(String(value).replace(/[^0-9.,-]/g, "").replace(",", "."));
@@ -33,6 +34,7 @@ export type ProductCardProduct = {
   slug: string;
   title: string;
   price: string;
+  specificPrices?: StorefrontSpecificPrice[] | null;
   taxRelation?: { rate: number } | null;
   images?: string[];
   categories?: unknown[] | null;
@@ -110,7 +112,14 @@ export function ProductCard({
   const imageUrl = product.images?.[0] ? getImageUrl(product.images[0]) : null;
   const ht = parsePrice(product.price);
   const vat = rateToFraction(product.taxRelation?.rate);
-  const ttc = ht * (1 + vat);
+  const originalTtc = ht * (1 + vat);
+  const resolvedPrice = resolveSpecificPrice(product.specificPrices, ht, vat, Math.max(1, qtyInCart));
+  const ttc = resolvedPrice.saleTtc;
+  const hasDiscount = ttc < originalTtc;
+  const displayedHt = ttc / (1 + vat);
+  const discountPercent = originalTtc > 0
+    ? Math.min(100, Math.max(1, Math.round(((originalTtc - ttc) / originalTtc) * 100)))
+    : 0;
   const productCategorySlug = pickProductCategorySlug(product.categories);
   const href = buildProductHref(productCategorySlug ?? categorySlug, product.slug);
   const categoryLabel = pickProductCategoryLabel(product.categories) ?? null;
@@ -158,10 +167,16 @@ export function ProductCard({
           <h3 className="line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-primary sm:text-base">
             {product.title}
           </h3>
-          <p className="mt-2 text-sm font-semibold tabular-nums sm:text-base">
-            <span className="text-destructive">{formatEur(ttc)} TTC</span>
+          {hasDiscount ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded bg-[#d6202e] px-1.5 py-0.5 text-[10px] font-bold text-white">-{discountPercent}%</span>
+              <span className="text-xs text-muted-foreground line-through">{formatEur(originalTtc)} TTC</span>
+            </div>
+          ) : null}
+          <p className="mt-1 text-sm font-semibold tabular-nums sm:text-base">
+            <span className={hasDiscount ? "text-[#d6202e]" : "text-foreground"}>{formatEur(ttc)} TTC</span>
             <span className="text-muted-foreground"> - </span>
-            <span className="text-[#0858B1]">{formatEur(ht)} HT</span>
+            <span className="text-[#0858B1]">{formatEur(displayedHt)} HT</span>
           </p>
         </Link>
 
@@ -194,7 +209,8 @@ export function ProductCard({
                       image: product.images?.[0] ?? null,
                       categorySlug: productCategorySlug ?? categorySlug ?? null,
                       variantId: null,
-                      price: product.price,
+                      price: String(displayedHt),
+                      taxRate: product.taxRelation?.rate ?? null,
                     },
                     1,
                   );
@@ -215,4 +231,3 @@ export function ProductCard({
     </article>
   );
 }
-

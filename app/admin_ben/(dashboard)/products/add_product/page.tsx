@@ -41,7 +41,7 @@ import { getCategories, type Category } from "@/lib/api/categories";
 import { getBrands, type Brand } from "@/lib/api/brands";
 import { getAttributes, type Attribute } from "@/lib/api/attributes";
 import { getTaxes, type Tax } from "@/lib/api/taxes";
-import { createProduct, getProductById, updateProduct } from "@/lib/api/products";
+import { createProduct, getProductById, getProducts, updateProduct, type ProductListItem, type SpecificPriceRule } from "@/lib/api/products";
 
 type ProductFormState = {
   title: string;
@@ -49,8 +49,6 @@ type ProductFormState = {
   description: string;
   shortDescription: string;
   price: string;
-  discount: string;
-  discountType: string;
   tag: string;
   sku: string;
   qty: string;
@@ -72,8 +70,6 @@ const EMPTY_FORM: ProductFormState = {
   description: "",
   shortDescription: "",
   price: "0",
-  discount: "0",
-  discountType: "fixed",
   tag: "-",
   sku: "",
   qty: "0",
@@ -147,6 +143,7 @@ function buildCategoryChildrenMap(items: Category[]) {
 export default function AdminProductsPage() {
   const searchParams = useSearchParams();
   const productId = searchParams.get("id");
+  const categoryIdParam = searchParams.get("categoryId");
   const [formState, setFormState] = useState<ProductFormState>(EMPTY_FORM);
   const [slugWasEdited, setSlugWasEdited] = useState(false);
 
@@ -156,6 +153,16 @@ export default function AdminProductsPage() {
   const [taxes, setTaxes] = useState<Tax[]>([]);
 
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [sparePartIds, setSparePartIds] = useState<string[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<ProductListItem[]>([]);
+  const [sparePartSearch, setSparePartSearch] = useState("");
+  const [specificPrices, setSpecificPrices] = useState<SpecificPriceRule[]>([]);
+  const [showSpecificPriceEditor, setShowSpecificPriceEditor] = useState(false);
+  const [editingSpecificPriceId, setEditingSpecificPriceId] = useState<string | null>(null);
+  const [specificPriceDraft, setSpecificPriceDraft] = useState<Omit<SpecificPriceRule, "id">>({
+    currency: "all", country: "all", group: "all", customer: "all", fromDate: "", toDate: "",
+    fromQuantity: 1, leaveInitialPrice: true, fixedPrice: "", discount: "0", discountType: "percent", taxIncluded: true,
+  });
   const [selectedTermIdsByAttribute, setSelectedTermIdsByAttribute] = useState<
     Record<string, string[]>
   >({});
@@ -223,6 +230,21 @@ export default function AdminProductsPage() {
         setBrands(brandsRes.data);
         setAttributes(attributesRes.data);
         setTaxes(taxesRes.data);
+        if (!productId && categoryIdParam) {
+          const categoryById = new Map(cats.map((item) => [item.id, item]));
+          if (categoryById.has(categoryIdParam)) {
+            setSelectedCategoryIds([categoryIdParam]);
+            setExpandedCategoryIds(() => {
+              const next = new Set<string>();
+              let cursor = categoryById.get(categoryIdParam)?.parentCategoryId ?? null;
+              while (cursor) {
+                next.add(cursor);
+                cursor = categoryById.get(cursor)?.parentCategoryId ?? null;
+              }
+              return next;
+            });
+          }
+        }
         setFormState((prev) => ({
           ...prev,
           brandId: prev.brandId || brandsRes.data[0]?.id || "",
@@ -244,6 +266,14 @@ export default function AdminProductsPage() {
     };
 
     void loadRefs();
+  }, [categoryIdParam, productId]);
+
+  useEffect(() => {
+    let active = true;
+    getProducts({ page: 1, limit: 100 })
+      .then((result) => { if (active) setAvailableProducts(result.data); })
+      .catch(() => { if (active) setAvailableProducts([]); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -275,8 +305,6 @@ export default function AdminProductsPage() {
           description: product.description ?? "",
           shortDescription: product.shortDescription ?? "",
           price: product.price ?? "0",
-          discount: product.discount ?? "0",
-          discountType: product.discountType ?? "fixed",
           tag: product.tag ?? "-",
           sku: product.sku ?? "",
           qty: product.qty ?? "0",
@@ -297,6 +325,8 @@ export default function AdminProductsPage() {
             .map((item) => item.categoryId ?? item.category?.id ?? "")
             .filter((value): value is string => Boolean(value)),
         );
+        setSparePartIds(product.sparePartIds ?? []);
+        setSpecificPrices(Array.isArray(product.specificPrices) ? product.specificPrices : []);
         setSelectedTermIdsByAttribute(termMap);
         setImages(product.images ?? []);
         setSelectedImageUrl(null);
@@ -356,6 +386,10 @@ export default function AdminProductsPage() {
     () => new Map(categories.map((item) => [item.id, item])),
     [categories],
   );
+  const selectableSparePartProducts = availableProducts.filter((item) =>
+    item.id !== productId &&
+    `${item.title} ${item.sku}`.toLocaleLowerCase().includes(sparePartSearch.trim().toLocaleLowerCase()),
+  );
   const childrenByCategory = useMemo(
     () => buildCategoryChildrenMap(categories),
     [categories],
@@ -399,6 +433,7 @@ export default function AdminProductsPage() {
         { id: "pricing", content: "Tarification" },
         { id: "seo", content: "SEO" },
         { id: "attributes", content: "Attributs" },
+        { id: "spareParts", content: "Pièces de rechange" },
         { id: "options", content: "Options" },
       );
 
@@ -556,7 +591,9 @@ export default function AdminProductsPage() {
       )
     : editingAttributeTerms;
 
-  const parseCombinationQuery = (query: string) => {
+  const parseCombinationQuery = (
+    query: string,
+  ): { error: string } | { selected: Record<string, string[]> } | null => {
     const next: Record<string, string[]> = {};
     const chunks = query
       .split(";")
@@ -855,8 +892,7 @@ export default function AdminProductsPage() {
       shortDescription: formState.shortDescription.trim(),
       images,
       price: formState.price.trim() || "0",
-      discount: formState.discount.trim() || "0",
-      discountType: formState.discountType,
+      specificPrices,
       tag: formState.tag.trim() || "-",
       sku: formState.sku.trim(),
       qty: formState.qty.trim() || "0",
@@ -871,6 +907,7 @@ export default function AdminProductsPage() {
       metaDescription: formState.metaDescription.trim() || null,
       metaKeywords: formState.metaKeywords.trim() || null,
       categoryIds: selectedCategoryIds,
+      sparePartIds,
       attributeTerms,
       combinaisons:
         combinationMode === "with_combinations"
@@ -902,13 +939,18 @@ export default function AdminProductsPage() {
 
       await createProduct(payload);
       setSuccess("Produit cree avec succes.");
+      const nextCategoryIds =
+        categoryIdParam && categoriesById.has(categoryIdParam)
+          ? [categoryIdParam]
+          : [];
       setFormState({
         ...EMPTY_FORM,
         brandId: brands[0]?.id || "",
         taxId: taxes.find((tax) => tax.isDefault)?.id || taxes[0]?.id || "",
       });
       setSlugWasEdited(false);
-      setSelectedCategoryIds([]);
+      setSelectedCategoryIds(nextCategoryIds);
+      setSparePartIds([]);
       setSelectedTermIdsByAttribute({});
       setImages([]);
       setSelectedImageUrl(null);
@@ -1488,27 +1530,53 @@ export default function AdminProductsPage() {
 
               <Divider />
 
-              <InlineGrid columns={2} gap="200">
-                <TextField
-                  label="Remise"
-                  value={formState.discount}
-                  onChange={(value) =>
-                    setFormState((prev) => ({ ...prev, discount: value }))
-                  }
-                  autoComplete="off"
-                />
-              </InlineGrid>
-              <Select
-                label="Type remise"
-                options={[
-                  { label: "Fixe", value: "fixed" },
-                  { label: "Pourcentage", value: "percent" },
-                ]}
-                value={formState.discountType}
-                onChange={(value) =>
-                  setFormState((prev) => ({ ...prev, discountType: value }))
-                }
-              />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Text as="h3" variant="headingMd">Prix spécifiques / Remises</Text>
+                    <Text as="p" tone="subdued">Définissez une remise selon la période, la quantité et le client.</Text>
+                  </div>
+                  <Button onClick={() => {
+                    setSpecificPriceDraft({ currency: "all", country: "all", group: "all", customer: "all", fromDate: "", toDate: "", fromQuantity: 1, leaveInitialPrice: true, fixedPrice: "", discount: "0", discountType: "percent", taxIncluded: true });
+                    setEditingSpecificPriceId(null);
+                    setShowSpecificPriceEditor(true);
+                  }}>＋ Ajouter un prix spécifique</Button>
+                </div>
+
+                {showSpecificPriceEditor ? <div className="space-y-4 rounded-lg border border-[#c9d7e0] bg-white p-4">
+                  <Text as="h4" variant="headingSm">Conditions du prix spécifique</Text>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {([
+                      ["currency", "Devise", [["all", "Toutes les devises"], ["EUR", "Euro (€)"]]],
+                      ["country", "Pays", [["all", "Tous les pays"], ["TN", "Tunisie"], ["FR", "France"]]],
+                      ["group", "Groupe", [["all", "Tous les groupes"], ["customer", "Client"], ["professional", "Professionnel"]]],
+                    ] as const).map(([key, label, options]) => <label key={key} className="block text-sm font-medium text-slate-700">{label}<select className="mt-1 block h-10 w-full rounded border border-slate-300 bg-white px-3 font-normal" value={specificPriceDraft[key]} onChange={(event) => setSpecificPriceDraft((draft) => ({ ...draft, [key]: event.target.value }))}>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>)}
+                    <label className="block text-sm font-medium text-slate-700">Client<input className="mt-1 block h-10 w-full rounded border border-slate-300 px-3 font-normal" value={specificPriceDraft.customer === "all" ? "Tous les clients" : specificPriceDraft.customer} onChange={(event) => setSpecificPriceDraft((draft) => ({ ...draft, customer: event.target.value || "all" }))} /></label>
+                    <label className="block text-sm font-medium text-slate-700">Disponible à partir du<input type="date" className="mt-1 block h-10 w-full rounded border border-slate-300 px-3 font-normal" value={specificPriceDraft.fromDate} onChange={(event) => setSpecificPriceDraft((draft) => ({ ...draft, fromDate: event.target.value }))} /></label>
+                    <label className="block text-sm font-medium text-slate-700">Jusqu'au<input type="date" className="mt-1 block h-10 w-full rounded border border-slate-300 px-3 font-normal" value={specificPriceDraft.toDate} onChange={(event) => setSpecificPriceDraft((draft) => ({ ...draft, toDate: event.target.value }))} /></label>
+                    <label className="block text-sm font-medium text-slate-700">À partir de cette quantité<input type="number" min="1" className="mt-1 block h-10 w-full rounded border border-slate-300 px-3 font-normal" value={specificPriceDraft.fromQuantity} onChange={(event) => setSpecificPriceDraft((draft) => ({ ...draft, fromQuantity: Math.max(1, Number(event.target.value) || 1) }))} /></label>
+                  </div>
+                  <div className="border-t border-slate-200 pt-4">
+                    <Text as="h4" variant="headingSm">Impact sur le prix</Text>
+                    <div className="mt-3 flex flex-wrap items-end gap-4">
+                      <div className="min-w-[220px] flex-1"><TextField label="Prix fixe (HT)" prefix="€" value={specificPriceDraft.fixedPrice} disabled={specificPriceDraft.leaveInitialPrice} onChange={(value) => setSpecificPriceDraft((draft) => ({ ...draft, fixedPrice: value }))} autoComplete="off" /></div>
+                      <div className="pb-2"><Checkbox label="Garder le prix initial" checked={specificPriceDraft.leaveInitialPrice} onChange={(checked) => setSpecificPriceDraft((draft) => ({ ...draft, leaveInitialPrice: checked }))} /></div>
+                    </div>
+                    <div className="mt-3 grid gap-4 md:grid-cols-3">
+                      <TextField label="Appliquer une remise de" type="number" value={specificPriceDraft.discount} onChange={(value) => setSpecificPriceDraft((draft) => ({ ...draft, discount: value }))} autoComplete="off" />
+                      <Select label="Type de remise" options={[{ label: "€", value: "amount" }, { label: "%", value: "percent" }]} value={specificPriceDraft.discountType} onChange={(value) => setSpecificPriceDraft((draft) => ({ ...draft, discountType: value as "amount" | "percent" }))} />
+                      <Select label="Calcul du prix" options={[{ label: "TTC (taxes incluses)", value: "included" }, { label: "HT (hors taxes)", value: "excluded" }]} value={specificPriceDraft.taxIncluded ? "included" : "excluded"} onChange={(value) => setSpecificPriceDraft((draft) => ({ ...draft, taxIncluded: value === "included" }))} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2"><Button onClick={() => setShowSpecificPriceEditor(false)}>Annuler</Button><Button variant="primary" onClick={() => {
+                    const rule: SpecificPriceRule = { ...specificPriceDraft, id: editingSpecificPriceId ?? (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`) };
+                    setSpecificPrices((current) => editingSpecificPriceId ? current.map((item) => item.id === editingSpecificPriceId ? rule : item) : [...current, rule]);
+                    setShowSpecificPriceEditor(false);
+                  }}>Appliquer</Button></div>
+                </div> : null}
+
+                {specificPrices.length ? <div className="overflow-x-auto rounded border border-slate-200"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-slate-800"><tr>{["Règle", "Combinaison", "Devise", "Pays", "Groupe", "Client", "Prix fixe", "Remise", "Période", "À partir de", ""].map((heading) => <th key={heading} className="px-3 py-2 font-semibold">{heading}</th>)}</tr></thead><tbody>{specificPrices.map((rule) => <tr key={rule.id} className="border-t border-slate-200"><td className="px-3 py-3">—</td><td className="px-3 py-3">Toutes les combinaisons</td><td className="px-3 py-3">{rule.currency === "all" ? "Toutes" : rule.currency}</td><td className="px-3 py-3">{rule.country === "all" ? "Tous" : rule.country}</td><td className="px-3 py-3">{rule.group === "all" ? "Tous" : rule.group}</td><td className="px-3 py-3">{rule.customer === "all" ? "Tous" : rule.customer}</td><td className="px-3 py-3">{rule.leaveInitialPrice ? "—" : `${rule.fixedPrice} €`}</td><td className="px-3 py-3">- {rule.discount}{rule.discountType === "percent" ? "%" : " €"}</td><td className="px-3 py-3">{rule.fromDate || "—"}{rule.toDate ? ` au ${rule.toDate}` : ""}</td><td className="px-3 py-3">{rule.fromQuantity}</td><td className="px-3 py-3"><div className="flex gap-2"><button type="button" aria-label="Modifier" onClick={() => { setSpecificPriceDraft(rule); setEditingSpecificPriceId(rule.id); setShowSpecificPriceEditor(true); }}>✎</button><button type="button" aria-label="Supprimer" onClick={() => setSpecificPrices((current) => current.filter((item) => item.id !== rule.id))}>🗑</button></div></td></tr>)}</tbody></table></div> : <Text as="p" tone="subdued">Aucun prix spécifique configuré.</Text>}
+              </div>
               <TextField
                 label="Tag"
                 value={formState.tag}
@@ -1872,6 +1940,35 @@ export default function AdminProductsPage() {
                     Add another option
                   </button>
                 </div>
+              )}
+            </BlockStack>
+          ) : null}
+
+          {selectedTabId === "spareParts" ? (
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">Pièces de rechange associées</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Sélectionnez les produits qui s&apos;afficheront dans l&apos;onglet « Pièces de rechange » de cette fiche.
+              </Text>
+              {availableProducts.filter((item) => item.id !== productId).length ? (
+                <>
+                <TextField label="Rechercher un produit" value={sparePartSearch} onChange={setSparePartSearch} autoComplete="off" />
+                {selectableSparePartProducts.length ? (
+                <div className="max-h-[520px] space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                  {selectableSparePartProducts.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-slate-50">
+                      <Checkbox
+                        label={`${item.title} (${item.sku})${item.status === "DRAFT" ? " — Brouillon" : ""}`}
+                        checked={sparePartIds.includes(item.id)}
+                        onChange={(checked) => setSparePartIds((current) => checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                ) : <Text as="p" variant="bodySm" tone="subdued">Aucun résultat pour cette recherche.</Text>}
+                </>
+              ) : (
+                <Banner tone="info" title="Aucun autre produit publié à sélectionner" />
               )}
             </BlockStack>
           ) : null}

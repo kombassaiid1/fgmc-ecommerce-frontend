@@ -1,0 +1,400 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border: 1px solid #dfe3e8;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.tab {
+  display: inline-flex;
+  min-height: 2.5rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 0.85rem;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.tab:hover {
+  background: #f6f6f7;
+  color: #111827;
+}
+
+.tabActive {
+  background: #ffffff;
+  color: #111827;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.1),
+    0 0 0 1px rgba(17, 24, 39, 0.08);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.logoPickerRow {
+  display: grid;
+  grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #dfe3e8;
+  border-radius: 0.5rem;
+  background: #f7f9fb;
+  padding: 0.85rem;
+}
+
+.logoPreviewBox {
+  display: flex;
+  min-height: 5.5rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px dashed #c9cccf;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #6b7280;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.logoPreviewBox img {
+  display: block;
+  max-width: 100%;
+  max-height: 4.25rem;
+  object-fit: contain;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldLabel {
+  color: #202223;
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.colorControl,
+.rangeControl {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #c9cccf;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  padding: 0.45rem 0.65rem;
+}
+
+.colorInput {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rangeInput {
+  width: 100%;
+  accent-color: #005bd3;
+}
+
+.colorValue,
+.rangeValue {
+  color: #4b5563;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+}
+
+.linkList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.linkRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.iconButton {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.previewShell {
+  position: sticky;
+  top: 5rem;
+}
+
+.previewStage {
+  overflow: hidden;
+  border: 1px solid #dfe3e8;
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(135deg, rgba(241, 245, 249, 0.9), rgba(255, 255, 255, 0.9)),
+    #ffffff;
+}
+
+.storeHeader {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  color: var(--header-text);
+  background: var(--header-bg);
+}
+
+.topStripe {
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    #0a224f 0 33.333%,
+    #ffffff 33.333% 66.667%,
+    #d6202e 66.667% 100%
+  );
+}
+
+.utilityBar {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--utility-bg);
+  color: var(--header-utility-text);
+  font-size: 0.78rem;
+  padding: 0.25rem 1rem;
+}
+
+.mainRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: var(--header-height);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+}
+
+.searchControl {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.storeSelector {
+  display: inline-flex;
+  min-height: 2.6rem;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid #153675;
+  border-radius: 0.45rem 0 0 0.45rem;
+  color: #153675;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0 0.7rem;
+}
+
+.searchControl .searchBox {
+  min-width: 5rem;
+  max-width: none;
+  min-height: 2.6rem;
+  justify-content: space-between;
+  border: 1px solid #153675;
+  border-radius: 0;
+  color: #929bad;
+}
+
+.accountPreview,
+.cartPreview {
+  display: inline-flex;
+  min-height: 2.6rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+  color: #153675;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.cartPreview {
+  border-radius: 0.45rem;
+  background: #153675;
+  color: #ffffff;
+  padding: 0.4rem 0.7rem;
+}
+
+.navBar {
+  display: flex;
+  min-height: 2.45rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #153675;
+  color: white;
+  padding: 0.45rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.utilityMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  overflow: hidden;
+}
+
+.utilityMeta > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.logo {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+}
+
+.logo img {
+  display: block;
+  width: var(--logo-width);
+  max-width: 16rem;
+  height: auto;
+  object-fit: contain;
+}
+
+.navLinks {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.navLink {
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  color: var(--header-accent);
+}
+
+.searchBox {
+  display: flex;
+  min-width: 8rem;
+  max-width: 15rem;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--header-text), transparent 72%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #5f6b7a;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .previewShell {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    flex-direction: column;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .logoPickerRow {
+    grid-template-columns: 1fr;
+  }
+
+  .linkRow {
+    grid-template-columns: 1fr;
+  }
+
+  .mainRow {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .utilityBar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .utilityMeta {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .navLinks,
+  .accountPreview,
+  .searchControl .searchBox {
+    display: none;
+  }
+
+  .navBar {
+    min-height: 2rem;
+  }
+}

@@ -63,8 +63,11 @@ export interface CategoryProductItem {
   images: string[];
   price: string;
   taxRelation?: { rate: number } | null;
-  discount: string;
-  discountType: string;
+  specificPrices?: Array<{
+    currency?: string; country?: string; group?: string; customer?: string;
+    fromDate?: string; toDate?: string; fromQuantity?: number; leaveInitialPrice?: boolean;
+    fixedPrice?: string; discount?: string; discountType?: string; taxIncluded?: boolean;
+  }>;
   status: string;
   brand: {
     id: string;

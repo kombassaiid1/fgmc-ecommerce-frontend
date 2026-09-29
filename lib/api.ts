@@ -1,5 +1,7 @@
 import { getBackendBaseUrl } from "@/lib/backend-url";
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
 function getBaseUrl(): string {
   // Prefer the backend API base explicitly. `NEXT_PUBLIC_API_URL` is often used
   // for other purposes (assets/proxy) and can accidentally point to the frontend.
@@ -38,13 +40,34 @@ export async function apiFetch<T>(
   options?: RequestInit,
 ): Promise<T> {
   const base = getBaseUrl();
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
+  const controller =
+    options?.signal == null ? new AbortController() : null;
+  const timeoutId =
+    controller == null
+      ? null
+      : setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+
+  try {
+    res = await fetch(`${base}${path}`, {
+      ...options,
+      signal: options?.signal ?? controller?.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("La requete a expire.");
+    }
+    throw error;
+  } finally {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId);
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

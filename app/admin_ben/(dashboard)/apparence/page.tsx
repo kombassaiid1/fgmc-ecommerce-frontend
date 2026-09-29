@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AdminApparencePage() {
-  redirect("/admin_ben/apparence/media");
+  redirect("/admin_ben/apparence/header");
 }

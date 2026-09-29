@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Oswald } from "next/font/google";
 import "@shopify/polaris/build/esm/styles.css";
 import "./globals.css";
 import { TopNavBar } from "@/components/client/top-navbar";
 import { ReactQueryProvider } from "@/components/providers/react-query-provider";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const oswald = Oswald({
+  variable: "--font-oswald",
   subsets: ["latin"],
 });
 
@@ -29,7 +24,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      className={`${oswald.variable} h-full antialiased`}>
       <body className="min-h-screen! flex flex-col">
         <ReactQueryProvider>
           <main className="flex-1!">

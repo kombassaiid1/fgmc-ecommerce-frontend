@@ -12,12 +12,12 @@ import {
   Navigation,
   Page,
   TopBar,
-  Text,
 } from "@shopify/polaris";
 import {
   ColorIcon,
   HomeIcon,
   ImageIcon,
+  MenuHorizontalIcon,
   OrderIcon,
   PersonIcon,
   ProductIcon,
@@ -84,12 +84,13 @@ const NAV_ITEMS = [
     url: "/admin_ben/apparence",
     icon: ColorIcon,
     subNavigationItems: [
+      { label: "Header", url: "/admin_ben/apparence/header", icon: MenuHorizontalIcon },
+      { label: "Hero accueil", url: "/admin_ben/apparence/hero", icon: ImageIcon },
       { label: "Media", url: "/admin_ben/apparence/media", icon: ImageIcon },
-      { label: "Pages", url: "/admin_ben/apparence/pages", icon: ProductIcon },
-      { label: "Builder", url: "/admin_ben/apparence/builder", icon: ColorIcon },
     ],
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },
+  { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon },
   {
     label: "Parametres",
