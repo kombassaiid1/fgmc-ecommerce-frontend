@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banner, BlockStack, Button, Card, Checkbox, InlineStack, Select, Text, TextField } from "@shopify/polaris";
+import { Banner, BlockStack, Button, Card, Checkbox, InlineStack, Text, TextField } from "@shopify/polaris";
 import { ArrowDownIcon, ArrowUpIcon, DeleteIcon, PlusIcon, SaveIcon } from "@shopify/polaris-icons";
 
 import { MediaPickerDialog, type MediaItem } from "@/components/admin/media-picker-dialog";
@@ -147,42 +147,6 @@ export default function AdminHomeHeroPage() {
               </InlineStack>
             </div>
           ))}
-        </BlockStack>
-      </Card>
-
-      <Card>
-        <BlockStack gap="300">
-          <BlockStack gap="100">
-            <Text as="h2" variant="headingMd">Featured products carousel</Text>
-            <Text as="p" tone="subdued">Show six products at a time from the selected category. Visitors can scroll through the carousel.</Text>
-          </BlockStack>
-          <TextField
-            label="Section title"
-            value={config.featuredProducts.title}
-            onChange={(title) => update({
-              ...config,
-              featuredProducts: { ...config.featuredProducts, title },
-            })}
-            autoComplete="off"
-          />
-          <Select
-            label="Product category"
-            value={config.featuredProducts.categoryId ?? ""}
-            options={[
-              { label: "All categories", value: "" },
-              ...allCategories.map((category) => ({
-                label: category.title,
-                value: category.id,
-              })),
-            ]}
-            onChange={(categoryId) => update({
-              ...config,
-              featuredProducts: {
-                ...config.featuredProducts,
-                categoryId: categoryId || null,
-              },
-            })}
-          />
         </BlockStack>
       </Card>
 

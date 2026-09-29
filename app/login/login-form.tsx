@@ -44,7 +44,11 @@ export function LoginForm() {
       }
 
       saveClientSession(response);
-      router.push("/");
+      const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+      const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : "/";
+      router.push(returnTo);
       router.refresh();
     } catch (submitError) {
       setError(

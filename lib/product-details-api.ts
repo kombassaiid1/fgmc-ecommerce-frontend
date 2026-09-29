@@ -84,6 +84,40 @@ export async function fetchProductReviews(
   return (await res.json()) as ProductReviewsResponse;
 }
 
+export async function canClientReviewProduct(
+  productId: string,
+  token: string,
+): Promise<{ purchased: boolean }> {
+  const base = getBaseUrl();
+  const res = await fetch(
+    `${base}/reviews/product/${encodeURIComponent(productId)}/can-review`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) throw new Error(`Unable to check review eligibility (${res.status})`);
+  return (await res.json()) as { purchased: boolean };
+}
+
+export async function submitProductReview(
+  productId: string,
+  token: string,
+  payload: { review: string; rating: number; name: string; email: string },
+): Promise<void> {
+  const base = getBaseUrl();
+  const res = await fetch(`${base}/reviews/product/${encodeURIComponent(productId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null) as { message?: string | string[] } | null;
+    const message = Array.isArray(data?.message) ? data.message.join(", ") : data?.message;
+    throw new Error(message || `Unable to submit product review (${res.status})`);
+  }
+}
+
 export type ProductFetchDebug = {
   url: string;
   status: number;

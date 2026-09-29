@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  LoaderCircle,
   Minus,
   Package,
   Plus,
@@ -16,7 +17,7 @@ import {
   Truck,
 } from "lucide-react";
 
-import { fetchProductReviews, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
+import { canClientReviewProduct, fetchProductReviews, submitProductReview, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
 import { getImageUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/lib/stores/cart-store";
@@ -25,6 +26,7 @@ import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { ProductCard, type ProductCardProduct } from "@/components/product-card";
 import { getProductById, getProducts } from "@/lib/api/products";
 import { toast } from "sonner";
+import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
 
 function parsePrice(value: string | null | undefined): number {
   const n = parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
@@ -96,6 +98,13 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [quantity, setQuantity] = useState(1);
   const router = useRouter();
   const [productReviews, setProductReviews] = useState<ProductReviewsResponse | null>(null);
+  const [clientSession, setClientSession] = useState<ClientSession | null>(null);
+  const [reviewAccess, setReviewAccess] = useState<"loading" | "login" | "not-purchased" | "eligible" | "submitted" | "error">("loading");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [recommendationTab, setRecommendationTab] = useState<"similar" | "spareParts">("similar");
   const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
   const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
@@ -104,6 +113,30 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     "description",
   );
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
+  useEffect(() => {
+    const syncSession = () => setClientSession(getClientSession());
+    syncSession();
+    return subscribeToClientSession(syncSession);
+  }, []);
+
+  useEffect(() => {
+    if (!clientSession?.token) {
+      setReviewAccess("login");
+      return;
+    }
+    let active = true;
+    setReviewAccess("loading");
+    canClientReviewProduct(product.id, clientSession.token)
+      .then(({ purchased }) => {
+        if (active) setReviewAccess(purchased ? "eligible" : "not-purchased");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setReviewAccess(error instanceof Error && error.message.includes("(401)") ? "login" : "error");
+      });
+    return () => { active = false; };
+  }, [clientSession?.token, product.id]);
 
   useEffect(() => {
     let active = true;
@@ -318,6 +351,31 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
 
   const reviewCount = productReviews?.total ?? product.reviewCount;
   const ratingScore = productReviews?.avgRating || product.reviewRating;
+
+  async function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!clientSession?.token || !clientSession.user) return;
+    setReviewSubmitting(true);
+    setReviewError(null);
+    setReviewMessage(null);
+    try {
+      const user = clientSession.user;
+      const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.email.split("@")[0];
+      await submitProductReview(product.id, clientSession.token, {
+        review: reviewText.trim(),
+        rating: reviewRating,
+        name,
+        email: user.email,
+      });
+      setReviewAccess("submitted");
+      setReviewMessage("Merci pour votre avis. Il sera visible après validation.");
+      setReviewText("");
+    } catch (submitError) {
+      setReviewError(submitError instanceof Error ? submitError.message : "Impossible d’envoyer votre avis.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
 
   return (
     <main className="min-h-screen! bg-muted/30">
@@ -677,9 +735,8 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 <h3 className="text-base font-semibold text-slate-900">
                   Avis clients
                 </h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Cette section sera bientôt disponible.
-                </p>
+                <p className="mt-1 text-sm text-slate-600">Les avis des clients ayant acheté ce produit sont affichés dans la section Avis clients.</p>
+                <button type="button" onClick={() => document.getElementById("product-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="mt-3 text-sm font-semibold text-[#153675] underline-offset-4 hover:underline">Voir les avis et donner une note</button>
               </div>
             ) : null}
           </div>
@@ -709,6 +766,66 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-500"><span className="font-medium text-slate-700">{review.name}</span><time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString("fr-FR")}</time></div>
               </article>
             )) : <p className="py-5 text-sm text-slate-500">Aucun avis client pour le moment.</p>}
+          </div>
+          <div className="border-t border-slate-200 p-5">
+            {reviewAccess === "loading" ? (
+              <p className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="size-4 animate-spin" />Vérification de votre éligibilité…</p>
+            ) : reviewAccess === "login" ? (
+              <div className="rounded-lg bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-800">Connectez-vous pour laisser un avis après votre achat.</p>
+                <Link
+                  href={`/login?returnTo=${encodeURIComponent(`/${categorySlug}/${product.slug}.html#product-reviews`)}`}
+                  className="mt-3 inline-flex min-h-10 items-center justify-center rounded-md bg-[#153675] px-4 text-sm font-semibold text-white hover:bg-[#0a224f]">
+                  Se connecter
+                </Link>
+              </div>
+            ) : reviewAccess === "not-purchased" ? (
+              <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">L’avis est réservé aux clients ayant acheté ce produit.</p>
+            ) : reviewAccess === "error" ? (
+              <p role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Impossible de vérifier votre accès aux avis pour le moment. Veuillez réessayer plus tard.</p>
+            ) : reviewAccess === "submitted" ? (
+              <p role="status" className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">{reviewMessage}</p>
+            ) : (
+              <form onSubmit={(event) => void handleReviewSubmit(event)} className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-900">Votre avis</h3>
+                {reviewError ? <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{reviewError}</p> : null}
+                <div>
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Votre note</span>
+                  <div className="flex items-center gap-1" role="radiogroup" aria-label="Votre note">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        role="radio"
+                        aria-checked={reviewRating === star}
+                        aria-label={`${star} sur 5`}
+                        onClick={() => setReviewRating(star)}
+                        className="rounded-sm p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153675]">
+                        <Star className={cn("size-5", reviewRating >= star ? "fill-amber-400 text-amber-400" : "text-slate-300")} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="block text-xs font-medium text-slate-600" htmlFor="product-review-text">Votre commentaire</label>
+                <textarea
+                  id="product-review-text"
+                  value={reviewText}
+                  onChange={(event) => setReviewText(event.target.value)}
+                  required
+                  minLength={1}
+                  maxLength={3000}
+                  rows={4}
+                  placeholder="Partagez votre expérience avec ce produit…"
+                  className="w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#2456b1] focus:ring-2 focus:ring-[#2456b1]/20"
+                />
+                <button
+                  type="submit"
+                  disabled={reviewSubmitting || !reviewText.trim()}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#153675] px-4 text-sm font-semibold text-white transition hover:bg-[#0a224f] disabled:cursor-not-allowed disabled:opacity-60">
+                  {reviewSubmitting ? <><LoaderCircle className="size-4 animate-spin" />Envoi…</> : "Envoyer mon avis"}
+                </button>
+              </form>
+            )}
           </div>
         </aside>
         </section>
