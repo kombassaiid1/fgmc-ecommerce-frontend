@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -31,6 +31,11 @@ import { getClientSession, subscribeToClientSession, type ClientSession } from "
 function parsePrice(value: string | null | undefined): number {
   const n = parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
+}
+
+function formatEuroNumber(value: number): string {
+  const [integer, fraction] = value.toFixed(2).split(".");
+  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f")},${fraction}`;
 }
 
 function rateToFraction(rate: number | null | undefined): number {
@@ -112,7 +117,6 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [tab, setTab] = useState<"description" | "details" | "comments">(
     "description",
   );
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   useEffect(() => {
     const syncSession = () => setClientSession(getClientSession());
@@ -500,7 +504,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                     )}
                     {hasDiscount ? (
                       <span className="text-sm text-slate-500 line-through">
-                        {originalTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} TTC
+                        {formatEuroNumber(originalTtc)} {"\u20ac"} TTC
                       </span>
                     ) : null}
                   </div>
@@ -508,17 +512,17 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                     <div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-bold tracking-tight text-[#d6202e] sm:text-4xl">
-                          {displayedTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"}
+                          {formatEuroNumber(displayedTtc)} {"\u20ac"}
                         </span>
                         <span className="text-sm font-semibold text-[#536784]">TTC</span>
                       </div>
                       <p className="mt-1 text-sm text-[#536784]">
-                        soit <strong className="font-semibold text-[#142c5b]">{displayedHt.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} HT</strong>
+                        soit <strong className="font-semibold text-[#142c5b]">{formatEuroNumber(displayedHt)} {"\u20ac"} HT</strong>
                       </p>
                     </div>
                     {hasDiscount ? (
                       <p className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-[#153675] ring-1 ring-[#e1e8f2]">
-                        Vous &eacute;conomisez <strong>{(originalTtc - displayedTtc).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {"\u20ac"} TTC</strong>
+                        Vous &eacute;conomisez <strong>{formatEuroNumber(originalTtc - displayedTtc)} {"\u20ac"} TTC</strong>
                       </p>
                     ) : null}
                   </div>
@@ -681,23 +685,12 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
           <div className="px-5 py-6">
             {tab === "description" ? (
               product.description?.trim() ? (
-                <>
-                  <div className={cn("overflow-hidden transition-[max-height] duration-300", !descriptionExpanded && "max-h-40")}>
+                <div>
                     <RichTextDisplay
                       content={product.description}
                       className="text-slate-600"
                     />
-                  </div>
-                  {product.description.replace(/<[^>]*>/g, " ").trim().length > 500 ? (
-                    <button
-                      type="button"
-                      onClick={() => setDescriptionExpanded((expanded) => !expanded)}
-                      aria-expanded={descriptionExpanded}
-                      className="mt-3 text-sm font-semibold text-[#153675] underline-offset-4 hover:underline">
-                      {descriptionExpanded ? "Voir moins" : "Voir plus"}
-                    </button>
-                  ) : null}
-                </>
+                </div>
               ) : (
                 <p className="text-sm text-slate-500">Aucune description.</p>
               )

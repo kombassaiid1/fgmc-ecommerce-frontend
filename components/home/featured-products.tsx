@@ -6,26 +6,40 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ProductCard } from "@/components/product-card";
+import { HomeImageMosaic } from "@/components/home/home-image-mosaic";
 import { getCategories } from "@/lib/api/categories";
 import { getProducts } from "@/lib/api/products";
 import { getPublicHeaderSettings } from "@/lib/api/header";
+import type { HomeFeaturedProductsConfig } from "@/lib/header-config";
 
 export function FeaturedProducts() {
-  const trackRef = useRef<HTMLDivElement>(null);
   const settingsQuery = useQuery({
     queryKey: ["storefront-header-settings"],
     queryFn: getPublicHeaderSettings,
     staleTime: 30_000,
   });
+  const sections = settingsQuery.data?.heroConfig.featuredProductSections ?? [];
+  const orderedSections = settingsQuery.data?.heroConfig.homeSectionOrder ?? [];
+
+  return <>
+    {orderedSections.map((sectionId) => {
+      if (sectionId === "image-layout") return <HomeImageMosaic key={sectionId} />;
+      const section = sections.find((item) => `featured:${item.id}` === sectionId);
+      return section ? <FeaturedProductsSection key={section.id} config={section} /> : null;
+    })}
+  </>;
+}
+
+function FeaturedProductsSection({ config: featuredConfig }: { config: HomeFeaturedProductsConfig }) {
+  const trackRef = useRef<HTMLDivElement>(null);
   const categoriesQuery = useQuery({
     queryKey: ["navbar-categories"],
     queryFn: () => getCategories(),
     staleTime: 60_000,
   });
-  const featuredConfig = settingsQuery.data?.heroConfig.featuredProducts;
   const categoryId = featuredConfig?.categoryId ?? null;
   const productsQuery = useQuery({
-    queryKey: ["home-featured-products", categoryId],
+    queryKey: ["home-featured-products", featuredConfig.id, categoryId],
     queryFn: () =>
       getProducts({
         page: 1,
@@ -34,7 +48,7 @@ export function FeaturedProducts() {
         categoryId: categoryId ?? undefined,
         includeDescendants: Boolean(categoryId),
       }),
-    enabled: Boolean(featuredConfig),
+    enabled: true,
     staleTime: 60_000,
   });
   const products = useMemo(
@@ -46,7 +60,6 @@ export function FeaturedProducts() {
   );
 
   if (
-    !settingsQuery.data ||
     (!productsQuery.isLoading && products.length === 0)
   ) {
     return null;
@@ -74,7 +87,7 @@ export function FeaturedProducts() {
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h2
-              id="featured-products-title"
+              id={`featured-products-title-${featuredConfig.id}`}
               className="text-2xl! font-extrabold uppercase tracking-wide text-[#0a224f] sm:text-3xl!">
               {title}
             </h2>
@@ -118,7 +131,7 @@ export function FeaturedProducts() {
             ? Array.from({ length: 6 }, (_, index) => (
                 <div
                   key={index}
-                  className="w-[78%] shrink-0 snap-start animate-pulse overflow-hidden rounded-2xl border border-border/60 bg-white sm:w-[calc((100%_-_1rem)_/_2)] lg:w-[calc((100%_-_3rem)_/_4)] xl:w-[calc((100%_-_5rem)_/_6)]">
+                  className="w-[78%] shrink-0 snap-start animate-pulse overflow-hidden rounded-2xl border border-border/60 bg-white sm:w-[calc((100%-1rem)/2)]! lg:w-[calc((100%-3rem)/4)]! xl:w-[calc((100%-5rem)/6)]!">
                   <div className="aspect-square bg-slate-200" />
                   <div className="space-y-3 p-4">
                     <div className="h-4 w-4/5 rounded bg-slate-200" />
@@ -129,7 +142,7 @@ export function FeaturedProducts() {
             : products.map((product) => (
                 <div
                   key={product.id}
-                  className="flex w-[78%] shrink-0 snap-start sm:w-[calc((100%_-_1rem)_/_2)] lg:w-[calc((100%_-_3rem)_/_4)] xl:w-[calc((100%_-_5rem)_/_6)]">
+                  className="flex w-[78%] shrink-0 snap-start sm:w-[calc((100%-1rem)/2)]! lg:w-[calc((100%-3rem)/4)]! xl:w-[calc((100%-5rem)/6)]!">
                   <ProductCard product={product} variant="featured" />
                 </div>
               ))}

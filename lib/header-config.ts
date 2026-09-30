@@ -20,6 +20,7 @@ export type HomeHeroSlide = {
 };
 
 export type HomeFeaturedProductsConfig = {
+  id: string;
   title: string;
   categoryId: string | null;
 };
@@ -29,20 +30,32 @@ export type HomePopularCategoriesConfig = {
   categoryIds: string[] | null;
 };
 
+export type HomeImageTile = {
+  imageUrl: string;
+  altText: string;
+};
+
 export type HomeHeroConfig = {
   slides: HomeHeroSlide[];
   professionalsCategoryIds: string[] | null;
   individualsCategoryIds: string[] | null;
+  featuredProductSections: HomeFeaturedProductsConfig[];
+  homeSectionOrder: string[];
+  /** Legacy single section retained so older saved configs still normalize. */
   featuredProducts: HomeFeaturedProductsConfig;
   popularCategories: HomePopularCategoriesConfig;
+  imageTiles: Array<HomeImageTile | null>;
 };
 
 export const DEFAULT_HOME_HERO_CONFIG: HomeHeroConfig = {
   slides: [],
   professionalsCategoryIds: null,
   individualsCategoryIds: null,
-  featuredProducts: { title: "Meilleures ventes", categoryId: null },
+  featuredProductSections: [{ id: "featured-products-1", title: "Meilleures ventes", categoryId: null }],
+  homeSectionOrder: ["featured:featured-products-1", "image-layout"],
+  featuredProducts: { id: "featured-products-1", title: "Meilleures ventes", categoryId: null },
   popularCategories: { title: "Explore Popular Categories", categoryIds: null },
+  imageTiles: [null, null, null, null],
 };
 
 export type HeaderConfig = {
@@ -122,6 +135,28 @@ export function normalizeHomeHeroConfig(
   const config = value as Partial<HomeHeroConfig>;
   const categories = (ids: unknown) =>
     Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : null;
+  const rawSections = Array.isArray(config.featuredProductSections)
+    ? config.featuredProductSections
+    : config.featuredProducts
+      ? [config.featuredProducts]
+      : DEFAULT_HOME_HERO_CONFIG.featuredProductSections;
+  const featuredProductSections = rawSections
+    .filter((section) => typeof section?.title === "string")
+    .map((section, index) => ({
+      id: typeof section.id === "string" && section.id ? section.id : `featured-products-${index + 1}`,
+      title: section.title.trim() || `Featured products ${index + 1}`,
+      categoryId: typeof section.categoryId === "string" && section.categoryId.trim() ? section.categoryId : null,
+    }));
+  const validSectionIds = new Set([
+    "image-layout",
+    ...featuredProductSections.map((section) => `featured:${section.id}`),
+  ]);
+  const savedOrder = Array.isArray(config.homeSectionOrder)
+    ? config.homeSectionOrder.filter((id): id is string => typeof id === "string" && validSectionIds.has(id))
+    : [];
+  const homeSectionOrder = [
+    ...new Set([...savedOrder, ...featuredProductSections.map((section) => `featured:${section.id}`), "image-layout"]),
+  ];
 
   return {
     slides: Array.isArray(config.slides)
@@ -135,18 +170,9 @@ export function normalizeHomeHeroConfig(
       : [],
     professionalsCategoryIds: categories(config.professionalsCategoryIds),
     individualsCategoryIds: categories(config.individualsCategoryIds),
-    featuredProducts: {
-      title:
-        typeof config.featuredProducts?.title === "string" &&
-        config.featuredProducts.title.trim()
-          ? config.featuredProducts.title.trim()
-          : DEFAULT_HOME_HERO_CONFIG.featuredProducts.title,
-      categoryId:
-        typeof config.featuredProducts?.categoryId === "string" &&
-        config.featuredProducts.categoryId.trim()
-          ? config.featuredProducts.categoryId
-          : null,
-    },
+    featuredProductSections,
+    homeSectionOrder,
+    featuredProducts: featuredProductSections[0] ?? DEFAULT_HOME_HERO_CONFIG.featuredProducts,
     popularCategories: {
       title:
         typeof config.popularCategories?.title === "string" &&
@@ -155,6 +181,17 @@ export function normalizeHomeHeroConfig(
           : DEFAULT_HOME_HERO_CONFIG.popularCategories.title,
       categoryIds: categories(config.popularCategories?.categoryIds),
     },
+    imageTiles: Array.from({ length: 4 }, (_, index) => {
+      const tile = Array.isArray(config.imageTiles)
+        ? config.imageTiles[index]
+        : null;
+      return typeof tile?.imageUrl === "string" && tile.imageUrl.trim()
+        ? {
+            imageUrl: tile.imageUrl,
+            altText: typeof tile.altText === "string" ? tile.altText : "",
+          }
+        : null;
+    }),
   };
 }
 

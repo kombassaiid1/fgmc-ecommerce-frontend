@@ -23,8 +23,9 @@ export function PopularCategories() {
     staleTime: 60_000,
   });
   const allCategories = categoriesQuery.data ?? [];
-  const categoryIds =
-    settingsQuery.data?.heroConfig.popularCategories.categoryIds;
+  const popularCategoriesConfig =
+    settingsQuery.data?.heroConfig?.popularCategories;
+  const categoryIds = popularCategoriesConfig?.categoryIds ?? null;
   const categories = useMemo(() => {
     const visibleIds =
       categoryIds ?? getDefaultPopularCategoryIds(allCategories);
@@ -37,7 +38,7 @@ export function PopularCategories() {
 
   if (!settingsQuery.data || !categoriesQuery.data || categories.length === 0)
     return null;
-  const title = settingsQuery.data.heroConfig.popularCategories.title;
+  const title = popularCategoriesConfig?.title || "Explore Popular Categories";
 
   function move(direction: -1 | 1) {
     trackRef.current?.scrollBy({ left: direction * 340, behavior: "smooth" });
@@ -45,7 +46,7 @@ export function PopularCategories() {
 
   return (
     <section
-      className="bg-white px-4 py-7 sm:px-6 lg:py-8"
+      className="bg-[#F2F5FA]! px-4 py-7 sm:px-6 lg:py-8"
       aria-labelledby="popular-categories-title">
       <div className="mx-auto max-w-[1450px]">
         <div className="mb-4 flex items-center justify-between gap-3">
