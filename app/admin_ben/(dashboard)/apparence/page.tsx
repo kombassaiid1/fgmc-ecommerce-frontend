@@ -42,7 +42,9 @@ export default function AdminAppearancePage() {
     queryKey: ["admin-hero-categories"],
     queryFn: () => getCategories(),
   });
-  const config = draft ?? settingsQuery.data?.heroConfig ?? normalizeHomeHeroConfig(null);
+  // Re-normalize drafts too: a saved config from before section ordering (or a
+  // dev HMR state snapshot) may not contain the new arrays yet.
+  const config = normalizeHomeHeroConfig(draft ?? settingsQuery.data?.heroConfig ?? null);
   const categories = categoriesQuery.data ?? [];
 
   const chooseImageForSlot = (media: MediaItem) => {

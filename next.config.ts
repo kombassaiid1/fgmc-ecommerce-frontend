@@ -1,8 +1,14 @@
 import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: process.cwd(),
+    // The frontend is nested in a workspace directory; process.cwd() can point
+    // at that parent and make CSS package resolution miss this app's node_modules.
+    root: projectRoot,
   },
   async rewrites() {
     return [
