@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BlockStack, Text } from "@shopify/polaris";
-import Quill from "quill";
+import type Quill from "quill";
 import "quill/dist/quill.snow.css";
 import { MediaPickerDialog, type MediaItem } from "./media-picker-dialog";
 
@@ -74,14 +74,16 @@ export function RichTextEditor({
   };
 
   useEffect(() => {
-    if (!hostRef.current || quillRef.current) {
-      return;
-    }
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    void import("quill").then(({ default: QuillEditor }) => {
+      if (cancelled || !hostRef.current || quillRef.current) return;
 
     const container = document.createElement("div");
     hostRef.current.appendChild(container);
 
-    const quill = new Quill(container, {
+    const quill = new QuillEditor(container, {
       theme: "snow",
       modules: {
         toolbar: {
@@ -264,13 +266,21 @@ export function RichTextEditor({
       window.removeEventListener("resize", onScrollOrResize);
     };
 
-    return () => {
+    cleanup = () => {
       cleanupImageResizerRef.current?.();
       cleanupImageResizerRef.current = null;
       quillRef.current = null;
       if (hostRef.current) {
         hostRef.current.innerHTML = "";
       }
+    };
+    }).catch(() => {
+      // Keep the product form usable if the optional rich text editor fails to load.
+    });
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
     };
   }, [placeholder]);
 
