@@ -22,10 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${oswald.variable} h-full antialiased`}>
-      <body className="min-h-screen! flex flex-col">
+    <html lang="en" className={`${oswald.variable} h-full antialiased`}>
+      <body className="min-h-screen! flex flex-col bg-[#F2F5FA]!">
         <ReactQueryProvider>
           <main className="flex-1!">
             <TopNavBar />
