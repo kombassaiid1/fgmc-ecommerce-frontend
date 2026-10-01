@@ -98,7 +98,10 @@ const NAV_ITEMS = [
     label: "Parametres",
     url: "/admin_ben/settings",
     icon: SettingsIcon,
-    subNavigationItems: [{ label: "Taxes", url: "/admin_ben/settings/taxes" }],
+    subNavigationItems: [
+      { label: "Taxes", url: "/admin_ben/settings/taxes" },
+      { label: "Couleurs des statuts", url: "/admin_ben/settings/order-status-colors" },
+    ],
   },
 ];
 

@@ -181,6 +181,22 @@ export async function getOrders(
   });
 }
 
+export async function updateOrderStatus(id: string, etat: string): Promise<OrderListItem> {
+  return apiRequest<OrderListItem>({
+    path: `/orders/${encodeURIComponent(id)}/etat`,
+    method: "PATCH",
+    body: JSON.stringify({ etat }),
+  });
+}
+
+export async function updateOrderPaymentStatus(id: string, paymentStatus: string): Promise<OrderListItem> {
+  return apiRequest<OrderListItem>({
+    path: `/orders/${encodeURIComponent(id)}/payment-status`,
+    method: "PATCH",
+    body: JSON.stringify({ paymentStatus }),
+  });
+}
+
 export async function createGuestOrder(
   payload: GuestOrderPayload,
 ): Promise<CreatedOrder> {

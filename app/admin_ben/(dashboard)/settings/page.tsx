@@ -15,6 +15,9 @@ export default function AdminSettingsPage() {
         <Button url="/admin_ben/settings/taxes" variant="primary">
           Gerer les taxes
         </Button>
+        <Button url="/admin_ben/settings/order-status-colors">
+          Couleurs des statuts de commande
+        </Button>
       </BlockStack>
     </Card>
   );
