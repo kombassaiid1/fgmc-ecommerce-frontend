@@ -25,6 +25,7 @@ const initialConfig: DolibarrConfig = {
 };
 
 type SyncField = "syncProducts" | "syncStock" | "syncInvoices" | "syncCustomers" | "syncOrders";
+type SyncDirection = "store-to-dolibarr" | "dolibarr-to-store";
 
 function createIntegrationToken() {
   const bytes = new Uint8Array(32);
@@ -42,6 +43,7 @@ export default function DolibarrConfigForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [syncing, setSyncing] = useState<SyncDirection | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -99,6 +101,25 @@ export default function DolibarrConfigForm() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "La connexion a echoue.");
     } finally { setTesting(false); }
+  }
+
+  async function runManualSync(direction: SyncDirection) {
+    setSyncing(direction); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/admin/dolibarr-integration/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) throw new Error(data.message || "La synchronisation a echoue.");
+      const summary = Object.entries(data.result ?? {})
+        .map(([name, count]) => `${name}: ${count}`)
+        .join(" · ");
+      setMessage(`Synchronisation terminee${summary ? ` — ${summary}` : "."}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "La synchronisation a echoue.");
+    } finally { setSyncing(null); }
   }
 
   function toggle(field: SyncField) {
@@ -172,11 +193,34 @@ export default function DolibarrConfigForm() {
                 ))}
               </div>
             </div>
+            <section aria-labelledby="manual-sync-title" className="rounded-xl border border-[#dce4ea] bg-[#f8fafc] p-4">
+              <div>
+                <h3 id="manual-sync-title" className="text-sm font-semibold text-[#24364b]">Synchronisation manuelle</h3>
+                <p className="mt-1 text-sm text-[#667085]">Lancez une synchronisation maintenant. Les choix ci-dessus determinent les donnees envoyees.</p>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-[#e4e7ec] bg-white p-3">
+                  <p className="text-sm font-semibold text-[#344054]">Boutique vers Dolibarr</p>
+                  <p className="mt-1 min-h-10 text-xs leading-5 text-[#667085]">Envoie les clients et les commandes du magasin vers Dolibarr.</p>
+                  <button type="button" disabled={!config.configured || saving || testing || syncing !== null} onClick={() => runManualSync("store-to-dolibarr")} className="mt-3 min-h-11 w-full rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#104987] disabled:cursor-not-allowed disabled:opacity-50">
+                    {syncing === "store-to-dolibarr" ? "Synchronisation en cours..." : "Synchroniser boutique → Dolibarr"}
+                  </button>
+                </div>
+                <div className="rounded-lg border border-[#e4e7ec] bg-white p-3">
+                  <p className="text-sm font-semibold text-[#344054]">Dolibarr vers boutique</p>
+                  <p className="mt-1 min-h-10 text-xs leading-5 text-[#667085]">Importe les produits, les stocks et les factures de Dolibarr dans le magasin.</p>
+                  <button type="button" disabled={!config.configured || saving || testing || syncing !== null} onClick={() => runManualSync("dolibarr-to-store")} className="mt-3 min-h-11 w-full rounded-lg border border-[#1457a6] bg-white px-4 py-2.5 text-sm font-semibold text-[#1457a6] hover:bg-[#eff6ff] disabled:cursor-not-allowed disabled:opacity-50">
+                    {syncing === "dolibarr-to-store" ? "Synchronisation en cours..." : "Synchroniser Dolibarr → boutique"}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-[#667085]">Le module FGMC Sync version 1.0.7 ou plus recente doit etre installe dans Dolibarr.</p>
+            </section>
             {message && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
             {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
             <div className="flex flex-wrap gap-3 border-t border-[#edf0f3] pt-4">
               <button type="submit" disabled={saving} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Enregistrement..." : "Enregistrer la configuration"}</button>
-              <button type="button" disabled={!config.configured || testing} onClick={testConnection} className="rounded-lg border border-[#cbd5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">{testing ? "Test en cours..." : "Tester la connexion"}</button>
+              <button type="button" disabled={!config.configured || testing || syncing !== null} onClick={testConnection} className="rounded-lg border border-[#cbd5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">{testing ? "Test en cours..." : "Tester la connexion"}</button>
             </div>
           </>
         )}
