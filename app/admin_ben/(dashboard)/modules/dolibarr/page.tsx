@@ -14,7 +14,7 @@ export default function DolibarrModulePage() {
           <Badge tone="info">ERP · Synchronisation</Badge>
         </div>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#667085]">
-          Configurez les identifiants et les donnees synchronisees entre Dolibarr et la boutique.
+          Configurez l'URL, la cle Web Services et les identifiants de connexion Dolibarr, puis choisissez les donnees a synchroniser.
         </p>
       </div>
 

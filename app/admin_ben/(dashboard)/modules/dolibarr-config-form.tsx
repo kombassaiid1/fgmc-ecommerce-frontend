@@ -8,6 +8,8 @@ type DolibarrConfig = {
   storeApiUrl: string;
   apiUrl: string;
   apiKeySet: boolean;
+  usernameSet: boolean;
+  passwordSet: boolean;
   integrationTokenSet: boolean;
   syncProducts: boolean;
   syncStock: boolean;
@@ -17,7 +19,7 @@ type DolibarrConfig = {
 };
 
 const initialConfig: DolibarrConfig = {
-  configured: false, storeApiUrl: "", apiUrl: "", apiKeySet: false,
+  configured: false, storeApiUrl: "", apiUrl: "", apiKeySet: false, usernameSet: false, passwordSet: false,
   integrationTokenSet: false, syncProducts: true, syncStock: true,
   syncInvoices: true, syncCustomers: true, syncOrders: true,
 };
@@ -33,6 +35,8 @@ function createIntegrationToken() {
 export default function DolibarrConfigForm() {
   const [config, setConfig] = useState(initialConfig);
   const [apiKey, setApiKey] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [integrationToken, setIntegrationToken] = useState("");
   const [generatedToken, setGeneratedToken] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,7 +73,7 @@ export default function DolibarrConfigForm() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiUrl: config.apiUrl, apiKey, integrationToken,
+          apiUrl: config.apiUrl, apiKey, username, password, integrationToken,
           syncProducts: config.syncProducts, syncStock: config.syncStock,
           syncInvoices: config.syncInvoices, syncCustomers: config.syncCustomers,
           syncOrders: config.syncOrders,
@@ -77,7 +81,7 @@ export default function DolibarrConfigForm() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Enregistrement impossible.");
-      setApiKey(""); setIntegrationToken(""); setGeneratedToken(false);
+      setApiKey(""); setUsername(""); setPassword(""); setIntegrationToken(""); setGeneratedToken(false);
       await reloadConfig();
       setMessage("Configuration enregistree. Les secrets sont chiffres sur le serveur.");
     } catch (cause) {
@@ -112,7 +116,7 @@ export default function DolibarrConfigForm() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-[#24364b]">Configuration de la connexion</h2>
-            <p className="mt-1 text-sm text-[#667085]">Les acces sont chiffres dans la base et ne sont jamais renvoyes a cette page.</p>
+            <p className="mt-1 text-sm text-[#667085]">La cle Web Services et les identifiants Dolibarr sont chiffres dans la base et ne sont jamais renvoyes a cette page.</p>
           </div>
           <Badge tone={config.configured ? "success" : "attention"}>{config.configured ? "Configure" : "A configurer"}</Badge>
         </div>
@@ -130,8 +134,16 @@ export default function DolibarrConfigForm() {
                 <input readOnly value={config.storeApiUrl} className="mt-1 block w-full rounded-lg border border-[#cbd5df] bg-[#f8fafc] px-3 py-2.5 font-mono text-sm font-normal text-[#475467]" />
               </label>
               <label className="block text-sm font-medium text-[#344054]">
-                Cle API Dolibarr {config.apiKeySet && <span className="font-normal text-emerald-700">· deja enregistree</span>}
-                <input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={config.apiKeySet ? "Laisser vide pour conserver la cle actuelle" : "Cle API d'un utilisateur de synchronisation"} className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6] focus:ring-2 focus:ring-[#1457a6]/15" />
+                Cle Web Services Dolibarr {config.apiKeySet && <span className="font-normal text-emerald-700">· deja enregistree</span>}
+                <input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={config.apiKeySet ? "Laisser vide pour conserver la cle actuelle" : "Cle generee dans Dolibarr / Web Services"} className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6] focus:ring-2 focus:ring-[#1457a6]/15" />
+              </label>
+              <label className="block text-sm font-medium text-[#344054]">
+                Login Dolibarr {config.usernameSet && <span className="font-normal text-emerald-700">· deja enregistre</span>}
+                <input required={!config.usernameSet} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder={config.usernameSet ? "Laisser vide pour conserver le login actuel" : "Login Dolibarr (pas l'adresse e-mail)"} className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6] focus:ring-2 focus:ring-[#1457a6]/15" />
+              </label>
+              <label className="block text-sm font-medium text-[#344054]">
+                Mot de passe Dolibarr {config.passwordSet && <span className="font-normal text-emerald-700">· deja enregistre</span>}
+                <input required={!config.passwordSet} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={config.passwordSet ? "Laisser vide pour conserver le mot de passe actuel" : "Mot de passe de l'utilisateur Dolibarr"} className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6] focus:ring-2 focus:ring-[#1457a6]/15" />
               </label>
               <label className="block text-sm font-medium text-[#344054] md:col-span-2">
                 Token secret de synchronisation {config.integrationTokenSet && !generatedToken && <span className="font-normal text-emerald-700">· deja enregistre</span>}
