@@ -12,6 +12,7 @@ type DolibarrConfig = {
   passwordSet: boolean;
   integrationTokenSet: boolean;
   syncProducts: boolean;
+  syncStoreProducts: boolean;
   syncStock: boolean;
   syncInvoices: boolean;
   syncCustomers: boolean;
@@ -20,11 +21,11 @@ type DolibarrConfig = {
 
 const initialConfig: DolibarrConfig = {
   configured: false, storeApiUrl: "", apiUrl: "", apiKeySet: false, usernameSet: false, passwordSet: false,
-  integrationTokenSet: false, syncProducts: true, syncStock: true,
+  integrationTokenSet: false, syncProducts: true, syncStoreProducts: false, syncStock: true,
   syncInvoices: true, syncCustomers: true, syncOrders: true,
 };
 
-type SyncField = "syncProducts" | "syncStock" | "syncInvoices" | "syncCustomers" | "syncOrders";
+type SyncField = "syncProducts" | "syncStoreProducts" | "syncStock" | "syncInvoices" | "syncCustomers" | "syncOrders";
 type SyncDirection = "store-to-dolibarr" | "dolibarr-to-store";
 
 function createIntegrationToken() {
@@ -77,6 +78,7 @@ export default function DolibarrConfigForm() {
         body: JSON.stringify({
           apiUrl: config.apiUrl, apiKey, username, password, integrationToken,
           syncProducts: config.syncProducts, syncStock: config.syncStock,
+          syncStoreProducts: config.syncStoreProducts,
           syncInvoices: config.syncInvoices, syncCustomers: config.syncCustomers,
           syncOrders: config.syncOrders,
         }),
@@ -182,6 +184,7 @@ export default function DolibarrConfigForm() {
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {([
                   ["syncProducts", "Produits · Dolibarr vers boutique"],
+                  ["syncStoreProducts", "Produits · boutique vers Dolibarr"],
                   ["syncStock", "Stocks · Dolibarr vers boutique"],
                   ["syncInvoices", "Factures · Dolibarr vers boutique"],
                   ["syncCustomers", "Clients · boutique vers Dolibarr"],
@@ -201,7 +204,7 @@ export default function DolibarrConfigForm() {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="rounded-lg border border-[#e4e7ec] bg-white p-3">
                   <p className="text-sm font-semibold text-[#344054]">Boutique vers Dolibarr</p>
-                  <p className="mt-1 min-h-10 text-xs leading-5 text-[#667085]">Envoie les clients et les commandes du magasin vers Dolibarr.</p>
+                  <p className="mt-1 min-h-10 text-xs leading-5 text-[#667085]">Envoie les produits, les clients et les commandes de la boutique vers Dolibarr.</p>
                   <button type="button" disabled={!config.configured || saving || testing || syncing !== null} onClick={() => runManualSync("store-to-dolibarr")} className="mt-3 min-h-11 w-full rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#104987] disabled:cursor-not-allowed disabled:opacity-50">
                     {syncing === "store-to-dolibarr" ? "Synchronisation en cours..." : "Synchroniser boutique → Dolibarr"}
                   </button>
@@ -214,7 +217,7 @@ export default function DolibarrConfigForm() {
                   </button>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-[#667085]">Le module FGMC Sync version 1.0.7 ou plus recente doit etre installe dans Dolibarr.</p>
+              <p className="mt-3 text-xs text-[#667085]">Le module FGMC Sync version 1.0.9 ou plus recente doit etre installe dans Dolibarr.</p>
             </section>
             {message && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
             {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
