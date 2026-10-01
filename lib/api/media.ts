@@ -182,9 +182,14 @@ export async function uploadMedia(
         }
 
         const payloadError = parsed as { message?: string | string[] } | null;
+        const responseText = xhr.responseText
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 400);
         const message = Array.isArray(payloadError?.message)
           ? payloadError.message.join(", ")
-          : payloadError?.message ?? "Upload echoue.";
+          : payloadError?.message ?? (responseText || `Upload echoue (HTTP ${status}).`);
         reject(new ApiError(message, status || 500));
       };
 
