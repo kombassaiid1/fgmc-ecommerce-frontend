@@ -14,6 +14,7 @@ import {
   TopBar,
 } from "@shopify/polaris";
 import {
+  AppsIcon,
   ColorIcon,
   HomeIcon,
   ImageIcon,
@@ -91,6 +92,7 @@ const NAV_ITEMS = [
     ],
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },
+  { label: "Modules", url: "/admin_ben/modules", icon: AppsIcon },
   { label: "Avis clients", url: "/admin_ben/reviews", icon: StarIcon },
   { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon },
