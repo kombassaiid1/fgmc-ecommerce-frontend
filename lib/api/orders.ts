@@ -139,6 +139,22 @@ export type OrderListItem = {
   updatedAt: string;
 };
 
+export type OrderDetail = Omit<OrderListItem, "Client" | "Address"> & {
+  Client?: (OrderClient & {
+    Titre?: string;
+    phoneNumber?: string | null;
+    company?: string | null;
+    numberIdFiscale?: string | null;
+  }) | null;
+  Address?: (OrderAddress & {
+    country: string;
+    street: string;
+    zipCode: string;
+  }) | null;
+  customerOrderCount: number;
+  customerTotalSpent: number;
+};
+
 export type OrdersResponse = {
   data: OrderListItem[];
   meta: {
@@ -177,6 +193,13 @@ export async function getOrders(
 ): Promise<OrdersResponse> {
   return apiRequest<OrdersResponse>({
     path: buildOrdersQuery(params),
+    method: "GET",
+  });
+}
+
+export async function getOrder(id: string): Promise<OrderDetail> {
+  return apiRequest<OrderDetail>({
+    path: `/orders/${encodeURIComponent(id)}`,
     method: "GET",
   });
 }

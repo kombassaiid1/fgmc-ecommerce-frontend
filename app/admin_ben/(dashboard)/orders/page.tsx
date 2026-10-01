@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge, Banner, BlockStack, Box, Button, Card, InlineStack, Pagination, Text } from "@shopify/polaris";
 import { ExportIcon, RefreshIcon } from "@shopify/polaris-icons";
 
@@ -149,6 +150,7 @@ function FilterInput({
 }
 
 export default function AdminOrdersPage() {
+  const router = useRouter();
   const [items, setItems] = useState<OrderListItem[]>([]);
   const [orderStatusColors, setOrderStatusColors] = useState<OrderStatusColors>(mergeOrderStatusColors());
   const [loading, setLoading] = useState(true);
@@ -301,7 +303,7 @@ export default function AdminOrdersPage() {
                     </select>
                   </td>
                   <td className="whitespace-nowrap px-3 tabular-nums">{formatDate(item.createdAt)}</td>
-                  <td className="px-3 text-center"><button type="button" onClick={() => setActiveOrder(item)} aria-label={`Voir la commande ${item.id}`} title="Voir la commande" className="inline-flex size-8 items-center justify-center rounded text-[#688294] hover:bg-[#eaf4f7] hover:text-[#087f99] focus-visible:outline-2 focus-visible:outline-[#169bb5]"><svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4M11 8v6m-3-3h6" /></svg></button></td>
+                  <td className="px-3 text-center"><button type="button" onClick={() => router.push(`/admin_ben/orders/${encodeURIComponent(item.id)}`)} aria-label={`Voir la commande ${item.id}`} title="Voir la commande" className="inline-flex size-8 items-center justify-center rounded text-[#688294] hover:bg-[#eaf4f7] hover:text-[#087f99] focus-visible:outline-2 focus-visible:outline-[#169bb5]"><svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4M11 8v6m-3-3h6" /></svg></button></td>
                 </tr>
               ))}
             </tbody>
