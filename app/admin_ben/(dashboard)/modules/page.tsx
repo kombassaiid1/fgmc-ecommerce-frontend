@@ -13,7 +13,7 @@ const modules = [
     initials: "D",
     background: "#e9f2ff",
     foreground: "#164b91",
-    download: "/downloads/fgmcsync-1.1.0.zip",
+    download: "/downloads/fgmcsync-1.1.1.zip",
     features: [
       "Produits, stock et factures · Dolibarr vers boutique",
       "Produits, combinaisons et stock par variation · boutique vers Dolibarr",
