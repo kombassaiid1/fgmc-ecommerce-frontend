@@ -8,16 +8,17 @@ const modules = [
     name: "Dolibarr",
     category: "ERP · Synchronisation",
     description:
-      "Synchronisez produits, stocks et factures depuis Dolibarr. Envoyez aussi les produits, commandes et clients de la boutique vers Dolibarr.",
-    status: "Package disponible",
+      "Synchronisez les produits, prix, stocks et factures automatiquement sur les evenements Dolibarr. Les nouvelles commandes de la boutique sont importees, facturees et rattachees au compte client.",
+    status: "Synchronisation evenementielle",
     initials: "D",
     background: "#e9f2ff",
     foreground: "#164b91",
-    download: "/downloads/fgmcsync-1.1.9.zip",
+    download: "/downloads/fgmcsync-1.2.0.zip",
     features: [
       "Produits, stock et factures · Dolibarr vers boutique",
       "Produits, combinaisons et stock par variation · boutique vers Dolibarr",
       "Commandes et clients · boutique vers Dolibarr",
+      "Creation immediate d'une facture Dolibarr pour chaque nouvelle commande boutique",
     ],
   },
 ];
