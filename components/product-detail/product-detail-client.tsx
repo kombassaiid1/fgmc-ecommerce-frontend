@@ -21,6 +21,7 @@ import { canClientReviewProduct, fetchProductReviews, submitProductReview, type 
 import { getImageUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useRecentlyViewedStore } from "@/lib/stores/recently-viewed-store";
 import { resolveSpecificPrice } from "@/lib/specific-pricing";
 import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { ProductCard, type ProductCardProduct } from "@/components/product-card";
@@ -114,9 +115,14 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
   const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
   const addItem = useCartStore((s) => s.addItem);
+  const addRecentlyViewed = useRecentlyViewedStore((s) => s.addView);
   const [tab, setTab] = useState<"description" | "details" | "comments">(
     "description",
   );
+
+  useEffect(() => {
+    addRecentlyViewed(product.id);
+  }, [addRecentlyViewed, product.id]);
 
   useEffect(() => {
     const syncSession = () => setClientSession(getClientSession());
