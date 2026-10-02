@@ -217,7 +217,7 @@ export default function DolibarrConfigForm() {
                   </button>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-[#667085]">Le module FGMC Sync version 1.1.5 ou plus recente doit etre installe dans Dolibarr. Pour synchroniser le stock des combinaisons, renseignez aussi l'ID de l'entrepot dans les reglages du module Dolibarr.</p>
+              <p className="mt-3 text-xs text-[#667085]">Le module FGMC Sync version 1.1.6 ou plus recente doit etre installe dans Dolibarr. Pour synchroniser le stock des combinaisons, renseignez aussi l'ID de l'entrepot dans les reglages du module Dolibarr.</p>
             </section>
             {message && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>}
             {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
