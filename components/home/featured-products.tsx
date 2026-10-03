@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ProductCard } from "@/components/product-card";
+import { DiscoverProducts } from "@/components/home/discover-products";
 import { HomeImageMosaic } from "@/components/home/home-image-mosaic";
 import { getCategories } from "@/lib/api/categories";
 import { getProducts } from "@/lib/api/products";
@@ -25,7 +26,10 @@ export function FeaturedProducts() {
     {orderedSections.map((sectionId) => {
       if (sectionId === "image-layout") return <HomeImageMosaic key={sectionId} />;
       const section = sections.find((item) => `featured:${item.id}` === sectionId);
-      return section ? <FeaturedProductsSection key={section.id} config={section} /> : null;
+      if (!section) return null;
+      // Normalization keeps at most one recommendations section.
+      if (section.source === "recommendations") return <DiscoverProducts key={section.id} title={section.title} />;
+      return <FeaturedProductsSection key={section.id} config={section} />;
     })}
   </>;
 }

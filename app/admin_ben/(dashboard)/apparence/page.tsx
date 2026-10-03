@@ -9,7 +9,16 @@ import { MediaPickerDialog, type MediaItem } from "@/components/admin/media-pick
 import { getImageUrl } from "@/lib/api";
 import { getCategories } from "@/lib/api/categories";
 import { getAdminHeaderSettings, updateHomeHeroConfig } from "@/lib/api/header";
-import { normalizeHomeHeroConfig, type HomeHeroConfig } from "@/lib/header-config";
+import {
+  isDefaultFeaturedSectionTitle,
+  normalizeHomeHeroConfig,
+  RECOMMENDATIONS_SECTION_TITLE,
+  type HomeHeroConfig,
+} from "@/lib/header-config";
+
+/** Select-only value: stored as `source: "recommendations"`, never as a categoryId. */
+const RECOMMENDATIONS_OPTION_VALUE = "__recommendations__";
+const RECOMMENDATIONS_OPTION_LABEL = "À découvrir (recommandations)";
 
 const IMAGE_TILE_LAYOUT = [
   "row-span-2 sm:col-start-1 sm:row-span-2",
@@ -30,6 +39,7 @@ export default function AdminAppearancePage() {
   const [draft, setDraft] = useState<HomeHeroConfig | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [imagePickerSlot, setImagePickerSlot] = useState<number | null>(null);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
@@ -46,6 +56,10 @@ export default function AdminAppearancePage() {
   // dev HMR state snapshot) may not contain the new arrays yet.
   const config = normalizeHomeHeroConfig(draft ?? settingsQuery.data?.heroConfig ?? null);
   const categories = categoriesQuery.data ?? [];
+  // At most one section can show the recommendation block.
+  const recommendationsSectionId =
+    config.featuredProductSections.find((section) => section.source === "recommendations")?.id ?? null;
+  const settingsLoaded = draft !== null || settingsQuery.isSuccess;
 
   const chooseImageForSlot = (media: MediaItem) => {
     if (imagePickerSlot === null) return;
@@ -85,7 +99,7 @@ export default function AdminAppearancePage() {
     const id = `featured-products-${Date.now()}`;
     setDraft({
       ...config,
-      featuredProductSections: [...config.featuredProductSections, { id, title: "Meilleures ventes", categoryId: null }],
+      featuredProductSections: [...config.featuredProductSections, { id, title: "Meilleures ventes", categoryId: null, source: "category" }],
       homeSectionOrder: [...config.homeSectionOrder, `featured:${id}`],
     });
   };
@@ -120,6 +134,12 @@ export default function AdminAppearancePage() {
       {notice ? <Banner tone="success" title={notice} onDismiss={() => setNotice(null)} /> : null}
       {error ? <Banner tone="critical" title={error} onDismiss={() => setError(null)} /> : null}
       {settingsQuery.isError || categoriesQuery.isError ? <Banner tone="critical" title="Appearance settings or categories could not be loaded." /> : null}
+      {info ? <Banner tone="info" title={info} onDismiss={() => setInfo(null)} /> : null}
+      {settingsLoaded && recommendationsSectionId === null ? (
+        <Banner tone="info">
+          <p>The &quot;À découvrir&quot; recommendation block is not on the homepage. Choose &quot;{RECOMMENDATIONS_OPTION_LABEL}&quot; in a section&apos;s Product category to show it.</p>
+        </Banner>
+      ) : null}
 
       <BlockStack gap="300">
         {config.homeSectionOrder.map((sectionId, index) => {
@@ -167,6 +187,8 @@ export default function AdminAppearancePage() {
           const section = config.featuredProductSections.find((item) => `featured:${item.id}` === sectionId);
           if (!section) return null;
           const sectionIndex = config.featuredProductSections.findIndex((item) => item.id === section.id);
+          const isRecommendations = section.source === "recommendations";
+          const recommendationsUsedElsewhere = recommendationsSectionId !== null && !isRecommendations;
           return (
           <Card key={section.id}>
             <BlockStack gap="300">
@@ -176,7 +198,16 @@ export default function AdminAppearancePage() {
                   <Button disabled={index === 0} onClick={() => moveHomeSection(index, -1)}>Move up</Button>
                   <Button disabled={index === config.homeSectionOrder.length - 1} onClick={() => moveHomeSection(index, 1)}>Move down</Button>
                   <Button onClick={() => {
-                    const copy = { ...section, id: `featured-products-${Date.now()}`, title: `${section.title} (copy)` };
+                    // Only one recommendations section is allowed: its copy is a regular carousel.
+                    const copy = {
+                      ...section,
+                      id: `featured-products-${Date.now()}`,
+                      title: `${section.title} (copy)`,
+                      source: "category" as const,
+                    };
+                    if (isRecommendations) {
+                      setInfo(`Only one "${RECOMMENDATIONS_OPTION_LABEL}" section is allowed. The copy was created as a regular carousel showing all categories: choose a category for it or remove it.`);
+                    }
                     const featuredProductSections = [...config.featuredProductSections];
                     featuredProductSections.splice(sectionIndex + 1, 0, copy);
                     const homeSectionOrder = [...config.homeSectionOrder];
@@ -198,12 +229,32 @@ export default function AdminAppearancePage() {
               />
               <Select
                 label="Product category"
-                value={section.categoryId ?? ""}
+                value={isRecommendations ? RECOMMENDATIONS_OPTION_VALUE : section.categoryId ?? ""}
                 options={[
+                  {
+                    label: recommendationsUsedElsewhere
+                      ? `${RECOMMENDATIONS_OPTION_LABEL} (déjà utilisée)`
+                      : RECOMMENDATIONS_OPTION_LABEL,
+                    value: RECOMMENDATIONS_OPTION_VALUE,
+                    disabled: recommendationsUsedElsewhere,
+                  },
                   { label: "All categories", value: "" },
                   ...categories.map((category) => ({ label: category.title, value: category.id })),
                 ]}
-                onChange={(categoryId) => updateFeaturedSection(sectionIndex, { categoryId: categoryId || null })}
+                helpText={isRecommendations ? "This section shows personalized recommendations instead of a category." : undefined}
+                onChange={(value) => {
+                  if (value !== RECOMMENDATIONS_OPTION_VALUE) {
+                    updateFeaturedSection(sectionIndex, { source: "category", categoryId: value || null });
+                    return;
+                  }
+                  if (recommendationsUsedElsewhere) return;
+                  updateFeaturedSection(sectionIndex, {
+                    source: "recommendations",
+                    categoryId: null,
+                    // A custom title is kept; an empty or automatic one becomes "À découvrir".
+                    ...(isDefaultFeaturedSectionTitle(section.title) ? { title: RECOMMENDATIONS_SECTION_TITLE } : {}),
+                  });
+                }}
               />
             </BlockStack>
           </Card>

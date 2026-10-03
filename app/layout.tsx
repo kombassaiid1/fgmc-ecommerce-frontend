@@ -4,6 +4,7 @@ import "@shopify/polaris/build/esm/styles.css";
 import "./globals.css";
 import { TopNavBar } from "@/components/client/top-navbar";
 import { ReactQueryProvider } from "@/components/providers/react-query-provider";
+import { RecoTracker } from "@/components/providers/reco-tracker";
 import { Toaster } from "@/components/ui/sonner";
 
 const oswald = Oswald({
@@ -30,6 +31,7 @@ export default function RootLayout({
             {children}
           </main>
           <Toaster />
+          <RecoTracker />
         </ReactQueryProvider>
       </body>
     </html>
