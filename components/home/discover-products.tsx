@@ -12,6 +12,7 @@ import {
   trackRecoImpressions,
 } from "@/lib/reco/events";
 import { buildRecoHistory } from "@/lib/reco/utils";
+import { RECOMMENDATIONS_SECTION_TITLE } from "@/lib/header-config";
 import { useCartStore } from "@/lib/stores/cart-store";
 import { useRecentlyViewedStore } from "@/lib/stores/recently-viewed-store";
 
@@ -28,7 +29,7 @@ function fetchHomeRecommendations() {
   return getHomeRecommendations(buildRecoHistory(viewed, cartProductIds));
 }
 
-export function DiscoverProducts() {
+export function DiscoverProducts({ title }: { title?: string }) {
   const sectionRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const recoQuery = useQuery({
@@ -114,7 +115,7 @@ export function DiscoverProducts() {
             <h2
               id="discover-products-title"
               className="text-2xl! font-extrabold uppercase tracking-wide text-[#0a224f] sm:text-3xl!">
-              À découvrir
+              {title?.trim() || RECOMMENDATIONS_SECTION_TITLE}
             </h2>
             <div
               className="mt-2 flex h-1 w-16 overflow-hidden rounded-full"
