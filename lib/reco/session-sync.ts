@@ -2,6 +2,8 @@ import { getBackendBaseUrl } from "@/lib/backend-url";
 import { getClientSession, subscribeToClientSession } from "@/lib/client-auth";
 import { recoAuthHeaders } from "@/lib/reco/auth";
 import { getRecoSessionId, rotateRecoSessionId } from "@/lib/reco/session";
+import { useRecentlyViewedStore } from "@/lib/stores/recently-viewed-store";
+import { useRecoAttributionStore } from "@/lib/stores/reco-attribution-store";
 
 /*
  * Links the anonymous browser session to the logged-in client through
@@ -75,8 +77,14 @@ export function startRecoSessionSync(): () => void {
         const token = getClientToken();
         if (token === lastToken) return;
         lastToken = token;
-        // Logout: the next visitor on this computer gets a new session.
-        if (token === null) rotateRecoSessionId();
+        // Logout: the next visitor on this computer gets a new session and
+        // an empty local history (viewed products, block attributions). The
+        // cart is deliberately kept.
+        if (token === null) {
+          rotateRecoSessionId();
+          useRecentlyViewedStore.setState({ items: [] });
+          useRecoAttributionStore.setState({ attributions: {} });
+        }
         // Login, signup or the new anonymous session after a logout.
         registerRecoSession();
       } catch {
