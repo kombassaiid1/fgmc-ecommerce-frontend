@@ -1,5 +1,6 @@
 import { apiRequest } from "./http-client";
 import type { ProductListItem } from "./products";
+import { recoAuthHeaders } from "@/lib/reco/auth";
 import type { RecoHistoryItem } from "@/lib/reco/utils";
 
 export type RecoHomeProduct = {
@@ -23,6 +24,7 @@ export async function getHomeRecommendations(
   return apiRequest<RecoHomeResponse>({
     path: "/reco/home",
     method: "POST",
+    headers: recoAuthHeaders(),
     body: JSON.stringify({ history }),
   });
 }

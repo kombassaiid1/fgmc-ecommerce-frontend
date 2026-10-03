@@ -1,4 +1,5 @@
 import { getBackendBaseUrl } from "@/lib/backend-url";
+import { recoAuthHeaders } from "@/lib/reco/auth";
 import { getRecoSessionId } from "@/lib/reco/session";
 import {
   cartQtyByProduct,
@@ -51,7 +52,7 @@ export function sendRecoEvents(events: RecoEventInput[]): void {
       // The 202 response is empty: it is never read.
       fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...recoAuthHeaders() },
         body: JSON.stringify({ events: batch }),
         keepalive: true,
         cache: "no-store",
