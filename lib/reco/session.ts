@@ -37,3 +37,17 @@ export function getRecoSessionId(): string {
     return memorySessionId;
   }
 }
+
+/**
+ * Replaces the session id with a new random one (logout, or session already
+ * linked to another client), so two people on the same computer never share it.
+ */
+export function rotateRecoSessionId(): string {
+  const sessionId = createSessionId();
+  try {
+    window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  } catch {
+    memorySessionId = sessionId;
+  }
+  return sessionId;
+}
