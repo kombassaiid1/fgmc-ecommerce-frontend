@@ -85,7 +85,7 @@ export default function AdminAppearancePage() {
     const id = `featured-products-${Date.now()}`;
     setDraft({
       ...config,
-      featuredProductSections: [...config.featuredProductSections, { id, title: "Meilleures ventes", categoryId: null }],
+      featuredProductSections: [...config.featuredProductSections, { id, title: "Meilleures ventes", categoryId: null, source: "category" }],
       homeSectionOrder: [...config.homeSectionOrder, `featured:${id}`],
     });
   };
