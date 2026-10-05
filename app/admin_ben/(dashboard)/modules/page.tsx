@@ -14,11 +14,29 @@ const modules = [
     background: "#e9f2ff",
     foreground: "#164b91",
     download: "/downloads/fgmcsync-1.2.3.zip",
+    configHref: "/admin_ben/modules/dolibarr",
+    configLabel: "Configurer Dolibarr",
     features: [
       "Produits, stock et factures · Dolibarr vers boutique",
       "Produits, combinaisons et stock par variation · boutique vers Dolibarr",
       "Commandes et clients · boutique vers Dolibarr",
       "Creation immediate d'une facture Dolibarr pour chaque nouvelle commande boutique",
+    ],
+  },
+  {
+    name: "PrestaShop",
+    category: "Import catalogue",
+    description: "Testez la connexion Webservice et importez un produit PrestaShop avec son prix HT, sa marque, ses catégories, ses caractéristiques, ses déclinaisons et ses images.",
+    status: "Import test disponible",
+    initials: "P",
+    background: "#fff2e8",
+    foreground: "#a44a12",
+    configHref: "/admin_ben/modules/prestashop",
+    configLabel: "Configurer PrestaShop",
+    features: [
+      "Connexion sécurisée par clé Webservice",
+      "Recherche et aperçu des produits de la boutique",
+      "Import d’un produit pour valider le flux",
     ],
   },
 ];
@@ -55,12 +73,10 @@ export default function AdminModulesPage() {
                 {module.features.map((feature) => <li key={feature}>• {feature}</li>)}
               </ul>
               <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-[#edf0f3] pt-4">
-                <Link className="inline-flex items-center justify-center rounded-lg bg-[#1457a6] px-4 py-2 text-sm font-semibold text-white hover:bg-[#104987]" href="/admin_ben/modules/dolibarr">
-                  Configurer Dolibarr
+                <Link className="inline-flex items-center justify-center rounded-lg bg-[#1457a6] px-4 py-2 text-sm font-semibold text-white hover:bg-[#104987]" href={module.configHref}>
+                  {module.configLabel}
                 </Link>
-                <a className="text-sm font-medium text-[#1457a6] underline" href={module.download} download>
-                  Telecharger le module
-                </a>
+                {"download" in module && <a className="text-sm font-medium text-[#1457a6] underline" href={module.download} download>Telecharger le module</a>}
               </div>
             </div>
           </Card>
