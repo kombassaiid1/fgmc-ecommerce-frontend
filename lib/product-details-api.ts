@@ -21,6 +21,7 @@ export type ProductDetailsResponse = {
   reviewCount?: number;
   reviewRating?: number;
   sparePartIds?: string[];
+  mainCategoryId?: string | null;
   taxRelation?: { rate: number; name?: string } | null;
   brand?: {
     id: string;

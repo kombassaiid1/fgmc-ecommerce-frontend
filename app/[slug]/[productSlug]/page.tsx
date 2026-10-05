@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
@@ -69,6 +70,15 @@ export default async function ProductDetailsPage({ params }: Props) {
         </div>
       </main>
     );
+  }
+
+  const mainCategory = product.mainCategoryId
+    ? product.categories?.find((item) =>
+        item.categoryId === product.mainCategoryId || item.category?.id === product.mainCategoryId,
+      )?.category
+    : null;
+  if (mainCategory?.slug && slug !== mainCategory.slug) {
+    redirect(`/${mainCategory.slug}/${product.slug}.html`);
   }
 
   return <ProductDetailClient categorySlug={slug} product={product} />;

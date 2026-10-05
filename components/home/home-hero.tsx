@@ -30,6 +30,10 @@ function buildCategoryTree(categories: Category[]): CategoryNode[] {
   return roots;
 }
 
+function flattenCategoryTree(categories: CategoryNode[]): CategoryNode[] {
+  return categories.flatMap((category) => [category, ...flattenCategoryTree(category.children)]);
+}
+
 function getAudienceCategories(
   categories: CategoryNode[],
   audience: "professionnels" | "particuliers",
@@ -42,9 +46,10 @@ function getAudienceCategories(
     names.includes(normalize(category.title.trim())) || names.includes(normalize(category.slug.trim())),
   );
   const source = audienceRoot?.children ?? categories;
+  const allCategories = flattenCategoryTree(categories);
   const visible = selectedIds === null
     ? source
-    : selectedIds.map((id) => source.find((category) => category.id === id)).filter((category): category is CategoryNode => Boolean(category));
+    : selectedIds.map((id) => allCategories.find((category) => category.id === id)).filter((category): category is CategoryNode => Boolean(category));
   return { audienceRoot, categories: visible };
 }
 

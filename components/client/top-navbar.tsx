@@ -102,7 +102,7 @@ function formatOpeningHours(config: HeaderConfig): string {
 }
 
 function buildProductHref(product: SearchProduct): string {
-  const categorySlug = pickProductCategorySlug(product.categories);
+  const categorySlug = pickProductCategorySlug(product.categories, product.mainCategoryId);
   const productSlug = product.slug.trim().replace(/^\/+|\/+$/g, "");
   if (!categorySlug) return `/${productSlug}.html`;
   return `/${categorySlug}/${productSlug}.html`;
@@ -110,10 +110,22 @@ function buildProductHref(product: SearchProduct): string {
 
 function pickProductCategorySlug(
   categories: unknown[] | null | undefined,
+  mainCategoryId?: string | null,
 ): string | null {
   if (!Array.isArray(categories) || categories.length === 0) return null;
 
-  for (const item of categories) {
+  const ordered = mainCategoryId
+    ? [...categories].sort((left, right) => {
+        const isMain = (item: unknown) => {
+          if (item == null || typeof item !== "object") return false;
+          const record = item as Record<string, unknown>;
+          const category = record.category as Record<string, unknown> | null | undefined;
+          return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
+        };
+        return Number(isMain(right)) - Number(isMain(left));
+      })
+    : categories;
+  for (const item of ordered) {
     if (item == null || typeof item !== "object") continue;
     const itemRecord = item as Record<string, unknown>;
     const candidateRaw = itemRecord.category ?? itemRecord;

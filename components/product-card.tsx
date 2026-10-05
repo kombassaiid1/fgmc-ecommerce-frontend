@@ -36,6 +36,7 @@ export type ProductCardProduct = {
   price: string;
   specificPrices?: StorefrontSpecificPrice[] | null;
   taxRelation?: { rate: number } | null;
+  mainCategoryId?: string | null;
   images?: string[];
   categories?: unknown[] | null;
   createdAt?: string;
@@ -52,10 +53,18 @@ function buildProductHref(categorySlug: string | undefined, productSlug: string)
 
 function pickProductCategoryLabel(
   categories: unknown[] | null | undefined,
+  mainCategoryId?: string | null,
 ): string | null {
   if (!Array.isArray(categories) || categories.length === 0) return null;
 
-  const first = categories[0];
+  const first = mainCategoryId
+    ? categories.find((item) => {
+        if (item == null || typeof item !== "object") return false;
+        const record = item as Record<string, unknown>;
+        const category = record.category as Record<string, unknown> | null | undefined;
+        return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
+      }) ?? categories[0]
+    : categories[0];
   if (first == null || typeof first !== "object") return null;
 
   const firstRecord = first as Record<string, unknown>;
@@ -78,10 +87,22 @@ function pickProductCategoryLabel(
 
 function pickProductCategorySlug(
   categories: unknown[] | null | undefined,
+  mainCategoryId?: string | null,
 ): string | null {
   if (!Array.isArray(categories) || categories.length === 0) return null;
 
-  for (const item of categories) {
+  const ordered = mainCategoryId
+    ? [...categories].sort((left, right) => {
+        const isMain = (item: unknown) => {
+          if (item == null || typeof item !== "object") return false;
+          const record = item as Record<string, unknown>;
+          const category = record.category as Record<string, unknown> | null | undefined;
+          return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
+        };
+        return Number(isMain(right)) - Number(isMain(left));
+      })
+    : categories;
+  for (const item of ordered) {
     if (item == null || typeof item !== "object") continue;
     const itemRecord = item as Record<string, unknown>;
     const candidateRaw =
@@ -120,9 +141,9 @@ export function ProductCard({
   const discountPercent = originalTtc > 0
     ? Math.min(100, Math.max(1, Math.round(((originalTtc - ttc) / originalTtc) * 100)))
     : 0;
-  const productCategorySlug = pickProductCategorySlug(product.categories);
+  const productCategorySlug = pickProductCategorySlug(product.categories, product.mainCategoryId);
   const href = buildProductHref(productCategorySlug ?? categorySlug, product.slug);
-  const categoryLabel = pickProductCategoryLabel(product.categories) ?? null;
+  const categoryLabel = pickProductCategoryLabel(product.categories, product.mainCategoryId) ?? null;
 
   return (
     <article

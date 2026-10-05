@@ -15,6 +15,7 @@ export type ProductListItem = {
   qty: string;
   stockStatus: string;
   sparePartIds?: string[];
+  mainCategoryId?: string | null;
   status: "DRAFT" | "PUBLIC";
   brandId: string;
   brand?: {
@@ -143,6 +144,7 @@ export type CreateProductPayload = {
   reviewRating?: number | null;
   reviewCount?: number | null;
   sparePartIds?: string[];
+  mainCategoryId?: string | null;
   categoryIds?: string[];
   attributeTerms?: ProductAttributeTermPayload[];
   combinaisons?: ProductVariantPayload[];

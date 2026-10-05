@@ -12,24 +12,21 @@ import { getImageUrl } from "@/lib/api";
 import { normalizeHomeHeroConfig, type HomeHeroConfig } from "@/lib/header-config";
 import { getDefaultPopularCategoryIds } from "@/lib/popular-category-defaults";
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function getCategoryPath(category: Category, categories: Category[]) {
+  const path = [category.title];
+  const visited = new Set([category.id]);
+  let parentId = category.parentCategoryId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = categories.find((item) => item.id === parentId);
+    if (!parent) break;
+    path.unshift(parent.title);
+    parentId = parent.parentCategoryId;
+  }
+  return path.join(" › ");
 }
 
-function groupCategories(categories: Category[], audience: "professionnels" | "particuliers") {
-  const names = audience === "professionnels"
-    ? ["professionnel", "professionnels", "pro"]
-    : ["particulier", "particuliers"];
-  const root = categories.find((category) => names.includes(normalize(category.title)) || names.includes(normalize(category.slug)));
-  return {
-    title: root?.title ?? (audience === "professionnels" ? "Professionnels" : "Particuliers"),
-    categories: root
-      ? categories.filter((category) => category.parentCategoryId === root.id)
-      : categories.filter((category) => !category.parentCategoryId),
-  };
-}
-
-function moveItem(ids: string[], index: number, step: number) {
+function moveItem<T>(ids: T[], index: number, step: number) {
   const target = index + step;
   if (target < 0 || target >= ids.length) return ids;
   const next = [...ids];
@@ -53,12 +50,18 @@ export default function AdminHomeHeroPage() {
     queryKey: ["admin-hero-categories"],
     queryFn: () => getCategories(),
   });
-  const config = draft ?? settingsQuery.data?.heroConfig ?? normalizeHomeHeroConfig(null);
+  const sourceConfig = draft ?? settingsQuery.data?.heroConfig ?? normalizeHomeHeroConfig(null);
+  const config: Omit<HomeHeroConfig, "professionalsCategoryIds" | "individualsCategoryIds"> & {
+    professionalsCategoryIds: string[];
+    individualsCategoryIds: string[];
+  } = {
+    ...sourceConfig,
+    professionalsCategoryIds: sourceConfig.professionalsCategoryIds ?? [],
+    individualsCategoryIds: sourceConfig.individualsCategoryIds ?? [],
+  };
   const allCategories = categoriesQuery.data ?? [];
   const defaultPopularIds = useMemo(() => getDefaultPopularCategoryIds(allCategories), [allCategories]);
   const popularCategoryIds = config.popularCategories.categoryIds ?? defaultPopularIds;
-  const professionalsGroup = useMemo(() => groupCategories(allCategories, "professionnels"), [allCategories]);
-  const individualsGroup = useMemo(() => groupCategories(allCategories, "particuliers"), [allCategories]);
 
   const update = (next: HomeHeroConfig) => setDraft(next);
 
@@ -96,9 +99,8 @@ export default function AdminHomeHeroPage() {
     field: "professionalsCategoryIds" | "individualsCategoryIds",
     categoryId: string,
     checked: boolean,
-    sourceIds: string[],
   ) => {
-    const current = config[field] ?? sourceIds;
+    const current = config[field] ?? [];
     update({
       ...config,
       [field]: checked
@@ -198,19 +200,19 @@ export default function AdminHomeHeroPage() {
       </Card>
 
       <CategorySettingsCard
-        title={professionalsGroup.title}
-        description="Choose which professional categories are visible and set their order."
-        categories={professionalsGroup.categories}
-        selectedIds={config.professionalsCategoryIds ?? professionalsGroup.categories.map((category) => category.id)}
-        onToggle={(id, checked) => updateCategorySelection("professionalsCategoryIds", id, checked, professionalsGroup.categories.map((category) => category.id))}
+        title="Professionnels"
+        description="Select any categories from your catalog for this panel, then choose the display order."
+        categories={allCategories}
+        selectedIds={config.professionalsCategoryIds}
+        onToggle={(id, checked) => updateCategorySelection("professionalsCategoryIds", id, checked)}
         onMove={(ids) => update({ ...config, professionalsCategoryIds: ids })}
       />
       <CategorySettingsCard
-        title={individualsGroup.title}
-        description="Choose which individual categories are visible and set their order."
-        categories={individualsGroup.categories}
-        selectedIds={config.individualsCategoryIds ?? individualsGroup.categories.map((category) => category.id)}
-        onToggle={(id, checked) => updateCategorySelection("individualsCategoryIds", id, checked, individualsGroup.categories.map((category) => category.id))}
+        title="Particuliers"
+        description="Select any categories from your catalog for this panel, then choose the display order."
+        categories={allCategories}
+        selectedIds={config.individualsCategoryIds}
+        onToggle={(id, checked) => updateCategorySelection("individualsCategoryIds", id, checked)}
         onMove={(ids) => update({ ...config, individualsCategoryIds: ids })}
       />
 
@@ -245,8 +247,8 @@ function CategorySettingsCard({
         <div className="grid gap-6 lg:grid-cols-2">
           <BlockStack gap="200">
             <Text as="h3" variant="headingSm">Available categories</Text>
-            {categories.length === 0 ? <Text as="p" tone="subdued">No categories found in this group.</Text> : categories.map((category) => (
-              <Checkbox key={category.id} label={category.title} checked={selectedIds.includes(category.id)} onChange={(checked) => onToggle(category.id, checked)} />
+            {categories.length === 0 ? <Text as="p" tone="subdued">No categories found in your catalog.</Text> : categories.map((category) => (
+              <Checkbox key={category.id} label={getCategoryPath(category, categories)} checked={selectedIds.includes(category.id)} onChange={(checked) => onToggle(category.id, checked)} />
             ))}
           </BlockStack>
           <BlockStack gap="200">

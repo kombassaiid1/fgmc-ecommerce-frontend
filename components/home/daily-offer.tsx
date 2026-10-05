@@ -12,7 +12,7 @@ import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
 import { resolveSpecificPrice } from "@/lib/specific-pricing";
 
 type OfferProduct = ProductListItem & {
-  categories?: Array<{ category?: { title?: string; slug?: string } }>;
+  categories?: Array<{ categoryId?: string; category?: { id?: string; title?: string; slug?: string } }>;
 };
 
 type CountdownUnit = { value: string; label: string };
@@ -136,7 +136,10 @@ function DailyOfferCard({
   const quantity = useCartStore((state) => state.items[key]?.qty ?? 0);
   const addItem = useCartStore((state) => state.addItem);
   const setItemQty = useCartStore((state) => state.setItemQty);
-  const category = product.categories?.[0]?.category;
+  const mainCategory = product.categories?.find((item) =>
+    item.categoryId === product.mainCategoryId || item.category?.id === product.mainCategoryId,
+  )?.category;
+  const category = mainCategory ?? product.categories?.[0]?.category;
   const image = product.images?.[0] ? getImageUrl(product.images[0]) : null;
   const countdown = useOfferCountdown(offer.expiresAt);
   const productHref = category?.slug ? `/${category.slug}/${product.slug}.html` : `/${product.slug}.html`;

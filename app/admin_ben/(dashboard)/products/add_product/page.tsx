@@ -153,6 +153,7 @@ export default function AdminProductsPage() {
   const [taxes, setTaxes] = useState<Tax[]>([]);
 
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [mainCategoryId, setMainCategoryId] = useState<string | null>(null);
   const [sparePartIds, setSparePartIds] = useState<string[]>([]);
   const [availableProducts, setAvailableProducts] = useState<ProductListItem[]>([]);
   const [sparePartSearch, setSparePartSearch] = useState("");
@@ -208,6 +209,16 @@ export default function AdminProductsPage() {
   );
   const [defaultVariantId, setDefaultVariantId] = useState<string | null>(null);
 
+  const updateCategorySelection = (categoryId: string, selected: boolean) => {
+    const nextSelected = selected
+      ? selectedCategoryIds.includes(categoryId) ? selectedCategoryIds : [...selectedCategoryIds, categoryId]
+      : selectedCategoryIds.filter((id) => id !== categoryId);
+    setSelectedCategoryIds(nextSelected);
+    setMainCategoryId((current) => selected
+      ? current && selectedCategoryIds.includes(current) ? current : categoryId
+      : current === categoryId ? nextSelected[0] ?? null : current);
+  };
+
   const makeVariantId = () => {
     if (typeof globalThis.crypto?.randomUUID === "function") {
       return globalThis.crypto.randomUUID();
@@ -234,6 +245,7 @@ export default function AdminProductsPage() {
           const categoryById = new Map(cats.map((item) => [item.id, item]));
           if (categoryById.has(categoryIdParam)) {
             setSelectedCategoryIds([categoryIdParam]);
+            setMainCategoryId(categoryIdParam);
             setExpandedCategoryIds(() => {
               const next = new Set<string>();
               let cursor = categoryById.get(categoryIdParam)?.parentCategoryId ?? null;
@@ -324,6 +336,14 @@ export default function AdminProductsPage() {
           (product.categories ?? [])
             .map((item) => item.categoryId ?? item.category?.id ?? "")
             .filter((value): value is string => Boolean(value)),
+        );
+        const productCategoryIds = (product.categories ?? [])
+          .map((item) => item.categoryId ?? item.category?.id ?? "")
+          .filter(Boolean);
+        setMainCategoryId(
+          product.mainCategoryId && productCategoryIds.includes(product.mainCategoryId)
+            ? product.mainCategoryId
+            : productCategoryIds[0] ?? null,
         );
         setSparePartIds(product.sparePartIds ?? []);
         setSpecificPrices(Array.isArray(product.specificPrices) ? product.specificPrices : []);
@@ -907,6 +927,7 @@ export default function AdminProductsPage() {
       metaDescription: formState.metaDescription.trim() || null,
       metaKeywords: formState.metaKeywords.trim() || null,
       categoryIds: selectedCategoryIds,
+      mainCategoryId,
       sparePartIds,
       attributeTerms,
       combinaisons:
@@ -950,6 +971,7 @@ export default function AdminProductsPage() {
       });
       setSlugWasEdited(false);
       setSelectedCategoryIds(nextCategoryIds);
+      setMainCategoryId(nextCategoryIds[0] ?? null);
       setSparePartIds([]);
       setSelectedTermIdsByAttribute({});
       setImages([]);
@@ -1342,11 +1364,7 @@ export default function AdminProductsPage() {
                                 <Button
                                   key={id}
                                   size="slim"
-                                  onClick={() =>
-                                    setSelectedCategoryIds((prev) =>
-                                      prev.filter((value) => value !== id),
-                                    )
-                                  }>
+                                  onClick={() => updateCategorySelection(id, false)}>
                                   {`${category.title} x`}
                                 </Button>
                               );
@@ -1366,6 +1384,7 @@ export default function AdminProductsPage() {
                           </Button>
                         </InlineStack>
                         <BlockStack gap="100">
+                          <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: "8px", color: "#6d7175", fontSize: "12px", fontWeight: 600 }}><span>Main category</span></div>
                           {categoryRows.map(({ item, depth, hasChildren }) => {
                             const checked = selectedCategoryIds.includes(item.id);
                             return (
@@ -1375,6 +1394,8 @@ export default function AdminProductsPage() {
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "8px",
+                                  position: "relative",
+                                  paddingRight: "110px",
                                   marginInlineStart: `${String(depth * 18)}px`,
                                 }}>
                                 {hasChildren ? (
@@ -1406,18 +1427,12 @@ export default function AdminProductsPage() {
                                 <input
                                   type="checkbox"
                                   checked={checked}
-                                  onChange={(event) =>
-                                    setSelectedCategoryIds((prev) => {
-                                      if (event.target.checked) {
-                                        return prev.includes(item.id)
-                                          ? prev
-                                          : [...prev, item.id];
-                                      }
-                                      return prev.filter((value) => value !== item.id);
-                                    })
-                                  }
+                                  onChange={(event) => updateCategorySelection(item.id, event.target.checked)}
                                 />
                                 <Text as="span">{item.title}</Text>
+                                <div style={{ position: "absolute", right: 0, width: "100px", display: "flex", justifyContent: "center" }}>
+                                  <input type="radio" name="product-main-category" aria-label={`Set ${item.title} as the main category`} checked={mainCategoryId === item.id} disabled={!checked} onChange={() => setMainCategoryId(item.id)} />
+                                </div>
                               </div>
                             );
                           })}
