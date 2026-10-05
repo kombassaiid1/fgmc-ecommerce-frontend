@@ -19,11 +19,27 @@ export type HomeHeroSlide = {
   href: string;
 };
 
+/**
+ * What a featured section shows: products of a category (default), or the
+ * "À découvrir" recommendation block. At most one section uses recommendations.
+ */
+export type HomeFeaturedProductsSource = "category" | "recommendations";
+
 export type HomeFeaturedProductsConfig = {
   id: string;
   title: string;
+  /** Always a real category id or null (null for a recommendations section). */
   categoryId: string | null;
+  source: HomeFeaturedProductsSource;
 };
+
+export const RECOMMENDATIONS_SECTION_TITLE = "À découvrir";
+
+/** True for an empty title or one of the automatic titles ("Meilleures ventes", "Featured products N"). */
+export function isDefaultFeaturedSectionTitle(title: string): boolean {
+  const value = title.trim();
+  return value === "" || value === "Meilleures ventes" || /^Featured products \d+$/.test(value);
+}
 
 export type HomePopularCategoriesConfig = {
   title: string;
@@ -51,9 +67,9 @@ export const DEFAULT_HOME_HERO_CONFIG: HomeHeroConfig = {
   slides: [],
   professionalsCategoryIds: null,
   individualsCategoryIds: null,
-  featuredProductSections: [{ id: "featured-products-1", title: "Meilleures ventes", categoryId: null }],
+  featuredProductSections: [{ id: "featured-products-1", title: "Meilleures ventes", categoryId: null, source: "category" }],
   homeSectionOrder: ["featured:featured-products-1", "image-layout"],
-  featuredProducts: { id: "featured-products-1", title: "Meilleures ventes", categoryId: null },
+  featuredProducts: { id: "featured-products-1", title: "Meilleures ventes", categoryId: null, source: "category" },
   popularCategories: { title: "Explore Popular Categories", categoryIds: null },
   imageTiles: [null, null, null, null],
 };
@@ -140,13 +156,27 @@ export function normalizeHomeHeroConfig(
     : config.featuredProducts
       ? [config.featuredProducts]
       : DEFAULT_HOME_HERO_CONFIG.featuredProductSections;
+  // Sections saved before `source` existed have no such field: they stay
+  // category sections. Only the first recommendations section is kept, so the
+  // block (and its POST /reco/home call) can never appear twice.
+  let hasRecommendationsSection = false;
   const featuredProductSections = rawSections
     .filter((section) => typeof section?.title === "string")
-    .map((section, index) => ({
-      id: typeof section.id === "string" && section.id ? section.id : `featured-products-${index + 1}`,
-      title: section.title.trim() || `Featured products ${index + 1}`,
-      categoryId: typeof section.categoryId === "string" && section.categoryId.trim() ? section.categoryId : null,
-    }));
+    .map((section, index): HomeFeaturedProductsConfig => {
+      const isRecommendations = section.source === "recommendations" && !hasRecommendationsSection;
+      if (isRecommendations) hasRecommendationsSection = true;
+      return {
+        id: typeof section.id === "string" && section.id ? section.id : `featured-products-${index + 1}`,
+        title:
+          section.title.trim() ||
+          (isRecommendations ? RECOMMENDATIONS_SECTION_TITLE : `Featured products ${index + 1}`),
+        categoryId:
+          !isRecommendations && typeof section.categoryId === "string" && section.categoryId.trim()
+            ? section.categoryId
+            : null,
+        source: isRecommendations ? "recommendations" : "category",
+      };
+    });
   const validSectionIds = new Set([
     "image-layout",
     ...featuredProductSections.map((section) => `featured:${section.id}`),

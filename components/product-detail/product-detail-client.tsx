@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,8 @@ import { canClientReviewProduct, fetchProductReviews, submitProductReview, type 
 import { getImageUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useRecentlyViewedStore } from "@/lib/stores/recently-viewed-store";
+import { sendProductView } from "@/lib/api/reco";
 import { resolveSpecificPrice } from "@/lib/specific-pricing";
 import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { ProductCard, type ProductCardProduct } from "@/components/product-card";
@@ -114,9 +116,19 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
   const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
   const addItem = useCartStore((s) => s.addItem);
+  const addRecentlyViewed = useRecentlyViewedStore((s) => s.addView);
   const [tab, setTab] = useState<"description" | "details" | "comments">(
     "description",
   );
+
+  const recordedViewRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Once per product page display, not on every re-render.
+    if (recordedViewRef.current === product.id) return;
+    recordedViewRef.current = product.id;
+    addRecentlyViewed(product.id);
+    sendProductView(product.id);
+  }, [addRecentlyViewed, product.id]);
 
   useEffect(() => {
     const syncSession = () => setClientSession(getClientSession());

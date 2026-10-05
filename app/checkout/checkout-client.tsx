@@ -59,6 +59,7 @@ import {
   type ClientSession,
 } from "@/lib/client-auth";
 import { useCartStore, type CartItem } from "@/lib/stores/cart-store";
+import { trackRecoPurchase } from "@/lib/reco/events";
 import { cn } from "@/lib/utils";
 
 const SHIPPING_PRICE = 8;
@@ -686,6 +687,9 @@ export function CheckoutClient() {
             guestPhone: currentForm.phone.trim(),
             guestAddress: formatAddress(currentForm),
           });
+
+      // Order confirmed: fire-and-forget PURCHASE for attributed products.
+      trackRecoPurchase(items.map((item) => item.productId));
 
       if (!session?.token && accountPassword) {
         try {
