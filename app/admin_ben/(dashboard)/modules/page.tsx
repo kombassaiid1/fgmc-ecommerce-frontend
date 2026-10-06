@@ -27,7 +27,7 @@ const modules = [
     name: "PrestaShop",
     category: "Import catalogue",
     description: "Testez la connexion Webservice et importez un produit PrestaShop avec son prix HT, sa marque, ses catégories, ses caractéristiques, ses déclinaisons et ses images.",
-    status: "Import test disponible",
+    status: "Import catalogue disponible",
     initials: "P",
     background: "#fff2e8",
     foreground: "#a44a12",

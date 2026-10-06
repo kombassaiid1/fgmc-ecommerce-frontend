@@ -13,6 +13,7 @@ export type ProductListItem = {
   } | null;
   sku: string;
   qty: string;
+  combinaisons?: ProductVariantPayload[];
   stockStatus: string;
   sparePartIds?: string[];
   mainCategoryId?: string | null;

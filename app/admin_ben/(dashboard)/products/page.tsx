@@ -28,6 +28,33 @@ function formatPrice(value: string) {
   return num.toFixed(3);
 }
 
+function getCombinationStock(item: ProductListItem) {
+  const combinations = item.combinaisons ?? [];
+  if (combinations.length === 0) return null;
+
+  const activeCombinations = combinations.filter(
+    (combination) => combination.isActive !== false
+  );
+  const total = activeCombinations.reduce(
+    (sum, combination) => sum + (Number(combination.qty) || 0),
+    0
+  );
+
+  return { combinations, activeCombinations, total };
+}
+
+function getCombinationLabel(
+  combination: NonNullable<ProductListItem["combinaisons"]>[number],
+  index: number
+) {
+  const optionLabel = combination.options
+    ?.map((option) => option.termName || option.attributeName)
+    .filter(Boolean)
+    .join(" / ");
+
+  return optionLabel || combination.sku || `Combinaison ${index + 1}`;
+}
+
 export default function AdminProductsListPage() {
   const [items, setItems] = useState<ProductListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,7 +174,31 @@ export default function AdminProductsListPage() {
                 <IndexTable.Cell>{item.sku || "-"}</IndexTable.Cell>
                 <IndexTable.Cell>{item.brand?.title ?? "-"}</IndexTable.Cell>
                 <IndexTable.Cell>{`${formatPrice(item.price)} €`}</IndexTable.Cell>
-                <IndexTable.Cell>{item.qty || "0"}</IndexTable.Cell>
+                <IndexTable.Cell>
+                  {(() => {
+                    const stock = getCombinationStock(item);
+                    if (!stock) return item.qty || "0";
+
+                    return (
+                      <BlockStack gap="100">
+                        <Text as="span" variant="bodySm" fontWeight="semibold">
+                          Total : {stock.total}
+                        </Text>
+                        {stock.combinations.map((combination, combinationIndex) => (
+                          <Text
+                            key={combination.id ?? combination.sku ?? combinationIndex}
+                            as="span"
+                            variant="bodySm"
+                            tone={combination.isActive === false ? "subdued" : undefined}
+                          >
+                            {getCombinationLabel(combination, combinationIndex)} : {Number(combination.qty) || 0}
+                            {combination.isActive === false ? " (inactive)" : ""}
+                          </Text>
+                        ))}
+                      </BlockStack>
+                    );
+                  })()}
+                </IndexTable.Cell>
                 <IndexTable.Cell>
                   <Badge tone={item.status === "PUBLIC" ? "success" : "attention"}>
                     {item.status === "PUBLIC" ? "En ligne" : "Hors ligne"}

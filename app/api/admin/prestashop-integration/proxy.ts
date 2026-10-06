@@ -5,7 +5,7 @@ import { getBackendBaseUrl } from '@/lib/backend-url';
 export async function proxyPrestashop(request: Request, path = '', method: 'GET' | 'PATCH' | 'POST' = 'GET') {
   const token = (await cookies()).get(ADMIN_TOKEN_COOKIE)?.value;
   if (!token) return Response.json({ message: 'Authentification requise.' }, { status: 401 });
-  const body = method === 'PATCH' ? await request.text() : undefined;
+  const body = method === 'PATCH' || method === 'POST' ? await request.text() : undefined;
   const suffix = path ? `/${path.replace(/^\//, '')}` : '';
   const upstreamUrl = `${getBackendBaseUrl()}/admin/prestashop-integration${suffix}${method === 'GET' ? new URL(request.url).search : ''}`;
   try {
