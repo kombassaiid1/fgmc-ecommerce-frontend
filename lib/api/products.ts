@@ -12,6 +12,7 @@ export type ProductListItem = {
     name?: string;
   } | null;
   sku: string;
+  reference?: string | null;
   qty: string;
   combinaisons?: ProductVariantPayload[];
   stockStatus: string;
@@ -164,6 +165,13 @@ export async function updateProduct(id: string, payload: Partial<CreateProductPa
     path: `/products/${id}`,
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await apiRequest<void>({
+    path: `/products/${id}`,
+    method: "DELETE",
   });
 }
 
