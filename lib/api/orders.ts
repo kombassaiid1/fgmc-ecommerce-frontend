@@ -137,6 +137,14 @@ export type OrderListItem = {
   guestAddress?: string | null;
   createdAt: string;
   updatedAt: string;
+  dolibarrId?: string | null;
+  dolibarrInvoice?: {
+    reference: string;
+    date: string | null;
+    totalTtc: number | null;
+    currency: string | null;
+    status: string | null;
+  } | null;
 };
 
 export type OrderDetail = Omit<OrderListItem, "Client" | "Address"> & {

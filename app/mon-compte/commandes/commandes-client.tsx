@@ -514,6 +514,16 @@ function OrderCard({ order }: { order: OrderListItem }) {
           />
           <DetailRow
             icon={ReceiptText}
+            label="Facture Dolibarr"
+            value={order.dolibarrInvoice
+              ? `${order.dolibarrInvoice.reference} · ${readableStatus(order.dolibarrInvoice.status ?? "validée")}`
+              : order.dolibarrId
+                ? "En attente de synchronisation"
+                : "Pas encore disponible"}
+            wrap
+          />
+          <DetailRow
+            icon={ReceiptText}
             label="Reference commande"
             value={order.id}
             wrap
