@@ -23,7 +23,6 @@ const ORDER_STATUS_OPTIONS = [
   { label: "Autorisation accept\u00e9e par PayPal", value: "Autorisation accept\u00e9e par PayPal" },
   { label: "Autorisation a capturer par le marchand", value: "Autorisation. A capturer par le marchand" },
   { label: "Commande et pr\u00e9par\u00e9e en attente de retrait magasin", value: "commande et pr\u00e9par\u00e9e en attente de retrait magasin" },
-  { label: "Contr\u00f4l\u00e9 Dolibarr FGMC", value: "Contr\u00f4l\u00e9 Dolibarr FGMC" },
   { label: "Delivered to your chosen pickup point (PO or relay)", value: "Delivered to your chosen pickup point (PO or relay)" },
   { label: "Demande de financement en cours", value: "Demande de financement en cours" },
   { label: "En attente d'autorisation", value: "En attente d'autorisation" },

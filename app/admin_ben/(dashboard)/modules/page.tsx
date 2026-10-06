@@ -7,7 +7,7 @@ import { Badge, Button, Icon, Text } from "@shopify/polaris";
 import { AppsIcon, SearchIcon } from "@shopify/polaris-icons";
 import "./modules-page.css";
 
-type ModuleId = "dolibarr" | "prestashop";
+type ModuleId = "prestashop";
 type ModuleFilter = "all" | "configured" | "needs-setup";
 type ModuleCategory = "all" | "erp" | "catalog";
 
@@ -25,22 +25,6 @@ type ModuleEntry = {
 };
 
 const modules: ModuleEntry[] = [
-  {
-    id: "dolibarr",
-    name: "Dolibarr",
-    category: "erp",
-    categoryLabel: "ERP & synchronisation",
-    image: "/modules/dolibarr-integration.png",
-    description:
-      "Faites circuler les données de vos produits, stocks, factures, clients et commandes entre Dolibarr et FGMC.",
-    configHref: "/admin_ben/modules/dolibarr",
-    configLabel: "Ouvrir la configuration",
-    accent: "blue",
-    download: {
-      href: "/downloads/fgmcsync-1.2.3.zip",
-      label: "Télécharger le module Dolibarr",
-    },
-  },
   {
     id: "prestashop",
     name: "PrestaShop",
@@ -63,7 +47,6 @@ const filterTabs: Array<{ id: ModuleFilter; label: string }> = [
 
 export default function AdminModulesPage() {
   const [configured, setConfigured] = useState<Record<ModuleId, boolean | null>>({
-    dolibarr: null,
     prestashop: null,
   });
   const [filter, setFilter] = useState<ModuleFilter>("all");
@@ -72,7 +55,6 @@ export default function AdminModulesPage() {
 
   useEffect(() => {
     const endpoints: Array<[ModuleId, string]> = [
-      ["dolibarr", "/api/admin/dolibarr-integration"],
       ["prestashop", "/api/admin/prestashop-integration"],
     ];
     endpoints.forEach(async ([id, endpoint]) => {

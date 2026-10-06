@@ -10,7 +10,6 @@ export const ORDER_STATUS_OPTIONS = [
   { label: "Autorisation acceptée par PayPal", value: "Autorisation acceptée par PayPal" },
   { label: "Autorisation a capturer par le marchand", value: "Autorisation. A capturer par le marchand" },
   { label: "Commande et préparée en attente de retrait magasin", value: "commande et préparée en attente de retrait magasin" },
-  { label: "Contrôlé Dolibarr FGMC", value: "Contrôlé Dolibarr FGMC" },
   { label: "Delivered to your chosen pickup point (PO or relay)", value: "Delivered to your chosen pickup point (PO or relay)" },
   { label: "Demande de financement en cours", value: "Demande de financement en cours" },
   { label: "En attente d'autorisation", value: "En attente d'autorisation" },

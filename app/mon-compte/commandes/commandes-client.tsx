@@ -518,21 +518,6 @@ function OrderCard({ order }: { order: OrderListItem }) {
             value={order.id}
             wrap
           />
-          <DetailRow
-            icon={ReceiptText}
-            label="Facture Dolibarr"
-            value={order.invoice?.reference ?? "En attente de synchronisation"}
-            wrap
-          />
-          {order.invoice ? (
-            <div className="ml-11 text-xs text-[#667085]">
-              {order.invoice.date ? `Émise le ${formatDate(order.invoice.date)}` : "Facture créée"}
-              {order.invoice.totalTtc != null
-                ? ` · ${formatEuro(order.invoice.totalTtc)}`
-                : ""}
-              {order.invoice.status ? ` · ${invoiceStatusLabel(order.invoice.status)}` : ""}
-            </div>
-          ) : null}
         </aside>
       </div>
     </article>
@@ -771,16 +756,6 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
-}
-
-function invoiceStatusLabel(value: string) {
-  const labels: Record<string, string> = {
-    "0": "Brouillon",
-    "1": "Validée",
-    "2": "Payée",
-    "3": "Abandonnée",
-  };
-  return labels[value] ?? value;
 }
 
 function formatEuro(value: number | null | undefined) {
