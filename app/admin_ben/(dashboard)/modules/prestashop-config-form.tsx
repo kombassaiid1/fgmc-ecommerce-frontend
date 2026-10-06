@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ButtonHTMLAttributes, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type FormEvent } from 'react';
 import {
   Badge,
-  Banner,
   BlockStack,
   Button,
   Card,
   Modal,
   Text,
   TextField,
+  useFrame,
 } from '@shopify/polaris';
 
 type Config = { configured: boolean; shopUrl: string; apiKeySet: boolean };
@@ -40,6 +40,8 @@ function PolarisActionButton({
 }
 
 export default function PrestashopConfigForm() {
+  const { showToast, hideToast } = useFrame();
+  const toastCounter = useRef(0);
   const [config, setConfig] = useState(emptyConfig);
   const [apiKey, setApiKey] = useState('');
   const [products, setProducts] = useState<RemoteProduct[]>([]);
@@ -72,6 +74,25 @@ export default function PrestashopConfigForm() {
   const [showImportStatusDialog, setShowImportStatusDialog] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const notify = useCallback((content: string, isError = false) => {
+    const id = `prestashop-${Date.now()}-${++toastCounter.current}`;
+    showToast({
+      id,
+      content,
+      error: isError,
+      duration: 5000,
+      onDismiss: () => hideToast({ id }),
+    });
+  }, [hideToast, showToast]);
+
+  useEffect(() => {
+    if (message) notify(message);
+  }, [message, notify]);
+
+  useEffect(() => {
+    if (error) notify(error, true);
+  }, [error, notify]);
 
   const reload = useCallback(async () => {
     const response = await fetch('/api/admin/prestashop-integration', { cache: 'no-store' });
@@ -448,8 +469,6 @@ export default function PrestashopConfigForm() {
           </Text>
         </Modal.Section>
       </Modal>
-      {message && <Banner tone="success">{message}</Banner>}
-      {error && <Banner tone="critical">{error}</Banner>}
     </BlockStack>
   );
 }
