@@ -29,6 +29,7 @@ import en from "@shopify/polaris/locales/en.json";
 
 import type { AdminUser } from "@/lib/admin-auth";
 import Image from "next/image";
+import { AgentFloatingButton } from "@/components/agent/agent-floating-button";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -180,6 +181,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
           <Card roundedAbove="sm">{children}</Card>
         </Page>
       </Frame>
+      <AgentFloatingButton />
     </AppProvider>
   );
 }
