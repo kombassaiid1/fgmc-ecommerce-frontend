@@ -1,92 +1,190 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Badge, BlockStack, Card, Text } from "@shopify/polaris";
+import Image from "next/image";
+import { Badge, Button, Icon, Text } from "@shopify/polaris";
+import { AppsIcon, SearchIcon } from "@shopify/polaris-icons";
+import "./modules-page.css";
 
-const modules = [
+type ModuleId = "dolibarr" | "prestashop";
+type ModuleFilter = "all" | "configured" | "needs-setup";
+type ModuleCategory = "all" | "erp" | "catalog";
+
+type ModuleEntry = {
+  id: ModuleId;
+  name: string;
+  category: Exclude<ModuleCategory, "all">;
+  categoryLabel: string;
+  description: string;
+  image: string;
+  configHref: string;
+  configLabel: string;
+  accent: "blue" | "orange";
+  download?: { href: string; label: string };
+};
+
+const modules: ModuleEntry[] = [
   {
+    id: "dolibarr",
     name: "Dolibarr",
-    category: "ERP · Synchronisation",
+    category: "erp",
+    categoryLabel: "ERP & synchronisation",
+    image: "/modules/dolibarr-integration.png",
     description:
-      "Synchronisez les produits, prix, stocks et factures automatiquement sur les evenements Dolibarr. Les nouvelles commandes de la boutique sont importees, facturees et rattachees au compte client.",
-    status: "Synchronisation evenementielle",
-    initials: "D",
-    background: "#e9f2ff",
-    foreground: "#164b91",
-    download: "/downloads/fgmcsync-1.2.3.zip",
+      "Faites circuler les données de vos produits, stocks, factures, clients et commandes entre Dolibarr et FGMC.",
     configHref: "/admin_ben/modules/dolibarr",
-    configLabel: "Configurer Dolibarr",
-    features: [
-      "Produits, stock et factures · Dolibarr vers boutique",
-      "Produits, combinaisons et stock par variation · boutique vers Dolibarr",
-      "Commandes et clients · boutique vers Dolibarr",
-      "Creation immediate d'une facture Dolibarr pour chaque nouvelle commande boutique",
-    ],
+    configLabel: "Ouvrir la configuration",
+    accent: "blue",
+    download: {
+      href: "/downloads/fgmcsync-1.2.3.zip",
+      label: "Télécharger le module Dolibarr",
+    },
   },
   {
+    id: "prestashop",
     name: "PrestaShop",
-    category: "Import catalogue",
-    description: "Testez la connexion Webservice et importez un produit PrestaShop avec son prix HT, sa marque, ses catégories, ses caractéristiques, ses déclinaisons et ses images.",
-    status: "Import catalogue disponible",
-    initials: "P",
-    background: "#fff2e8",
-    foreground: "#a44a12",
+    category: "catalog",
+    categoryLabel: "Import de catalogue",
+    image: "/modules/prestashop-catalog.png",
+    description:
+      "Connectez votre Webservice PrestaShop et importez les informations utiles du catalogue vers FGMC.",
     configHref: "/admin_ben/modules/prestashop",
-    configLabel: "Configurer PrestaShop",
-    features: [
-      "Connexion sécurisée par clé Webservice",
-      "Recherche et aperçu des produits de la boutique",
-      "Import d’un produit pour valider le flux",
-    ],
+    configLabel: "Ouvrir la configuration",
+    accent: "orange",
   },
 ];
 
+const filterTabs: Array<{ id: ModuleFilter; label: string }> = [
+  { id: "all", label: "Tous les modules" },
+  { id: "configured", label: "Configurés" },
+  { id: "needs-setup", label: "À configurer" },
+];
+
 export default function AdminModulesPage() {
+  const [configured, setConfigured] = useState<Record<ModuleId, boolean | null>>({
+    dolibarr: null,
+    prestashop: null,
+  });
+  const [filter, setFilter] = useState<ModuleFilter>("all");
+  const [category, setCategory] = useState<ModuleCategory>("all");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const endpoints: Array<[ModuleId, string]> = [
+      ["dolibarr", "/api/admin/dolibarr-integration"],
+      ["prestashop", "/api/admin/prestashop-integration"],
+    ];
+    endpoints.forEach(async ([id, endpoint]) => {
+      try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (!response.ok) throw new Error("Status indisponible");
+        const data = (await response.json()) as { configured?: boolean };
+        setConfigured((current) => ({ ...current, [id]: Boolean(data.configured) }));
+      } catch {
+        setConfigured((current) => ({ ...current, [id]: null }));
+      }
+    });
+  }, []);
+
+  const visibleModules = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("fr");
+    return modules.filter((module) => {
+      const isConfigured = configured[module.id];
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "configured" && isConfigured === true) ||
+        (filter === "needs-setup" && isConfigured !== true);
+      const matchesCategory = category === "all" || module.category === category;
+      const matchesSearch =
+        !query ||
+        `${module.name} ${module.categoryLabel} ${module.description}`
+          .toLocaleLowerCase("fr")
+          .includes(query);
+      return matchesFilter && matchesCategory && matchesSearch;
+    });
+  }, [category, configured, filter, search]);
+
+  const configuredCount = Object.values(configured).filter((value) => value === true).length;
+
   return (
-    <BlockStack gap="500">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#dce4ea] pb-5">
+    <div className="modules-directory">
+      <header className="modules-directory-header">
         <div>
+          <div className="modules-directory-breadcrumb">
+            <Link href="/admin_ben">Administration</Link><span>/</span><span>Modules</span>
+          </div>
           <Text as="h1" variant="heading2xl">Modules</Text>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">
-            Gere les connexions entre la boutique et vos outils metier.
-          </p>
+          <p>Découvrez et gérez les intégrations de votre boutique FGMC.</p>
         </div>
-        <Badge tone="info">{`${modules.length} module disponible`}</Badge>
+        <label className="modules-directory-search">
+          <Icon source={SearchIcon} />
+          <span className="visually-hidden">Rechercher un module</span>
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher des modules" />
+        </label>
+      </header>
+
+      <div className="modules-directory-filters">
+        <div className="modules-directory-tabs" role="tablist" aria-label="Filtrer les modules">
+          {filterTabs.map((tab) => (
+            <button key={tab.id} type="button" role="tab" aria-selected={filter === tab.id} className={filter === tab.id ? "is-active" : ""} onClick={() => setFilter(tab.id)}>
+              {tab.label}{tab.id === "all" ? <span>{modules.length}</span> : null}
+            </button>
+          ))}
+        </div>
+        <label className="modules-directory-category">
+          <span className="visually-hidden">Catégorie</span>
+          <select value={category} onChange={(event) => setCategory(event.target.value as ModuleCategory)}>
+            <option value="all">Toutes les catégories</option>
+            <option value="erp">ERP & synchronisation</option>
+            <option value="catalog">Import de catalogue</option>
+          </select>
+        </label>
       </div>
 
-      <section aria-label="Modules disponibles" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {modules.map((module) => (
-          <Card key={module.name}>
-            <div className="flex h-full min-h-72 flex-col gap-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl text-lg font-bold" style={{ backgroundColor: module.background, color: module.foreground }} aria-hidden="true">
-                  {module.initials}
+      {visibleModules.length ? (
+        <section className="modules-directory-grid" aria-label="Catalogue des modules">
+          {visibleModules.map((module) => {
+            const isConfigured = configured[module.id];
+            return (
+              <article className="modules-directory-item" key={module.id}>
+                <div className={`modules-directory-icon modules-icon-${module.accent}`} aria-hidden="true">
+                  <Image src={module.image} alt="" width={52} height={52} />
                 </div>
-                <Badge tone="success">{module.status}</Badge>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#667085]">{module.category}</p>
-                <h2 className="mt-2 text-lg font-semibold text-[#24364b]">{module.name}</h2>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">{module.description}</p>
-              </div>
-              <ul className="space-y-2 border-t border-[#edf0f3] pt-4 text-sm leading-5 text-[#475467]">
-                {module.features.map((feature) => <li key={feature}>• {feature}</li>)}
-              </ul>
-              <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-[#edf0f3] pt-4">
-                <Link className="inline-flex items-center justify-center rounded-lg bg-[#1457a6] px-4 py-2 text-sm font-semibold text-white hover:bg-[#104987]" href={module.configHref}>
-                  {module.configLabel}
-                </Link>
-                {"download" in module && <a className="text-sm font-medium text-[#1457a6] underline" href={module.download} download>Telecharger le module</a>}
-              </div>
-            </div>
-          </Card>
-        ))}
-        <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-[#cbd5df] bg-[#f8fafc] px-6 py-8 text-center">
-          <span className="flex size-10 items-center justify-center rounded-full bg-white text-xl text-[#667085] shadow-sm" aria-hidden="true">+</span>
-          <h2 className="mt-3 text-sm font-semibold text-[#344054]">D'autres modules arrivent</h2>
-          <p className="mt-1 max-w-xs text-sm leading-5 text-[#667085]">Les prochaines integrations apparaitront ici au fur et a mesure.</p>
+                <div className="modules-directory-content">
+                  <div className="modules-directory-name-row">
+                    <Link href={module.configHref} className="modules-directory-name">{module.name}</Link>
+                    <Badge tone={isConfigured ? "success" : "attention"}>
+                      {isConfigured ? "Configuré" : isConfigured === null ? "Disponible" : "À configurer"}
+                    </Badge>
+                  </div>
+                  <div className="modules-directory-meta">
+                    <span>{module.categoryLabel}</span><span aria-hidden="true">·</span><span>Intégration FGMC</span>
+                  </div>
+                  <p className="modules-directory-description">{module.description}</p>
+                  <div className="modules-directory-actions">
+                    <Link href={module.configHref}>{module.configLabel}<span aria-hidden="true">→</span></Link>
+                    {module.download ? <a href={module.download.href} download>{module.download.label}</a> : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      ) : (
+        <div className="modules-directory-empty">
+          <div className="modules-directory-icon modules-icon-empty"><Icon source={AppsIcon} /></div>
+          <h2>Aucun module trouvé</h2>
+          <p>Essayez une autre recherche ou modifiez les filtres.</p>
+          <Button onClick={() => { setSearch(""); setFilter("all"); setCategory("all"); }}>Afficher tous les modules</Button>
         </div>
-      </section>
-    </BlockStack>
+      )}
+
+      <footer className="modules-directory-footer">
+        <span className="modules-footer-icon"><Icon source={AppsIcon} /></span>
+        <div><strong>D’autres modules arrivent bientôt</strong><p>Les prochaines intégrations seront ajoutées à ce catalogue.</p></div>
+        <span className="modules-footer-count">{configuredCount} configuré{configuredCount > 1 ? "s" : ""}</span>
+      </footer>
+    </div>
   );
 }

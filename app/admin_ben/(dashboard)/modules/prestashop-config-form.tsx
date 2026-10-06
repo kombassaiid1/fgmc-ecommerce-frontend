@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Card } from '@shopify/polaris';
+import { useCallback, useEffect, useState, type ButtonHTMLAttributes, type FormEvent } from 'react';
+import {
+  Badge,
+  Banner,
+  BlockStack,
+  Button,
+  Card,
+  Modal,
+  Text,
+  TextField,
+} from '@shopify/polaris';
 
 type Config = { configured: boolean; shopUrl: string; apiKeySet: boolean };
 type RemoteProduct = { id: string; title: string; reference: string; priceHT: string; quantity: string; manufacturerId: string; categoryId: string; taxRulesGroupId: string };
@@ -10,6 +19,25 @@ type RemoteTax = { id: string; name: string; rate: number; active: boolean; impo
 type RemoteBrand = { id: string; name: string; active: boolean; imported: boolean };
 type ImportCandidate = { id: string; title: string; reference: string; priceHT: string; quantity: string; active: boolean; duplicate: boolean; duplicateTitle: string | null };
 const emptyConfig: Config = { configured: false, shopUrl: '', apiKeySet: false };
+
+function PolarisActionButton({
+  type = 'button',
+  className,
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const variant = className?.includes('bg-[#1457a6]') ? 'primary' : 'secondary';
+  return (
+    <Button
+      variant={variant}
+      submit={type === 'submit'}
+      disabled={props.disabled}
+      onClick={props.onClick}
+    >
+      {children as string}
+    </Button>
+  );
+}
 
 export default function PrestashopConfigForm() {
   const [config, setConfig] = useState(emptyConfig);
@@ -243,7 +271,7 @@ export default function PrestashopConfigForm() {
   const hasSelectedInactiveProducts = catalogCandidates.some((product) => !product.active && selectedProductIdSet.has(product.id));
 
   return (
-    <div className="space-y-5">
+    <BlockStack gap="500">
       <Card>
         <form onSubmit={save} className="space-y-5">
           <div className="flex items-start justify-between gap-4">
@@ -251,35 +279,36 @@ export default function PrestashopConfigForm() {
             {config.configured && <Badge tone="success">Configuré</Badge>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-semibold text-[#344054]">URL de la boutique PrestaShop<input required type="url" value={config.shopUrl} onChange={(event) => setConfig({ ...config, shopUrl: event.target.value })} placeholder="https://boutique.example.com" className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6]" /><span className="mt-1 block text-xs font-normal text-[#667085]">Entre l’URL du magasin, sans identifiant ni clé API.</span></label>
-            <label className="text-sm font-semibold text-[#344054]">Clé Webservice {config.apiKeySet && <span className="font-normal text-emerald-700">· enregistrée</span>}<input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={config.apiKeySet ? 'Laisser vide pour garder la clé actuelle' : 'Clé créée dans Paramètres avancés > Webservice'} className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6]" /><span className="mt-1 block text-xs font-normal text-[#667085]">La clé est chiffrée côté serveur et n’est jamais renvoyée à cette page.</span></label>
+            <TextField label="URL de la boutique PrestaShop" type="url" autoComplete="url" required value={config.shopUrl} onChange={(shopUrl) => setConfig({ ...config, shopUrl })} placeholder="https://boutique.example.com" helpText="Adresse du magasin, sans identifiant ni clé API." />
+            <TextField label="Clé Webservice" type="password" autoComplete="new-password" value={apiKey} onChange={setApiKey} placeholder={config.apiKeySet ? "Laisser vide pour garder la clé actuelle" : "Clé créée dans Paramètres avancés > Webservice"} helpText={config.apiKeySet ? "Clé déjà enregistrée et chiffrée sur le serveur." : "La clé sera chiffrée et ne sera pas renvoyée à cette page."} />
           </div>
           <div className="flex flex-wrap gap-3">
-            <button disabled={saving || loading} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-            <button type="button" onClick={testConnection} disabled={!config.configured || saving || testing} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">{testing ? 'Test en cours…' : 'Tester la connexion'}</button>
+            <PolarisActionButton type="submit" disabled={saving || loading} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement…' : 'Enregistrer'}</PolarisActionButton>
+            <PolarisActionButton type="button" onClick={testConnection} disabled={!config.configured || saving || testing} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">{testing ? 'Test en cours…' : 'Tester la connexion'}</PolarisActionButton>
           </div>
         </form>
       </Card>
 
+<div className="grid items-start gap-5 xl:grid-cols-2">
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-[#24364b]">Taxes PrestaShop</h2>
             <p className="mt-1 text-sm text-[#667085]">Chargez les taux de taxe de votre boutique, puis importez tout ou seulement ceux que vous choisissez.</p>
           </div>
-          <button type="button" onClick={loadTaxes} disabled={!config.configured || loadingTaxes || importingTaxes} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">
+          <PolarisActionButton type="button" onClick={loadTaxes} disabled={!config.configured || loadingTaxes || importingTaxes} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">
             {loadingTaxes ? 'Chargement…' : taxes.length ? 'Actualiser les taxes' : 'Charger les taxes'}
-          </button>
+          </PolarisActionButton>
         </div>
         {taxes.length > 0 && <>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-[#edf0f3] py-3">
             <p className="text-sm text-[#667085]">{taxes.length} taxe(s) trouvée(s) · {taxes.filter((tax) => tax.imported).length} déjà dans la boutique</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setSelectedTaxIds(taxes.filter((tax) => !tax.imported).map((tax) => tax.id))} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Sélectionner les nouvelles</button>
-              <button type="button" onClick={() => setSelectedTaxIds([])} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Tout désélectionner</button>
-              <button type="button" onClick={importSelectedTaxes} disabled={!selectedTaxIds.length || importingTaxes || loadingTaxes} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+              <PolarisActionButton type="button" onClick={() => setSelectedTaxIds(taxes.filter((tax) => !tax.imported).map((tax) => tax.id))} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Sélectionner les nouvelles</PolarisActionButton>
+              <PolarisActionButton type="button" onClick={() => setSelectedTaxIds([])} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Tout désélectionner</PolarisActionButton>
+              <PolarisActionButton type="button" onClick={importSelectedTaxes} disabled={!selectedTaxIds.length || importingTaxes || loadingTaxes} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
                 {importingTaxes ? 'Import…' : `Importer ${selectedTaxIds.length} sélectionnée(s)`}
-              </button>
+              </PolarisActionButton>
             </div>
           </div>
           <div className="mt-2 max-h-80 overflow-auto">
@@ -302,19 +331,19 @@ export default function PrestashopConfigForm() {
             <h2 className="text-base font-semibold text-[#24364b]">Marques PrestaShop</h2>
             <p className="mt-1 text-sm text-[#667085]">Chargez les marques, sélectionnez celles à importer et récupérez leur image depuis PrestaShop si elle existe.</p>
           </div>
-          <button type="button" onClick={loadBrands} disabled={!config.configured || loadingBrands || importingBrands} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">
+          <PolarisActionButton type="button" onClick={loadBrands} disabled={!config.configured || loadingBrands || importingBrands} className="rounded-lg border border-[#cbd5df] px-4 py-2.5 text-sm font-semibold text-[#344054] disabled:opacity-50">
             {loadingBrands ? 'Chargement…' : brands.length ? 'Actualiser les marques' : 'Charger les marques'}
-          </button>
+          </PolarisActionButton>
         </div>
         {brands.length > 0 && <>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-[#edf0f3] py-3">
             <p className="text-sm text-[#667085]">{brands.length} marque(s) trouvée(s) · {brands.filter((brand) => brand.imported).length} déjà dans la boutique</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setSelectedBrandIds(brands.filter((brand) => !brand.imported).map((brand) => brand.id))} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Sélectionner les nouvelles</button>
-              <button type="button" onClick={() => setSelectedBrandIds([])} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Tout désélectionner</button>
-              <button type="button" onClick={importSelectedBrands} disabled={!selectedBrandIds.length || importingBrands || loadingBrands} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+              <PolarisActionButton type="button" onClick={() => setSelectedBrandIds(brands.filter((brand) => !brand.imported).map((brand) => brand.id))} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Sélectionner les nouvelles</PolarisActionButton>
+              <PolarisActionButton type="button" onClick={() => setSelectedBrandIds([])} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054]">Tout désélectionner</PolarisActionButton>
+              <PolarisActionButton type="button" onClick={importSelectedBrands} disabled={!selectedBrandIds.length || importingBrands || loadingBrands} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
                 {importingBrands ? 'Import…' : `Importer ${selectedBrandIds.length} sélectionnée(s)`}
-              </button>
+              </PolarisActionButton>
             </div>
           </div>
           <div className="mt-2 max-h-80 overflow-auto">
@@ -330,15 +359,18 @@ export default function PrestashopConfigForm() {
         </>}
       </Card>
 
+      </div>
+
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-[#24364b]">Import du catalogue produits</h2>
             <p className="mt-1 max-w-3xl text-sm text-[#667085]">Analyse les produits PrestaShop par pages de 100 pour détecter les produits déjà liés ou ayant la même référence. Le scan complet peut prendre un moment pour un catalogue de 21&nbsp;548 produits.</p>
+    
           </div>
-          <button type="button" onClick={scanProductCatalog} disabled={!config.configured || scanningCatalog || importingCatalog} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+          <PolarisActionButton type="button" onClick={scanProductCatalog} disabled={!config.configured || scanningCatalog || importingCatalog} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
             {scanningCatalog ? `Analyse… ${catalogScanned} produits` : catalogCandidates.length ? 'Réanalyser tout le catalogue' : 'Analyser tout le catalogue'}
-          </button>
+          </PolarisActionButton>
         </div>
         {catalogCandidates.length > 0 && <>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -347,20 +379,20 @@ export default function PrestashopConfigForm() {
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-600">Inactifs / non publiés dans PrestaShop</p><p className="mt-1 text-lg font-semibold text-slate-800">{catalogCandidates.filter((product) => !product.active).length}</p></div>
           </div>
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="min-w-56 flex-1 text-xs font-semibold text-[#667085]">Rechercher dans le catalogue
-              <input value={catalogSearch} onChange={(event) => { setCatalogSearch(event.target.value); setCatalogPage(0); }} placeholder="Nom, référence ou ID PrestaShop" className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2 text-sm font-normal text-[#344054] outline-none focus:border-[#1457a6]" />
-            </label>
+            <div className="min-w-56 flex-1"><TextField label="Rechercher dans le catalogue" value={catalogSearch} onChange={(value) => { setCatalogSearch(value); setCatalogPage(0); }} placeholder="Nom, référence ou ID PrestaShop" autoComplete="off" /></div>
+
+
             <label className="text-xs font-semibold text-[#667085]">Afficher
               <select value={catalogFilter} onChange={(event) => { setCatalogFilter(event.target.value as typeof catalogFilter); setCatalogPage(0); }} className="mt-1 block rounded-lg border border-[#cbd5df] bg-white px-3 py-2 text-sm font-normal text-[#344054]">
                 <option value="all">Tous les produits</option><option value="new">Nouveaux</option><option value="duplicate">Doublons</option><option value="offline">Inactifs / non publiés</option>
               </select>
             </label>
-            <button type="button" onClick={() => setSelectedProductIds(catalogCandidates.filter((product) => !product.duplicate).map((product) => product.id))} disabled={importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Sélectionner les nouveaux</button>
-            <button type="button" onClick={() => { const activeIds = new Set(catalogCandidates.filter((product) => product.active).map((product) => product.id)); setSelectedProductIds((current) => current.filter((id) => activeIds.has(id))); }} disabled={importingCatalog || !hasSelectedInactiveProducts} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Désélectionner les inactifs</button>
-            <button type="button" onClick={() => setSelectedProductIds([])} disabled={importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Tout désélectionner</button>
-            <button type="button" onClick={() => requestProductImport(selectedProductIds)} disabled={!selectedProductIds.length || importingCatalog || scanningCatalog} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+            <PolarisActionButton type="button" onClick={() => setSelectedProductIds(catalogCandidates.filter((product) => !product.duplicate).map((product) => product.id))} disabled={importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Sélectionner les nouveaux</PolarisActionButton>
+            <PolarisActionButton type="button" onClick={() => { const activeIds = new Set(catalogCandidates.filter((product) => product.active).map((product) => product.id)); setSelectedProductIds((current) => current.filter((id) => activeIds.has(id))); }} disabled={importingCatalog || !hasSelectedInactiveProducts} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Désélectionner les inactifs</PolarisActionButton>
+            <PolarisActionButton type="button" onClick={() => setSelectedProductIds([])} disabled={importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">Tout désélectionner</PolarisActionButton>
+            <PolarisActionButton type="button" onClick={() => requestProductImport(selectedProductIds)} disabled={!selectedProductIds.length || importingCatalog || scanningCatalog} className="rounded-md bg-[#1457a6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
               {importingCatalog ? `Import… ${catalogImportProgress.done}/${catalogImportProgress.total}` : `Importer ${selectedProductIds.length} sélectionné(s)`}
-            </button>
+            </PolarisActionButton>
           </div>
           {scanningCatalog && <p role="status" className="mt-3 text-sm text-[#1457a6]">Pages de 100 produits analysées · {catalogScanned} produits vérifiés…</p>}
           {importingCatalog && <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8edf3]"><div className="h-full rounded-full bg-[#1457a6] transition-all" style={{ width: `${catalogImportProgress.total ? Math.round(catalogImportProgress.done / catalogImportProgress.total * 100) : 0}%` }} /></div>}
@@ -377,41 +409,47 @@ export default function PrestashopConfigForm() {
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-[#667085]">
             <span>{filteredCatalogCandidates.length ? `${catalogPage * catalogPageSize + 1}–${Math.min((catalogPage + 1) * catalogPageSize, filteredCatalogCandidates.length)} sur ${filteredCatalogCandidates.length}` : 'Aucun produit à afficher'} · {selectedProductIds.length} sélectionné(s)</span>
-            <div className="flex gap-2"><button type="button" onClick={() => setCatalogPage((page) => Math.max(0, page - 1))} disabled={catalogPage === 0} className="rounded-md border border-[#cbd5df] px-3 py-1.5 disabled:opacity-40">Précédent</button><span className="px-2 py-1.5">Page {catalogPage + 1} / {catalogPageCount}</span><button type="button" onClick={() => setCatalogPage((page) => Math.min(catalogPageCount - 1, page + 1))} disabled={catalogPage + 1 >= catalogPageCount} className="rounded-md border border-[#cbd5df] px-3 py-1.5 disabled:opacity-40">Suivant</button></div>
+            <div className="flex gap-2"><PolarisActionButton type="button" onClick={() => setCatalogPage((page) => Math.max(0, page - 1))} disabled={catalogPage === 0} className="rounded-md border border-[#cbd5df] px-3 py-1.5 disabled:opacity-40">Précédent</PolarisActionButton><span className="px-2 py-1.5">Page {catalogPage + 1} / {catalogPageCount}</span><PolarisActionButton type="button" onClick={() => setCatalogPage((page) => Math.min(catalogPageCount - 1, page + 1))} disabled={catalogPage + 1 >= catalogPageCount} className="rounded-md border border-[#cbd5df] px-3 py-1.5 disabled:opacity-40">Suivant</PolarisActionButton></div>
           </div>
         </>}
       </Card>
 
       <Card>
         <form onSubmit={searchProducts} className="flex flex-wrap items-end gap-3">
-          <label className="min-w-64 flex-1 text-sm font-semibold text-[#344054]">Choisir un produit à importer<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom ou référence PrestaShop" className="mt-1 block w-full rounded-lg border border-[#cbd5df] px-3 py-2.5 font-normal outline-none focus:border-[#1457a6]" /></label>
-          <button disabled={!config.configured || searching} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{searching ? 'Recherche…' : 'Rechercher'}</button>
+          <div className="min-w-64 flex-1"><TextField label="Choisir un produit à importer" value={search} onChange={setSearch} placeholder="Nom ou référence PrestaShop" autoComplete="off" /></div>
+          <PolarisActionButton type="submit" disabled={!config.configured || searching} className="rounded-lg bg-[#1457a6] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{searching ? 'Recherche…' : 'Rechercher'}</PolarisActionButton>
         </form>
         <p className="mt-3 text-xs text-[#667085]">L’import met à jour le produit déjà associé à son identifiant PrestaShop, ou à sa référence.</p>
-        {products.length > 0 && <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm"><thead><tr className="border-b border-[#dce4ea] text-xs uppercase text-[#667085]"><th className="py-3 pr-3">Produit</th><th className="py-3 pr-3">Référence</th><th className="py-3 pr-3">Prix HT</th><th className="py-3 pr-3">Stock</th><th className="py-3 text-right">Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id} className="border-b border-[#edf0f3]"><td className="py-3 pr-3 font-medium text-[#24364b]">{product.title || `Produit ${product.id}`}<span className="ml-2 text-xs text-[#98a2b3]">ID {product.id}</span></td><td className="py-3 pr-3">{product.reference || '—'}</td><td className="py-3 pr-3">{product.priceHT}</td><td className="py-3 pr-3">{product.quantity || '0'}</td><td className="py-3 text-right"><button type="button" onClick={() => loadPreview(product)} disabled={Boolean(previewing) || importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">{previewing === product.id ? 'Chargement…' : 'Aperçu'}</button></td></tr>)}</tbody></table></div>}
+        {products.length > 0 && <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm"><thead><tr className="border-b border-[#dce4ea] text-xs uppercase text-[#667085]"><th className="py-3 pr-3">Produit</th><th className="py-3 pr-3">Référence</th><th className="py-3 pr-3">Prix HT</th><th className="py-3 pr-3">Stock</th><th className="py-3 text-right">Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id} className="border-b border-[#edf0f3]"><td className="py-3 pr-3 font-medium text-[#24364b]">{product.title || `Produit ${product.id}`}<span className="ml-2 text-xs text-[#98a2b3]">ID {product.id}</span></td><td className="py-3 pr-3">{product.reference || '—'}</td><td className="py-3 pr-3">{product.priceHT}</td><td className="py-3 pr-3">{product.quantity || '0'}</td><td className="py-3 text-right"><PolarisActionButton type="button" onClick={() => loadPreview(product)} disabled={Boolean(previewing) || importingCatalog} className="rounded-md border border-[#cbd5df] px-3 py-2 text-xs font-semibold text-[#344054] disabled:opacity-50">{previewing === product.id ? 'Chargement…' : 'Aperçu'}</PolarisActionButton></td></tr>)}</tbody></table></div>}
         {preview && <div className="mt-5 rounded-lg border border-[#dce4ea] bg-[#f8fafc] p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-semibold text-[#24364b]">{preview.title}</h3><p className="mt-1 text-xs text-[#667085]">Produit PrestaShop #{preview.id} · {preview.active ? 'actif dans PrestaShop' : 'inactif dans PrestaShop'} · choisis le statut pendant l'import</p></div><button type="button" onClick={() => requestProductImport([preview.id])} disabled={importingCatalog} className="rounded-md bg-[#1457a6] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Importer ce produit</button></div>
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-semibold text-[#24364b]">{preview.title}</h3><p className="mt-1 text-xs text-[#667085]">Produit PrestaShop #{preview.id} · {preview.active ? 'actif dans PrestaShop' : 'inactif dans PrestaShop'} · choisis le statut pendant l'import</p></div><PolarisActionButton type="button" onClick={() => requestProductImport([preview.id])} disabled={importingCatalog} className="rounded-md bg-[#1457a6] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Importer ce produit</PolarisActionButton></div>
           <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3"><div><dt className="text-xs text-[#667085]">Référence</dt><dd>{preview.reference || '—'}</dd></div><div><dt className="text-xs text-[#667085]">Prix HT (valeur boutique)</dt><dd>{preview.priceHT}</dd></div><div><dt className="text-xs text-[#667085]">Slug</dt><dd>{preview.slug || '—'}</dd></div><div><dt className="text-xs text-[#667085]">Marque</dt><dd>{preview.brand || 'Sans marque'}</dd></div><div><dt className="text-xs text-[#667085]">Catégories</dt><dd>{preview.categories.join(', ') || '—'}</dd></div><div><dt className="text-xs text-[#667085]">Groupe de taxe / stock</dt><dd>{preview.taxRulesGroupId || '—'} / {preview.quantity || '0'}</dd></div><div><dt className="text-xs text-[#667085]">Images · caractéristiques · déclinaisons</dt><dd>{preview.images} · {preview.features} · {preview.combinations}</dd></div></dl>
           {preview.shortDescription && <div className="mt-4"><p className="text-xs text-[#667085]">Description courte</p><p className="mt-1 line-clamp-3 text-sm">{preview.shortDescription.replace(/<[^>]*>/g, ' ')}</p></div>}
         </div>}
       </Card>
-      {showImportStatusDialog && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-        <section role="dialog" aria-modal="true" aria-labelledby="prestashop-import-status-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
-          <h2 id="prestashop-import-status-title" className="text-lg font-semibold text-[#24364b]">Choisir le statut des produits</h2>
-          <p className="mt-2 text-sm leading-6 text-[#667085]">{pendingImportIds.length} produit(s) sélectionné(s). Le statut choisi sera appliqué à tous les produits importés ou mis à jour pendant cette opération.</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={() => void importSelectedProducts('PUBLIC', pendingImportIds)} className="rounded-lg bg-[#1457a6] px-4 py-3 text-left text-sm font-semibold text-white hover:bg-[#104987]">
-              Public <span className="mt-1 block text-xs font-normal text-blue-100">Visible sur la boutique en ligne</span>
-            </button>
-            <button type="button" onClick={() => void importSelectedProducts('DRAFT', pendingImportIds)} className="rounded-lg border border-[#cbd5df] px-4 py-3 text-left text-sm font-semibold text-[#344054] hover:bg-slate-50">
-              Brouillon <span className="mt-1 block text-xs font-normal text-[#667085]">Non publié sur la boutique</span>
-            </button>
-          </div>
-          <div className="mt-5 flex justify-end"><button type="button" onClick={() => setShowImportStatusDialog(false)} className="rounded-lg px-4 py-2 text-sm font-semibold text-[#667085] hover:bg-slate-100">Annuler</button></div>
-        </section>
-      </div>}
-      {message && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</p>}
-      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-    </div>
+      <Modal
+        open={showImportStatusDialog}
+        onClose={() => setShowImportStatusDialog(false)}
+        title="Choisir le statut des produits"
+        primaryAction={{
+          content: 'Importer en public',
+          onAction: () => void importSelectedProducts('PUBLIC', pendingImportIds),
+          loading: importingCatalog,
+        }}
+        secondaryActions={[{
+          content: 'Importer en brouillon',
+          onAction: () => void importSelectedProducts('DRAFT', pendingImportIds),
+          loading: importingCatalog,
+        }]}
+      >
+        <Modal.Section>
+          <Text as="p" variant="bodyMd">
+            {pendingImportIds.length} produit(s) seront importés ou mis à jour avec le statut choisi.
+          </Text>
+        </Modal.Section>
+      </Modal>
+      {message && <Banner tone="success">{message}</Banner>}
+      {error && <Banner tone="critical">{error}</Banner>}
+    </BlockStack>
   );
 }
