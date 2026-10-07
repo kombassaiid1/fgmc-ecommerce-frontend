@@ -145,13 +145,26 @@ export default function DolibarrConfigForm() {
 
     <Card>
       <BlockStack gap="300">
-        <div><Text as="h2" variant="headingMd">Synchronisation initiale</Text><Text as="p" variant="bodySm" tone="subdued">Envoie les produits et variantes, puis les clients et commandes qui ne sont pas encore liés.</Text></div>
+        <div><Text as="h2" variant="headingMd">Synchronisation initiale</Text><Text as="p" variant="bodySm" tone="subdued">Synchronisez le catalogue de produits dans le sens souhaite.</Text></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={() => void sync('sync/products', 'Produits')} loading={syncing === 'sync/products'} disabled={!config.configured || !config.syncProducts}>Synchroniser les produits et variantes</Button>
-          <Button onClick={() => void sync('sync/products/from-dolibarr', 'Catalogue Dolibarr')} loading={syncing === 'sync/products/from-dolibarr'} disabled={!config.configured || !config.syncStoreProducts}>Importer le catalogue Dolibarr</Button>
-          <Button onClick={() => void sync('sync/customers-orders', 'Clients et commandes')} loading={syncing === 'sync/customers-orders'} disabled={!config.configured}>Synchroniser les clients et commandes</Button>
+          <Button variant="primary" onClick={() => void sync('sync/products', 'Produits')} loading={syncing === 'sync/products'} disabled={!config.configured || !config.syncProducts || Boolean(syncing)}>Synchroniser les produits et variantes</Button>
+          <Button onClick={() => void sync('sync/products/from-dolibarr', 'Catalogue Dolibarr')} loading={syncing === 'sync/products/from-dolibarr'} disabled={!config.configured || !config.syncStoreProducts || Boolean(syncing)}>Importer le catalogue Dolibarr</Button>
         </div>
         <Text as="p" variant="bodySm" tone="subdued">Les synchronisations manuelles sont relançables; les produits déjà liés sont mis à jour. Les événements de facture validée sont reçus par le module Dolibarr.</Text>
+      </BlockStack>
+    </Card>
+
+    <Card>
+      <BlockStack gap="300">
+        <div>
+          <Text as="h2" variant="headingMd">Clients et commandes de la boutique</Text>
+          <Text as="p" variant="bodySm" tone="subdued">Envoie les clients non lies vers Dolibarr, puis cree les commandes avec leurs lignes. Activez ces options et enregistrez la configuration avant de lancer la synchronisation.</Text>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary" onClick={() => void sync('sync/customers-orders', 'Clients et commandes')} loading={syncing === 'sync/customers-orders'} disabled={!config.configured || (!config.syncCustomers && !config.syncOrders) || Boolean(syncing)}>Synchroniser les clients et commandes vers Dolibarr</Button>
+          <Text as="span" variant="bodySm" tone="subdued">Clients : {config.syncCustomers ? 'actif' : 'inactif'} | Commandes : {config.syncOrders ? 'actif' : 'inactif'}</Text>
+        </div>
+        <Text as="p" variant="bodySm" tone="subdued">Les clients sont synchronises avant les commandes pour associer chaque commande a son tiers Dolibarr. Le resultat et les eventuelles erreurs apparaitront dans une notification.</Text>
       </BlockStack>
     </Card>
 

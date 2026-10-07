@@ -140,6 +140,7 @@ export type OrderListItem = {
   dolibarrId?: string | null;
   dolibarrInvoice?: {
     reference: string;
+    invoiceUrl: string | null;
     date: string | null;
     totalTtc: number | null;
     currency: string | null;

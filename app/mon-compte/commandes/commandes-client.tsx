@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -429,7 +429,7 @@ function SummaryCard({
 }: {
   icon: typeof ShoppingBag;
   label: string;
-  value: string;
+  value: ReactNode;
   helper: string;
 }) {
   return (
@@ -515,11 +515,21 @@ function OrderCard({ order }: { order: OrderListItem }) {
           <DetailRow
             icon={ReceiptText}
             label="Facture Dolibarr"
-            value={order.dolibarrInvoice
-              ? `${order.dolibarrInvoice.reference} · ${readableStatus(order.dolibarrInvoice.status ?? "validée")}`
-              : order.dolibarrId
-                ? "En attente de synchronisation"
-                : "Pas encore disponible"}
+            value={order.dolibarrInvoice ? (
+              <span className="grid gap-1">
+                <span>{order.dolibarrInvoice.reference} - {readableStatus(order.dolibarrInvoice.status ?? "validated")}</span>
+                {order.dolibarrInvoice.invoiceUrl ? (
+                  <a
+                    href={order.dolibarrInvoice.invoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-primary underline underline-offset-2"
+                  >
+                    Telecharger la facture PDF
+                  </a>
+                ) : null}
+              </span>
+            ) : order.dolibarrId ? "En attente de synchronisation" : "Pas encore disponible"}
             wrap
           />
           <DetailRow
@@ -584,7 +594,7 @@ function DetailRow({
 }: {
   icon: typeof Truck;
   label: string;
-  value: string;
+  value: ReactNode;
   wrap?: boolean;
 }) {
   return (
