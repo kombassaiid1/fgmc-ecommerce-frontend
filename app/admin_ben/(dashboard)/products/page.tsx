@@ -80,6 +80,7 @@ export default function AdminProductsListPage() {
   const [bulkAction, setBulkAction] = useState<"" | "PUBLIC" | "DRAFT">("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [meta, setMeta] = useState({
     total: 0,
@@ -177,6 +178,21 @@ export default function AdminProductsListPage() {
       setError(saveError instanceof Error ? saveError.message : "La mise à jour a échoué.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleProductStatus = async (product: ProductListItem) => {
+    const status = product.status === "PUBLIC" ? "DRAFT" : "PUBLIC";
+    setStatusBusyId(product.id);
+    setError(null);
+    try {
+      await updateProduct(product.id, { status });
+      setItems((current) => current.map((item) => item.id === product.id ? { ...item, status } : item));
+      setRefreshKey((key) => key + 1);
+    } catch (statusError) {
+      setError(statusError instanceof Error ? statusError.message : "La mise a jour du statut a echoue.");
+    } finally {
+      setStatusBusyId(null);
     }
   };
 
@@ -362,7 +378,7 @@ export default function AdminProductsListPage() {
                     <td className="products-price-cell">{money(Number(product.price) || 0)}</td>
                     <td className="products-price-cell">{money(priceWithTax(product))}</td>
                     <td className="products-quantity-cell">{stockFor(product)}</td>
-                    <td><span className={`products-status ${product.status === "PUBLIC" ? "is-online" : "is-offline"}`} aria-label={product.status === "PUBLIC" ? "En ligne" : "Hors ligne"}>{product.status === "PUBLIC" ? "✓" : "×"}</span></td>
+                    <td><button type="button" className={`products-status ${product.status === "PUBLIC" ? "is-online" : "is-offline"}`} aria-label={`Passer ${product.title} ${product.status === "PUBLIC" ? "hors ligne" : "en ligne"}`} title={product.status === "PUBLIC" ? "Cliquer pour mettre hors ligne" : "Cliquer pour mettre en ligne"} aria-pressed={product.status === "PUBLIC"} disabled={statusBusyId === product.id} onClick={() => void toggleProductStatus(product)}>{product.status === "PUBLIC" ? "✓" : "×"}</button></td>
                     <td className="products-actions-cell">
                       <a href={`/admin_ben/products/add_product?id=${product.id}`} aria-label={`Modifier ${product.title}`} title="Modifier">✎</a>
                       <div className="products-row-menu-wrap">
