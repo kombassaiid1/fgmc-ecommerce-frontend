@@ -123,7 +123,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
           {!ORDER_STATUS_OPTIONS.some((option) => option.value === nextStatus) ? <option value={nextStatus}>{nextStatus}</option> : null}
         </select>
         <Button disabled={saving} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
-        <Button disabled>▤ Voir la facture</Button>
+        {order.dolibarrInvoice?.invoiceUrl ? (
+          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
+            Voir la facture Dolibarr
+          </a>
+        ) : <Button disabled>Lien public indisponible</Button>}
         <Button onClick={() => window.print()}>▣ Imprimer la commande</Button>
         <Button disabled>Connecter au compte client</Button>
         <Button disabled>↔ Remboursement partiel</Button>
@@ -157,6 +161,27 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
         </Card>
 
         <BlockStack gap="300">
+          <Card padding="0">
+            <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Facture Dolibarr</Text></div>
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4">
+              {order.dolibarrInvoice ? (
+                <div className="grid flex-1 gap-4 sm:grid-cols-3">
+                  <Detail label="Référence" value={order.dolibarrInvoice.reference} />
+                  <Detail label="Statut" value={order.dolibarrInvoice.status} />
+                  <Detail label="Date" value={formatDate(order.dolibarrInvoice.date ?? undefined)} />
+                  <Detail label="Total TTC" value={order.dolibarrInvoice.totalTtc == null ? "—" : `${formatMoney(order.dolibarrInvoice.totalTtc)}${order.dolibarrInvoice.currency && order.dolibarrInvoice.currency !== "EUR" ? ` (${order.dolibarrInvoice.currency})` : ""}`} />
+                </div>
+              ) : (
+                <p className="text-sm text-[#667085]">Aucune facture Dolibarr n’est encore liée à cette commande.</p>
+              )}
+              {order.dolibarrInvoice?.invoiceUrl ? (
+                <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
+                  Ouvrir le PDF
+                </a>
+              ) : order.dolibarrInvoice ? <p className="text-xs text-[#667085]">Lien public non disponible. Vérifiez que le PDF a été généré après l’activation du partage externe.</p> : null}
+            </div>
+          </Card>
+
           <Card padding="0">
             <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Produits ({getProducts(order).length})</Text></div>
             <div className="overflow-x-auto px-3">
