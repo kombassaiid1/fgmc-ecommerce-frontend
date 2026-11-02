@@ -177,11 +177,15 @@ export function AdminShell({ children, user }: AdminShellProps) {
         navigation={navigationMarkup}
         showMobileNavigation={showMobileNavigation}
         onNavigationDismiss={() => setShowMobileNavigation(false)}>
-        <Page>
-          <Card roundedAbove="sm">{children}</Card>
-        </Page>
+        {pathname === "/admin_ben/agent" ? (
+          <div className="px-4 py-3">{children}</div>
+        ) : (
+          <Page>
+            <Card roundedAbove="sm">{children}</Card>
+          </Page>
+        )}
       </Frame>
-      <AgentFloatingButton />
+      {pathname !== "/admin_ben/agent" && <AgentFloatingButton />}
     </AppProvider>
   );
 }

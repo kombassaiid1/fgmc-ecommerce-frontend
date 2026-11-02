@@ -38,7 +38,7 @@ const handleClick = () => {
         onClick={handleClick}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.96 }}
-        className="fixed bottom-5 right-5 z-[70] flex h-28 w-28 items-center justify-center bg-transparent p-0 outline-none focus-visible:rounded-2xl focus-visible:ring-4 focus-visible:ring-blue-200"
+        className="fixed bottom-3 right-3 z-[70] flex size-16 items-center justify-center rounded-full bg-white p-1 shadow-lg outline-none transition-shadow hover:shadow-xl focus-visible:ring-4 focus-visible:ring-blue-300 sm:bottom-5 sm:right-5"
       >
         <Image
           src="/agent/arafet-agent-bg-rm.gif"
