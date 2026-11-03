@@ -12,6 +12,7 @@ import {
   Check,
   Clock3,
   ExternalLink,
+  Globe,
   CircleCheck,
   LoaderCircle,
   MessageSquarePlus,
@@ -130,6 +131,37 @@ function isRecord(value: unknown): value is ProductRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function getPublicSiteDomain(href: string): string | null {
+  try {
+    const url = new URL(href);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const host = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || /^[\d.]+$/.test(host)) return null;
+    if (/\.(local|localhost|internal|lan|test)$/.test(host)) return null;
+    if (typeof window !== "undefined" && url.host === window.location.host) return null;
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+function SiteFavicon({ domain }: { domain: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <Globe size={16} className="shrink-0 text-slate-400" aria-hidden="true" />;
+  return (
+    <Image
+      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
+      alt=""
+      width={16}
+      height={16}
+      unoptimized
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="size-4 shrink-0 rounded-sm"
+    />
+  );
+}
+
 function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
   return text
     .split(/(!\[[^\]]*\]\(https?:\/\/[^)\s]+\)|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`)/g)
@@ -151,6 +183,22 @@ function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
       }
       const linkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
       if (linkMatch) {
+        const siteDomain = getPublicSiteDomain(linkMatch[2]);
+        if (siteDomain) {
+          return (
+            <a
+              key={key}
+              href={linkMatch[2]}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={linkMatch[1]}
+              className="inline-flex max-w-full items-center gap-1.5 align-bottom text-[#0858b1] underline"
+            >
+              <SiteFavicon domain={siteDomain} />
+              <span className="min-w-0 truncate">{linkMatch[1]}</span>
+            </a>
+          );
+        }
         return (
           <a
             key={key}
