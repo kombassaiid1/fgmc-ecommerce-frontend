@@ -20,7 +20,7 @@ export type AgentUIMessage = UIMessage<
 
 export type AgentTaskStatus = {
   taskId?: string;
-  status: "idle" | "running" | "completed" | "failed";
+  status: "idle" | "running" | "completed" | "failed" | "stopped";
   progress?: string;
   partialText?: string;
   error?: string;
@@ -57,7 +57,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport<AgentUIMessage>({
   api: "/api/admin/agent/chat",
-  prepareSendMessagesRequest: ({ messages }) => {
+  prepareSendMessagesRequest: ({ messages, trigger }) => {
     const lastUserMessage = [...messages]
       .reverse()
       .find((message) => message.role === "user");
@@ -73,6 +73,7 @@ const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport
         message,
         sessionId: useAgentChatStore.getState().sessionId,
         taskId: useAgentChatStore.getState().task.taskId,
+        ...(trigger === "regenerate-message" ? { regenerate: true } : {}),
         ...(imagePart
           ? {
               imageDataUrl: imagePart.url,
@@ -90,6 +91,7 @@ const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport
         imageFilename?: unknown;
         sessionId?: unknown;
         taskId?: unknown;
+        regenerate?: unknown;
       };
       try {
         body = JSON.parse(init.body) as typeof body;
@@ -103,6 +105,7 @@ const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport
         formData.set("message", typeof body.message === "string" ? body.message : "");
         if (typeof body.sessionId === "string") formData.set("sessionId", body.sessionId);
         if (typeof body.taskId === "string") formData.set("taskId", body.taskId);
+        if (body.regenerate === true) formData.set("regenerate", "true");
         formData.set(
           "image",
           imageBlob,

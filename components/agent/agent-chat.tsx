@@ -2,6 +2,7 @@
 
 import { ClipboardEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { AgentActivity, type AgentEvent } from "./agent-activity";
+import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
 import { useChat } from "@ai-sdk/react";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
@@ -12,12 +13,13 @@ import {
   Check,
   Clock3,
   ExternalLink,
-  Globe,
   CircleCheck,
   LoaderCircle,
   MessageSquarePlus,
+  RotateCw,
   History,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 
@@ -129,37 +131,6 @@ function findConfirmationId(text: string): string | null {
 
 function isRecord(value: unknown): value is ProductRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getPublicSiteDomain(href: string): string | null {
-  try {
-    const url = new URL(href);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    const host = url.hostname.toLowerCase().replace(/\.$/, "");
-    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || /^[\d.]+$/.test(host)) return null;
-    if (/\.(local|localhost|internal|lan|test)$/.test(host)) return null;
-    if (typeof window !== "undefined" && url.host === window.location.host) return null;
-    return host;
-  } catch {
-    return null;
-  }
-}
-
-function SiteFavicon({ domain }: { domain: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <Globe size={16} className="shrink-0 text-slate-400" aria-hidden="true" />;
-  return (
-    <Image
-      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
-      alt=""
-      width={16}
-      height={16}
-      unoptimized
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      className="size-4 shrink-0 rounded-sm"
-    />
-  );
 }
 
 function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
@@ -315,6 +286,9 @@ const QUICK_ACTIONS = [
   { label: "Améliorer une fiche", prompt: "Aide-moi à améliorer une fiche produit." },
 ];
 
+// Délai sans changement de updatedAt au-delà duquel une tâche « running » est jugée bloquée.
+const TASK_STALE_TIMEOUT_MS = 90_000;
+const TASK_STALE_MESSAGE = "L’agent ne répond plus. Vous pouvez relancer la demande.";
 const MAX_AGENT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MIN_HISTORY_WIDTH = 280;
 const MAX_HISTORY_WIDTH = 320;
@@ -425,7 +399,9 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const [confirmationStates, setConfirmationStates] = useState<
     Record<string, ConfirmationState>
   >({});
-  const { messages, sendMessage, status, error, clearError, setMessages, regenerate } = useChat<AgentUIMessage>({
+  const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
+  const taskActivityRef = useRef<{ updatedAt: string | undefined; at: number }>({ updatedAt: undefined, at: 0 });
+  const { messages, sendMessage, status, error, clearError, setMessages, regenerate, stop } = useChat<AgentUIMessage>({
     chat: sharedChat,
   });
 
@@ -469,11 +445,29 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   useEffect(() => {
     if (!activeSessionId || task.status !== "running") return;
     let cancelled = false;
+    taskActivityRef.current = { updatedAt: undefined, at: Date.now() };
     const pollTask = async () => {
       try {
         const taskStatus = await fetchAgentTaskStatus(activeSessionId);
         if (cancelled) return;
-        if (taskStatus.status === "completed" || taskStatus.status === "failed") {
+        if (taskStatus.status === "running") {
+          const activity = taskActivityRef.current;
+          if (taskStatus.updatedAt !== activity.updatedAt) {
+            const updatedTime = taskStatus.updatedAt ? Date.parse(taskStatus.updatedAt) : Number.NaN;
+            // Au premier relevé, une tâche déjà ancienne compte depuis sa dernière mise à jour.
+            const isFirstReading = activity.updatedAt === undefined;
+            taskActivityRef.current = {
+              updatedAt: taskStatus.updatedAt,
+              at: isFirstReading && Number.isFinite(updatedTime) ? Math.min(updatedTime, Date.now()) : Date.now(),
+            };
+          }
+          if (Date.now() - taskActivityRef.current.at > TASK_STALE_TIMEOUT_MS) {
+            stop();
+            setTask({ ...taskStatus, status: "failed", error: TASK_STALE_MESSAGE });
+            return;
+          }
+        }
+        if (taskStatus.status === "completed" || taskStatus.status === "failed" || taskStatus.status === "stopped") {
           const history = await fetchAgentHistory(activeSessionId);
           if (cancelled) return;
           if (useAgentChatStore.getState().chat.status !== "submitted" && useAgentChatStore.getState().chat.status !== "streaming") {
@@ -503,8 +497,16 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeSessionId, clearError, setConversations, setMessages, setTask, task.status]);
+  }, [activeSessionId, clearError, setConversations, setMessages, setTask, stop, task.status]);
   const isBusy = status === "submitted" || status === "streaming" || task.status === "running";
+  useEffect(() => {
+    if (!isBusy) return;
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) stopResponse();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  });
   const latestUserIndex = messages.findLastIndex((message) => message.role === "user");
   const activeAssistantMessage = isBusy
     ? messages.slice(latestUserIndex + 1).find((message) => message.role === "assistant")
@@ -623,6 +625,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     const sessionId = crypto.randomUUID();
     useAgentChatStore.getState().setSessionId(sessionId);
     setMessages([]);
+    setStoppedUserId(null);
     useAgentChatStore.setState({ responseDurations: {} });
     setTask({ status: "idle" });
     setInput("");
@@ -640,6 +643,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     setInputError(null);
     clearError();
     setMessages([]);
+    setStoppedUserId(null);
     useAgentChatStore.setState({ responseDurations: {} });
     removeImage();
     setConfirmationStates({});
@@ -661,6 +665,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     if ((!trimmed && !pendingImage) || isBusy || !historyReady) return;
 
     clearError();
+    setStoppedUserId(null);
     setInputError(null);
     setInput("");
     const imageToSend = pendingImage;
@@ -697,10 +702,37 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }
   }
 
+  function stopResponse() {
+    if (!isBusy) return;
+    const lastUser = messages.findLast((message) => message.role === "user");
+    if (activeSessionId) {
+      void fetch("/api/admin/agent/chat/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeSessionId }),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error("stop failed");
+        })
+        .catch(() => setInputError("L’arrêt n’a pas pu être confirmé côté serveur. La demande peut se terminer en arrière-plan."));
+    }
+    stop();
+    setStoppedUserId(lastUser?.id ?? null);
+    setTask({ status: "idle" });
+    useAgentChatStore.setState({
+      responseStartedAt: null,
+      agentProgress: "Je réfléchis à votre demande…",
+    });
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
   async function retryFailedTask() {
-    if (isBusy || !messages.some((message) => message.role === "user")) return;
+    const lastUser = messages.findLast((message) => message.role === "user");
+    if (isBusy || !lastUser) return;
     clearError();
-    useAgentChatStore.getState().beginTask(task.message);
+    setStoppedUserId(null);
+    const lastUserText = lastUser.parts.filter(isTextUIPart).map((part) => part.text).join("");
+    useAgentChatStore.getState().beginTask(task.message ?? (lastUserText || undefined));
     markRequestStarted();
     try {
       await regenerate();
@@ -1057,6 +1089,9 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
                       />
                     ))}
                   </div>}
+                {isUser && message.id === stoppedUserId && !isBusy && (
+                  <p className="px-1 text-[11px] leading-4 text-slate-400">Réponse arrêtée</p>
+                )}
                 {confirmationId && (
                   <section
                     aria-label={
@@ -1221,13 +1256,26 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             </div>
           </div>
         )}
-        {task.status === "running" && task.partialText && !activeAssistantHasContent && (
+        {(task.status === "running" || task.error === TASK_STALE_MESSAGE) && task.partialText && !activeAssistantHasContent && (
           <div
             role="status"
             aria-live="polite"
             className="ml-9 max-w-3xl rounded-2xl rounded-bl-md border border-slate-100 bg-white px-3.5 py-3 text-sm leading-6 text-slate-700 shadow-sm"
           >
             {renderAgentMarkdown(task.partialText)}
+          </div>
+        )}
+        {!isBusy && task.status !== "failed" && historyReady && messages.some((message) => message.role === "user") && (
+          <div className="-mt-1 flex pl-9">
+            <button
+              type="button"
+              onClick={() => void retryFailedTask()}
+              aria-label="Régénérer la réponse"
+              title="Régénérer la réponse"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0858b1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            >
+              <RotateCw size={15} aria-hidden="true" />
+            </button>
           </div>
         )}
         {friendlyError && (
@@ -1275,14 +1323,26 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             disabled={isBusy}
             className="max-h-40 min-h-10 flex-1 resize-none overflow-y-hidden bg-transparent px-2 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
           />
-          <button
-            type="submit"
-            aria-label="Envoyer le message"
-            disabled={(!input.trim() && !pendingImage) || isBusy || !historyReady}
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-          >
-            {isBusy ? <LoaderCircle size={18} className="animate-spin" /> : <ArrowUp size={19} />}
-          </button>
+          {isBusy ? (
+            <button
+              type="button"
+              onClick={stopResponse}
+              aria-label="Arrêter la réponse"
+              title="Arrêter la réponse"
+              className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            >
+              <Square size={14} fill="currentColor" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              aria-label="Envoyer le message"
+              disabled={(!input.trim() && !pendingImage) || !historyReady}
+              className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            >
+              <ArrowUp size={19} />
+            </button>
+          )}
         </div>
         {inputError && <p role="alert" className="mt-2 text-center text-xs text-red-600">{inputError}</p>}
         <p className="mt-2 text-center text-[11px] text-slate-500">

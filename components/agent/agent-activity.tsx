@@ -2,8 +2,25 @@
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle, X, Clock3 } from "lucide-react";
 import Image from "next/image";
+import { Globe } from "lucide-react";
+import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
 
-export type AgentEvent = { id: string; phase: string; label: string; status: string; tool?: string; error?: string; confirmation?: Record<string, unknown> };
+export type AgentEventSource = { url: string; title?: string; domain?: string };
+export type AgentEvent = { id: string; phase: string; label: string; status: string; tool?: string; error?: string; confirmation?: Record<string, unknown>; sources?: AgentEventSource[] };
+// Les sources sont des données non fiables : http(s) seulement, texte rendu par React.
+function safeSources(sources: unknown): { url: string; label: string; faviconDomain: string | null }[] {
+  if (!Array.isArray(sources)) return [];
+  return sources.slice(0, 5).flatMap(item => {
+    const source = record(item);
+    if (typeof source.url !== "string") return [];
+    try {
+      const url = new URL(source.url);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return [];
+      const label = typeof source.title === "string" && source.title.trim() ? source.title.trim().slice(0, 200) : typeof source.domain === "string" && source.domain ? source.domain : url.hostname;
+      return [{ url: url.href, label, faviconDomain: getPublicSiteDomain(url.href) }];
+    } catch { return []; }
+  });
+}
 type ConfirmationState = { status: string; result?: unknown; error?: string };
 function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function text(value: unknown) { return typeof value === "string" ? value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : value == null ? "—" : JSON.stringify(value); }
@@ -24,7 +41,14 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
    <summary className="cursor-pointer font-medium">{running ? "Vérifications en cours…" : `${toolEvents.length} vérification(s)`}</summary>
    <ol className="mt-2 space-y-2">{toolEvents.map(event => <li key={event.id} className="flex items-start gap-2">
     {event.status === "running" ? <LoaderCircle size={14} className="mt-0.5 shrink-0 animate-spin" /> : event.status === "failed" ? <X size={14} className="mt-0.5 shrink-0 text-red-600" /> : <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />}
-    <span>{event.label}{event.error && <span className="mt-1 block text-red-600">{event.error}</span>}</span>
+    <span className="min-w-0 flex-1">{event.label}{event.error && <span className="mt-1 block text-red-600">{event.error}</span>}
+     {(() => { const sources = safeSources(event.sources); return sources.length > 0 && <ul className="mt-1.5 space-y-1">{sources.map(source => <li key={source.url} className="min-w-0">
+      <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.label} className="inline-flex max-w-full items-center gap-1.5 text-[#0858b1] underline">
+       {source.faviconDomain ? <SiteFavicon domain={source.faviconDomain} /> : <Globe size={16} className="shrink-0 text-slate-400" aria-hidden="true" />}
+       <span className="min-w-0 truncate">{source.label}</span>
+      </a>
+     </li>)}</ul>; })()}
+    </span>
    </li>)}</ol>
   </details>}
   {confirmations.map(event => {
