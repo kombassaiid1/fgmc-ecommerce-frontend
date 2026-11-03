@@ -4,6 +4,9 @@ import { ClipboardEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState, 
 import { AgentActivity, type AgentEvent } from "./agent-activity";
 import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
 import { parseBlocks, parseInline, type InlineNode } from "./markdown-parser";
+import { RAW_TOOL_CALL_NOTICE, isRawToolCallText } from "./raw-tool-call";
+import { collectResourceLinks } from "./resource-links";
+import { describeSendError, type SendFailure } from "./send-error";
 import { useChat } from "@ai-sdk/react";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
@@ -384,6 +387,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     Record<string, ConfirmationState>
   >({});
   const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
+  const [sendFailure, setSendFailure] = useState<(SendFailure & { text: string; image: File | null }) | null>(null);
   const taskActivityRef = useRef<{ updatedAt: string | undefined; at: number }>({ updatedAt: undefined, at: 0 });
   const { messages, sendMessage, status, error, clearError, setMessages, regenerate, stop } = useChat<AgentUIMessage>({
     chat: sharedChat,
@@ -499,23 +503,27 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     ? messages.slice(latestUserIndex + 1).find((message) => message.role === "assistant")
     : undefined;
   const activeAssistantHasContent = activeAssistantMessage?.parts.some((part) =>
-    (isTextUIPart(part) && part.text.trim().length > 0) ||
+    (isTextUIPart(part) && part.text.trim().length > 0 && !isRawToolCallText(part.text)) ||
     isFileUIPart(part) ||
     (part.type === "data-agent-event" && (
       part.data.phase === "tool" || Boolean(part.data.confirmation)
     ))
   );
-  const friendlyError = task.status === "failed"
-    ? task.error || "L’Agent n’a pas pu terminer cette demande. Vous pouvez réessayer."
-    : getErrorMessage(error);
-  const externalLinks = messages.flatMap((message) => {
-    const text = message.parts.filter(isTextUIPart).map((part) => part.text).join("\n");
-    return Array.from(text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(?<![\w(])https?:\/\/[^\s)]+/g), (match) => {
-      const url = match[2] ?? match[0];
-      const label = match[1] ?? url.replace(/^https?:\/\//, "").split(/[/?#]/, 1)[0];
-      return { url, label };
-    });
-  }).filter((link, index, links) => links.findIndex((candidate) => candidate.url === link.url) === index);
+  const lastMessage = messages.at(-1);
+  const rawToolCallError = !isBusy && lastMessage?.role === "assistant" &&
+    isRawToolCallText(lastMessage.parts.filter(isTextUIPart).map((part) => part.text).join(""));
+  const friendlyError = sendFailure
+    ? sendFailure.message
+    : rawToolCallError
+      ? RAW_TOOL_CALL_NOTICE
+      : task.status === "failed"
+        ? task.error || "L’Agent n’a pas pu terminer cette demande. Vous pouvez réessayer."
+        : getErrorMessage(error);
+  const canRetryDemand = !sendFailure && (task.status === "failed" || rawToolCallError);
+  const externalLinks = collectResourceLinks(messages.map((message) => ({
+    text: message.parts.filter(isTextUIPart).map((part) => part.text).join("\n"),
+    sources: message.parts.flatMap((part) => part.type === "data-agent-event" ? (part.data.sources ?? []) : []),
+  })));
 
   useEffect(() => {
     const textarea = inputRef.current;
@@ -615,6 +623,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     setStoppedUserId(null);
     useAgentChatStore.setState({ responseDurations: {} });
     setTask({ status: "idle" });
+    setSendFailure(null);
     setInput("");
     removeImage();
     setConfirmationStates({});
@@ -636,6 +645,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     setConfirmationStates({});
     useAgentChatStore.getState().setSessionId(sessionId);
     setTask({ status: "idle" });
+    setSendFailure(null);
     setHistoryOpen(false);
     try {
       const history = await fetchAgentHistory(sessionId);
@@ -647,16 +657,51 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }
   }
 
+  // Après l'état « task » local d'un envoi refusé : on reprend l'état réel du serveur.
+  async function syncTaskWithServer() {
+    const sessionId = useAgentChatStore.getState().sessionId;
+    if (!sessionId) return setTask({ status: "idle" });
+    try {
+      const serverTask = await fetchAgentTaskStatus(sessionId);
+      setTask(serverTask.status === "running" ? serverTask : { status: "idle" });
+    } catch {
+      setTask({ status: "idle" });
+    }
+  }
+
+  // Envoi refusé ou en échec avant toute réponse : le dernier message est encore celui de l'utilisateur.
+  function detectSendFailure(): SendFailure | null {
+    const chat = useAgentChatStore.getState().chat;
+    if (chat.status !== "error" || chat.messages.at(-1)?.role !== "user") return null;
+    return describeSendError(chat.error);
+  }
+
+  async function recoverFromFailedSend(failure: SendFailure, text: string, image: File | null) {
+    setMessages(useAgentChatStore.getState().chat.messages.slice(0, -1));
+    clearError();
+    useAgentChatStore.setState({ responseStartedAt: null });
+    setInput(text);
+    if (image) selectImage(image);
+    setSendFailure({ ...failure, text, image });
+    if (failure.conflict) await syncTaskWithServer();
+    else setTask({ status: "idle" });
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
   async function submitMessage(text: string) {
     const trimmed = text.trim();
     if ((!trimmed && !pendingImage) || isBusy || !historyReady) return;
+    const imageToSend = pendingImage;
+    setInput("");
+    removeImage();
+    await deliverMessage(trimmed, imageToSend);
+  }
 
+  async function deliverMessage(trimmed: string, imageToSend: File | null) {
     clearError();
     setStoppedUserId(null);
     setInputError(null);
-    setInput("");
-    const imageToSend = pendingImage;
-    removeImage();
+    setSendFailure(null);
     if (imageToSend) {
       try {
         const imageDataUrl = await fileToDataUrl(imageToSend);
@@ -673,6 +718,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             },
           ],
         });
+        const failure = detectSendFailure();
+        if (failure) await recoverFromFailedSend(failure, trimmed, imageToSend);
       } catch {
         setInputError("Impossible de préparer l’image. Collez-la de nouveau puis réessayez.");
       } finally {
@@ -684,9 +731,19 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       useAgentChatStore.getState().beginTask(trimmed);
       markRequestStarted();
       await sendMessage({ text: trimmed });
+      const failure = detectSendFailure();
+      if (failure) await recoverFromFailedSend(failure, trimmed, null);
     } finally {
       refreshConversationList();
     }
+  }
+
+  async function retryFailedSend() {
+    if (!sendFailure || isBusy) return;
+    const { text, image } = sendFailure;
+    setInput("");
+    removeImage();
+    await deliverMessage(text, image);
   }
 
   function stopResponse() {
@@ -721,8 +778,22 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     const lastUserText = lastUser.parts.filter(isTextUIPart).map((part) => part.text).join("");
     useAgentChatStore.getState().beginTask(task.message ?? (lastUserText || undefined));
     markRequestStarted();
+    const messagesBefore = messages;
     try {
       await regenerate();
+      const failure = detectSendFailure();
+      if (failure) {
+        // Relance refusée : on garde la conversation telle qu'elle était.
+        setMessages(messagesBefore);
+        clearError();
+        useAgentChatStore.setState({ responseStartedAt: null });
+        if (failure.conflict) {
+          setSendFailure({ ...failure, text: "", image: null });
+          await syncTaskWithServer();
+        } else {
+          setTask({ status: "failed", error: failure.message });
+        }
+      }
     } finally {
       refreshConversationList();
     }
@@ -1001,10 +1072,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
           </div>
         ) : (
           messages.map((message) => {
-            const text = message.parts
+            const rawText = message.parts
               .filter(isTextUIPart)
               .map((part) => part.text)
               .join("");
+            // Appel d'outil brut : jamais affiché comme réponse.
+            const text = message.role !== "user" && isRawToolCallText(rawText) ? "" : rawText;
             const imageParts = message.parts.filter(isFileUIPart);
             const events = message.parts.flatMap(part => part.type === "data-agent-event" ? [part.data] : []);
             const visibleEvents = events.filter(event => event.phase === "tool" || event.confirmation);
@@ -1243,7 +1316,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             </div>
           </div>
         )}
-        {(task.status === "running" || task.error === TASK_STALE_MESSAGE) && task.partialText && !activeAssistantHasContent && (
+        {(task.status === "running" || task.error === TASK_STALE_MESSAGE) && task.partialText && !isRawToolCallText(task.partialText) && !activeAssistantHasContent && (
           <div
             role="status"
             aria-live="polite"
@@ -1258,18 +1331,18 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-sm leading-5 text-red-700"
           >
             <p>{friendlyError}</p>
-            {task.status === "failed" && (
+            {(canRetryDemand || sendFailure?.retryable) && (
               <button
                 type="button"
-                onClick={() => void retryFailedTask()}
+                onClick={() => void (sendFailure ? retryFailedSend() : retryFailedTask())}
                 className="mt-2 inline-flex min-h-8 items-center rounded-lg bg-[#0858b1] px-3 text-xs font-semibold text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
               >
-                Relancer la demande
+                {sendFailure ? "Relancer l’envoi" : "Relancer la demande"}
               </button>
             )}
           </div>
         )}
-        {!isBusy && task.status !== "failed" && historyReady && messages.some((message) => message.role === "user") && (
+        {!isBusy && task.status !== "failed" && !rawToolCallError && !sendFailure && historyReady && messages.some((message) => message.role === "user") && (
           <div className="-mt-1 flex pl-9">
             <button
               type="button"
@@ -1310,7 +1383,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             disabled={isBusy}
             className="max-h-40 min-h-10 flex-1 resize-none overflow-y-hidden bg-transparent px-2 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
           />
-          {isBusy ? (
+          {isBusy && (
             <button
               type="button"
               onClick={stopResponse}
@@ -1320,16 +1393,16 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             >
               <Square size={14} fill="currentColor" aria-hidden="true" />
             </button>
-          ) : (
-            <button
-              type="submit"
-              aria-label="Envoyer le message"
-              disabled={(!input.trim() && !pendingImage) || !historyReady}
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-            >
-              <ArrowUp size={19} />
-            </button>
           )}
+          <button
+            type="submit"
+            aria-label="Envoyer le message"
+            title={isBusy ? "Une réponse est en cours. Arrêtez-la pour envoyer un autre message." : undefined}
+            disabled={isBusy || (!input.trim() && !pendingImage) || !historyReady}
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          >
+            <ArrowUp size={19} />
+          </button>
         </div>
         {inputError && <p role="alert" className="mt-2 text-center text-xs text-red-600">{inputError}</p>}
         <p className="mt-2 text-center text-[11px] text-slate-500">
@@ -1356,16 +1429,19 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
         >
           <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[#0858b1]" />
         </button>
-        <aside className="hidden min-h-0 flex-col bg-slate-50 p-4 lg:flex">
+        <aside className="hidden min-h-0 min-w-0 flex-col overflow-hidden bg-slate-50 p-4 lg:flex">
           <h3 className="text-sm font-semibold text-slate-900">Liens et ressources</h3>
           <p className="mt-1 text-xs leading-5 text-slate-600">Retrouvez ici les sources et pages partagées dans la conversation.</p>
           <div className="mt-4 flex min-h-0 flex-col gap-2 overflow-y-auto">
-            {externalLinks.length ? externalLinks.map((link) => (
-              <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-[#0858b1] hover:border-blue-200 hover:bg-blue-50">
-                <ExternalLink size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 break-all">{link.label}</span>
-              </a>
-            )) : <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-xs leading-5 text-slate-600">Aucun lien pour le moment. Les liens cités par l’Agent apparaîtront dans cette liste.</p>}
+            {externalLinks.length ? externalLinks.map((link) => {
+              const faviconDomain = getPublicSiteDomain(link.url);
+              return (
+                <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" title={link.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-[#0858b1] hover:border-blue-200 hover:bg-blue-50">
+                  {faviconDomain ? <SiteFavicon domain={faviconDomain} /> : <ExternalLink size={14} className="shrink-0" aria-hidden="true" />}
+                  <span className="min-w-0 flex-1 truncate">{link.label}</span>
+                </a>
+              );
+            }) : <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-xs leading-5 text-slate-600">Aucun lien pour le moment. Les liens cités par l’Agent apparaîtront dans cette liste.</p>}
           </div>
         </aside>
         </>

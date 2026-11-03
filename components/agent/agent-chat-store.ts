@@ -10,6 +10,7 @@ import {
 } from "ai";
 
 import type { AgentEvent } from "./agent-activity";
+import { AgentRequestError } from "./send-error";
 
 type AgentProgress = { label: string };
 
@@ -84,41 +85,48 @@ const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport
     };
   },
   fetch: async (input, init) => {
-    if (typeof init?.body === "string") {
-      let body: {
-        message?: unknown;
-        imageDataUrl?: unknown;
-        imageFilename?: unknown;
-        sessionId?: unknown;
-        taskId?: unknown;
-        regenerate?: unknown;
-      };
-      try {
-        body = JSON.parse(init.body) as typeof body;
-      } catch {
-        return globalThis.fetch(input, init);
-      }
-      if (typeof body.imageDataUrl === "string") {
-        const imageResponse = await globalThis.fetch(body.imageDataUrl);
-        const imageBlob = await imageResponse.blob();
-        const formData = new FormData();
-        formData.set("message", typeof body.message === "string" ? body.message : "");
-        if (typeof body.sessionId === "string") formData.set("sessionId", body.sessionId);
-        if (typeof body.taskId === "string") formData.set("taskId", body.taskId);
-        if (body.regenerate === true) formData.set("regenerate", "true");
-        formData.set(
-          "image",
-          imageBlob,
-          typeof body.imageFilename === "string" ? body.imageFilename : "agent-image",
-        );
-        const headers = new Headers(init.headers);
-        headers.delete("content-type");
-        return globalThis.fetch(input, { ...init, headers, body: formData });
-      }
-    }
-    return globalThis.fetch(input, init);
+    const response = await sendChatRequest(input, init);
+    // Un refus (409, 4xx, 5xx) devient une erreur typée avec son statut, jamais avalée.
+    if (!response.ok) throw await AgentRequestError.fromResponse(response);
+    return response;
   },
 });
+
+async function sendChatRequest(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (typeof init?.body === "string") {
+    let body: {
+      message?: unknown;
+      imageDataUrl?: unknown;
+      imageFilename?: unknown;
+      sessionId?: unknown;
+      taskId?: unknown;
+      regenerate?: unknown;
+    };
+    try {
+      body = JSON.parse(init.body) as typeof body;
+    } catch {
+      return globalThis.fetch(input, init);
+    }
+    if (typeof body.imageDataUrl === "string") {
+      const imageResponse = await globalThis.fetch(body.imageDataUrl);
+      const imageBlob = await imageResponse.blob();
+      const formData = new FormData();
+      formData.set("message", typeof body.message === "string" ? body.message : "");
+      if (typeof body.sessionId === "string") formData.set("sessionId", body.sessionId);
+      if (typeof body.taskId === "string") formData.set("taskId", body.taskId);
+      if (body.regenerate === true) formData.set("regenerate", "true");
+      formData.set(
+        "image",
+        imageBlob,
+        typeof body.imageFilename === "string" ? body.imageFilename : "agent-image",
+      );
+      const headers = new Headers(init.headers);
+      headers.delete("content-type");
+      return globalThis.fetch(input, { ...init, headers, body: formData });
+    }
+  }
+  return globalThis.fetch(input, init);
+}
 
 const sharedChat: Chat<AgentUIMessage> = new Chat<AgentUIMessage>({
   transport,
