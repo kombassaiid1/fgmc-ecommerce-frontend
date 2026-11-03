@@ -831,7 +831,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
           <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[#0858b1]" />
         </button>
       )}
-      <div className="flex min-h-0 min-w-0 flex-col bg-[#f8fafc]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f8fafc]">
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
         {!fullPage && <>
         <button
