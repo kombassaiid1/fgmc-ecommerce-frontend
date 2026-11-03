@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       const image = incoming.get("image");
       const sessionId = incoming.get("sessionId");
       const taskId = incoming.get("taskId");
+      const regenerate = incoming.get("regenerate");
       if (
         typeof message !== "string" ||
         (sessionId !== null && typeof sessionId !== "string") ||
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
       forwarded.set("message", message);
       if (typeof sessionId === "string") forwarded.set("sessionId", sessionId);
       if (typeof taskId === "string") forwarded.set("taskId", taskId);
+      if (regenerate === "true") forwarded.set("regenerate", "true");
       if (image instanceof File) {
         forwarded.set("image", image, image.name || "agent-image");
       }

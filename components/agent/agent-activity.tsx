@@ -40,7 +40,7 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
   {toolEvents.length > 0 && <details className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600" open={running}>
    <summary className="cursor-pointer font-medium">{running ? "Vérifications en cours…" : `${toolEvents.length} vérification(s)`}</summary>
    <ol className="mt-2 space-y-2">{toolEvents.map(event => <li key={event.id} className="flex items-start gap-2">
-    {event.status === "running" ? <LoaderCircle size={14} className="mt-0.5 shrink-0 animate-spin" /> : event.status === "failed" ? <X size={14} className="mt-0.5 shrink-0 text-red-600" /> : <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />}
+    {event.status === "running" ? (running ? <LoaderCircle size={14} className="mt-0.5 shrink-0 animate-spin" /> : <Clock3 size={14} className="mt-0.5 shrink-0 text-slate-400" />) : event.status === "failed" ? <X size={14} className="mt-0.5 shrink-0 text-red-600" /> : <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />}
     <span className="min-w-0 flex-1">{event.label}{event.error && <span className="mt-1 block text-red-600">{event.error}</span>}
      {(() => { const sources = safeSources(event.sources); return sources.length > 0 && <ul className="mt-1.5 space-y-1">{sources.map(source => <li key={source.url} className="min-w-0">
       <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.label} className="inline-flex max-w-full items-center gap-1.5 text-[#0858b1] underline">

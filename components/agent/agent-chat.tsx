@@ -3,6 +3,7 @@
 import { ClipboardEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { AgentActivity, type AgentEvent } from "./agent-activity";
 import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
+import { parseBlocks, parseInline, type InlineNode } from "./markdown-parser";
 import { useChat } from "@ai-sdk/react";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
@@ -86,7 +87,10 @@ function toUiMessages(
     role: item.role,
     parts: [{ type: "text", text: item.content }, ...(item.events ?? []).map(event => ({ type: "data-agent-event" as const, id: event.id, data: event }))],
   }));
-  if (task?.status === "running" && task.message && history.at(-1)?.role !== "user") {
+  const lastUserContent = history.findLast((item) => item.role === "user")?.content;
+  const alreadyInHistory = lastUserContent !== undefined && lastUserContent.startsWith(task?.message ?? "\u0000");
+  // Relance : le dernier message utilisateur est déjà dans l'historique, ne pas l'afficher deux fois.
+  if (task?.status === "running" && task.message && history.at(-1)?.role !== "user" && !alreadyInHistory) {
     messages.push({
       id: `pending-${task.taskId ?? "agent"}`,
       role: "user",
@@ -133,124 +137,104 @@ function isRecord(value: unknown): value is ProductRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
-  return text
-    .split(/(!\[[^\]]*\]\(https?:\/\/[^)\s]+\)|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`)/g)
-    .map((part, index) => {
-      const key = `${keyPrefix}-${index}`;
-      const imageMatch = part.match(/^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)$/);
-      if (imageMatch) {
+function renderInlineNodes(nodes: InlineNode[], keyPrefix: string): ReactNode[] {
+  return nodes.map((node, index) => {
+    const key = `${keyPrefix}-${index}`;
+    switch (node.type) {
+      case "image":
         return (
           <Image
             key={key}
-            src={imageMatch[2]}
-            alt={imageMatch[1] || "Image extraite du fournisseur"}
+            src={node.url}
+            alt={node.alt || "Image extraite du fournisseur"}
             width={480}
             height={360}
             unoptimized
             className="my-2 max-h-56 max-w-full rounded-lg object-contain"
           />
         );
-      }
-      const linkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
-      if (linkMatch) {
-        const siteDomain = getPublicSiteDomain(linkMatch[2]);
+      case "link": {
+        const siteDomain = getPublicSiteDomain(node.url);
         if (siteDomain) {
           return (
             <a
               key={key}
-              href={linkMatch[2]}
+              href={node.url}
               target="_blank"
               rel="noopener noreferrer"
-              title={linkMatch[1]}
+              title={node.text}
               className="inline-flex max-w-full items-center gap-1.5 align-bottom text-[#0858b1] underline"
             >
               <SiteFavicon domain={siteDomain} />
-              <span className="min-w-0 truncate">{linkMatch[1]}</span>
+              <span className="min-w-0 truncate">{node.text}</span>
             </a>
           );
         }
         return (
           <a
             key={key}
-            href={linkMatch[2]}
+            href={node.url}
             target="_blank"
             rel="noopener noreferrer"
             className="break-all text-[#0858b1] underline"
           >
-            {linkMatch[1]}
+            {node.text}
           </a>
         );
       }
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={key} className="font-semibold">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={key} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.9em]">{part.slice(1, -1)}</code>;
-      }
-      return part;
-    });
+      case "strong":
+        return <strong key={key} className="font-semibold">{renderInlineNodes(node.children, key)}</strong>;
+      case "em":
+        return <em key={key}>{renderInlineNodes(node.children, key)}</em>;
+      case "code":
+        return <code key={key} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.9em]">{node.text}</code>;
+      default:
+        return node.text;
+    }
+  });
+}
+
+function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
+  return renderInlineNodes(parseInline(text), keyPrefix);
 }
 
 function renderAgentMarkdown(text: string): ReactNode {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  const blocks: ReactNode[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index].trim();
-    if (!line) {
-      index += 1;
-      continue;
-    }
-
-    const listMatch = line.match(/^([-*]|\d+\.)\s+(.+)$/);
-    if (listMatch) {
-      const ordered = listMatch[1].endsWith(".");
-      const items: string[] = [];
-      while (index < lines.length) {
-        const itemMatch = lines[index].trim().match(/^([-*]|\d+\.)\s+(.+)$/);
-        if (!itemMatch || itemMatch[1].endsWith(".") !== ordered) break;
-        items.push(itemMatch[2]);
-        index += 1;
+  const blocks = parseBlocks(text).map((block, index): ReactNode => {
+    switch (block.type) {
+      case "hr":
+        return <hr key={`hr-${index}`} className="my-3 border-slate-200" />;
+      case "heading":
+        return (
+          <p
+            key={`heading-${index}`}
+            role="heading"
+            aria-level={block.level}
+            className={`mt-1 font-semibold text-slate-800 ${block.level <= 2 ? "text-[15px]" : ""}`}
+          >
+            {renderInlineMarkdown(block.text, `heading-${index}`)}
+          </p>
+        );
+      case "list": {
+        const List = block.ordered ? "ol" : "ul";
+        return (
+          <List key={`list-${index}`} className={`${block.ordered ? "list-decimal" : "list-disc"} space-y-1 pl-5`}>
+            {block.items.map((item, itemIndex) => (
+              <li key={`item-${itemIndex}`}>{renderInlineMarkdown(item, `list-${index}-${itemIndex}`)}</li>
+            ))}
+          </List>
+        );
       }
-      const List = ordered ? "ol" : "ul";
-      blocks.push(
-        <List key={`list-${index}`} className={`${ordered ? "list-decimal" : "list-disc"} space-y-1 pl-5`}>
-          {items.map((item, itemIndex) => (
-            <li key={`item-${itemIndex}`}>{renderInlineMarkdown(item, `list-${index}-${itemIndex}`)}</li>
-          ))}
-        </List>,
-      );
-      continue;
+      default:
+        return (
+          <p key={`paragraph-${index}`}>
+            {block.lines.flatMap((part, partIndex) => [
+              ...(partIndex > 0 ? [<br key={`break-${index}-${partIndex}`} />] : []),
+              ...renderInlineMarkdown(part, `paragraph-${index}-${partIndex}`),
+            ])}
+          </p>
+        );
     }
-
-    const headingMatch = line.match(/^#{1,3}\s+(.+)$/);
-    if (headingMatch) {
-      blocks.push(
-        <p key={`heading-${index}`} className="font-semibold text-slate-800">
-          {renderInlineMarkdown(headingMatch[1], `heading-${index}`)}
-        </p>,
-      );
-      index += 1;
-      continue;
-    }
-
-    const paragraph: string[] = [];
-    while (index < lines.length && lines[index].trim()) {
-      if (/^\s*([-*]|\d+\.)\s+/.test(lines[index]) || /^\s*#{1,3}\s+/.test(lines[index])) break;
-      paragraph.push(lines[index].trim());
-      index += 1;
-    }
-    blocks.push(
-      <p key={`paragraph-${index}`}>
-        {paragraph.flatMap((part, partIndex) => [
-          ...(partIndex > 0 ? [<br key={`break-${index}-${partIndex}`} />] : []),
-          ...renderInlineMarkdown(part, `paragraph-${index}-${partIndex}`),
-        ])}
-      </p>,
-    );
-  }
+  });
 
   return <div className="space-y-2">{blocks}</div>;
 }
@@ -470,9 +454,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
         if (taskStatus.status === "completed" || taskStatus.status === "failed" || taskStatus.status === "stopped") {
           const history = await fetchAgentHistory(activeSessionId);
           if (cancelled) return;
-          if (useAgentChatStore.getState().chat.status !== "submitted" && useAgentChatStore.getState().chat.status !== "streaming") {
-            setMessages(toUiMessages(history));
-          }
+          // Tâche terminée côté serveur mais flux navigateur encore ouvert : on le ferme,
+          // sinon le statut du chat reste « busy » et le spinner tourne indéfiniment.
+          const chatStatus = useAgentChatStore.getState().chat.status;
+          const streamStillOpen = chatStatus === "submitted" || chatStatus === "streaming";
+          if (streamStillOpen) stop();
+          if (!streamStillOpen || taskStatus.status === "completed") setMessages(toUiMessages(history));
           if (taskStatus.status === "completed") clearError();
           setTask(taskStatus);
           void fetchAgentConversations().then(setConversations).catch(() => undefined);
@@ -1265,19 +1252,6 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             {renderAgentMarkdown(task.partialText)}
           </div>
         )}
-        {!isBusy && task.status !== "failed" && historyReady && messages.some((message) => message.role === "user") && (
-          <div className="-mt-1 flex pl-9">
-            <button
-              type="button"
-              onClick={() => void retryFailedTask()}
-              aria-label="Régénérer la réponse"
-              title="Régénérer la réponse"
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0858b1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-            >
-              <RotateCw size={15} aria-hidden="true" />
-            </button>
-          </div>
-        )}
         {friendlyError && (
           <div
             role="alert"
@@ -1293,6 +1267,19 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
                 Relancer la demande
               </button>
             )}
+          </div>
+        )}
+        {!isBusy && task.status !== "failed" && historyReady && messages.some((message) => message.role === "user") && (
+          <div className="-mt-1 flex pl-9">
+            <button
+              type="button"
+              onClick={() => void retryFailedTask()}
+              aria-label="Régénérer la réponse"
+              title="Régénérer la réponse"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0858b1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            >
+              <RotateCw size={15} aria-hidden="true" />
+            </button>
           </div>
         )}
       </div>
