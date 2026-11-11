@@ -57,7 +57,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const transport: DefaultChatTransport<AgentUIMessage> = new DefaultChatTransport<AgentUIMessage>({
-  api: "/api/admin/agent/chat",
+  api: "/frontend-api/admin/agent/chat",
   prepareSendMessagesRequest: ({ messages, trigger }) => {
     const lastUserMessage = [...messages]
       .reverse()

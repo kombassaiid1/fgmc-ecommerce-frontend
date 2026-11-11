@@ -68,8 +68,8 @@ export default function AdminModulesPage() {
 
   useEffect(() => {
     const endpoints: Array<[ModuleId, string]> = [
-      ["prestashop", "/api/admin/prestashop-integration"],
-      ["dolibarr", "/api/admin/dolibarr-integration"],
+      ["prestashop", "/frontend-api/admin/prestashop-integration"],
+      ["dolibarr", "/frontend-api/admin/dolibarr-integration"],
     ];
     endpoints.forEach(async ([id, endpoint]) => {
       try {

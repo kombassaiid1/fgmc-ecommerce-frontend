@@ -56,7 +56,7 @@ function statusLabel(status: SupplierBatchItem["status"]) {
 }
 
 async function postAction(id: string, action: "confirm" | "cancel" | "retry") {
-  const response = await fetch(`/api/admin/agent/chat/batches/${encodeURIComponent(id)}`, {
+  const response = await fetch(`/frontend-api/admin/agent/chat/batches/${encodeURIComponent(id)}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
   });
   const payload: unknown = await response.json().catch(() => null);
@@ -78,7 +78,7 @@ export function SupplierBatchCard({ batch, onRefresh }: Props) {
     setBusy(true); setError("");
     try {
       const draft = patch.draft && typeof patch.draft === "object" ? patch.draft : undefined;
-      const response = await fetch(`/api/admin/agent/chat/batches/${encodeURIComponent(batch.id)}`, {
+      const response = await fetch(`/frontend-api/admin/agent/chat/batches/${encodeURIComponent(batch.id)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [{ index, ...patch, ...(draft ? { draft } : {}) }] }),
       });

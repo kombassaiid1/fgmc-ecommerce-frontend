@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      // Le proxy Dokploy réserve /api à NestJS; ces URLs gardent les handlers Next accessibles.
+      {
+        source: "/frontend-api/:path*",
+        destination: "/api/:path*",
+      },
       // Keep legacy ".html" product URLs but serve the normal route.
       {
         source: "/:slug/:productSlug.html",

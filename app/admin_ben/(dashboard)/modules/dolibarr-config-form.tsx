@@ -31,13 +31,13 @@ export default function DolibarrConfigForm() {
   }, [hideToast, showToast]);
 
   const loadInvoices = useCallback(async () => {
-    const response = await fetch('/api/admin/dolibarr-integration/invoices', { cache: 'no-store' });
+    const response = await fetch('/frontend-api/admin/dolibarr-integration/invoices', { cache: 'no-store' });
     const data = await response.json();
     if (response.ok) setInvoices(data);
   }, []);
 
   const reload = useCallback(async () => {
-    const response = await fetch('/api/admin/dolibarr-integration', { cache: 'no-store' });
+    const response = await fetch('/frontend-api/admin/dolibarr-integration', { cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Impossible de charger la configuration.');
     setConfig({ ...defaults, ...data });
@@ -50,7 +50,7 @@ export default function DolibarrConfigForm() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
     try {
-      const response = await fetch('/api/admin/dolibarr-integration', {
+      const response = await fetch('/frontend-api/admin/dolibarr-integration', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...config, apiKey }),
       });
@@ -65,7 +65,7 @@ export default function DolibarrConfigForm() {
   async function testConnection() {
     setTesting(true);
     try {
-      const response = await fetch('/api/admin/dolibarr-integration/test', { method: 'POST' });
+      const response = await fetch('/frontend-api/admin/dolibarr-integration/test', { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Connexion impossible.');
       setConnectedVersion(data.version ?? 'Dolibarr');
@@ -83,7 +83,7 @@ export default function DolibarrConfigForm() {
   async function sync(path: string, label: string) {
     setSyncing(path);
     try {
-      const response = await fetch(`/api/admin/dolibarr-integration/${path}`, { method: 'POST' });
+      const response = await fetch(`/frontend-api/admin/dolibarr-integration/${path}`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Synchronisation impossible.');
       const summary = path.includes('products')

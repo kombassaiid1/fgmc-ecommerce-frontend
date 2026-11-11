@@ -95,7 +95,7 @@ export default function PrestashopConfigForm() {
   }, [error, notify]);
 
   const reload = useCallback(async () => {
-    const response = await fetch('/api/admin/prestashop-integration', { cache: 'no-store' });
+    const response = await fetch('/frontend-api/admin/prestashop-integration', { cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Chargement impossible.');
     setConfig({ ...emptyConfig, ...data });
@@ -107,7 +107,7 @@ export default function PrestashopConfigForm() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shopUrl: config.shopUrl, apiKey }) });
+      const response = await fetch('/frontend-api/admin/prestashop-integration', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shopUrl: config.shopUrl, apiKey }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Enregistrement impossible.');
       await reload(); setMessage('Configuration enregistrée. La clé Webservice est chiffrée sur le serveur.');
@@ -118,7 +118,7 @@ export default function PrestashopConfigForm() {
   async function testConnection() {
     setTesting(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration/test', { method: 'POST' });
+      const response = await fetch('/frontend-api/admin/prestashop-integration/test', { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Connexion impossible.');
       setMessage(`Connexion réussie à ${data.shopUrl}.`);
@@ -129,7 +129,7 @@ export default function PrestashopConfigForm() {
   async function searchProducts(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSearching(true); setError(''); setMessage('');
     try {
-      const response = await fetch(`/api/admin/prestashop-integration/products?search=${encodeURIComponent(search)}`, { cache: 'no-store' });
+      const response = await fetch(`/frontend-api/admin/prestashop-integration/products?search=${encodeURIComponent(search)}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Recherche impossible.');
       setProducts(data);
@@ -141,7 +141,7 @@ export default function PrestashopConfigForm() {
   async function loadTaxes() {
     setLoadingTaxes(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration/taxes', { cache: 'no-store' });
+      const response = await fetch('/frontend-api/admin/prestashop-integration/taxes', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Chargement des taxes impossible.');
       const rows: RemoteTax[] = data;
@@ -155,7 +155,7 @@ export default function PrestashopConfigForm() {
   async function importSelectedTaxes() {
     setImportingTaxes(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration/taxes', {
+      const response = await fetch('/frontend-api/admin/prestashop-integration/taxes', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taxIds: selectedTaxIds }),
       });
@@ -170,7 +170,7 @@ export default function PrestashopConfigForm() {
   async function loadBrands() {
     setLoadingBrands(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration/brands', { cache: 'no-store' });
+      const response = await fetch('/frontend-api/admin/prestashop-integration/brands', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Chargement des marques impossible.');
       const rows: RemoteBrand[] = data;
@@ -184,7 +184,7 @@ export default function PrestashopConfigForm() {
   async function importSelectedBrands() {
     setImportingBrands(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/prestashop-integration/brands', {
+      const response = await fetch('/frontend-api/admin/prestashop-integration/brands', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brandIds: selectedBrandIds }),
       });
@@ -208,7 +208,7 @@ export default function PrestashopConfigForm() {
       while (hasMore) {
         const offsets = Array.from({ length: parallelPages }, (_, index) => offset + index * pageSize);
         const pages = await Promise.all(offsets.map(async (pageOffset) => {
-          const response = await fetch(`/api/admin/prestashop-integration/products/import-candidates?offset=${pageOffset}&limit=${pageSize}`, { cache: 'no-store' });
+          const response = await fetch(`/frontend-api/admin/prestashop-integration/products/import-candidates?offset=${pageOffset}&limit=${pageSize}`, { cache: 'no-store' });
           const data = await response.json();
           if (!response.ok) throw new Error(data.message || `Chargement impossible à partir du produit ${pageOffset + 1}.`);
           return data as { items: ImportCandidate[]; hasMore: boolean };
@@ -246,7 +246,7 @@ export default function PrestashopConfigForm() {
       for (let index = 0; index < ids.length; index++) {
         const id = ids[index];
         try {
-          const response = await fetch(`/api/admin/prestashop-integration/products/${encodeURIComponent(id)}/import`, {
+          const response = await fetch(`/frontend-api/admin/prestashop-integration/products/${encodeURIComponent(id)}/import`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
           });
           const data = await response.json();
@@ -269,7 +269,7 @@ export default function PrestashopConfigForm() {
   async function loadPreview(product: RemoteProduct) {
     setPreviewing(product.id); setError(''); setMessage('');
     try {
-      const response = await fetch(`/api/admin/prestashop-integration/products/${encodeURIComponent(product.id)}`, { cache: 'no-store' });
+      const response = await fetch(`/frontend-api/admin/prestashop-integration/products/${encodeURIComponent(product.id)}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Aperçu impossible.');
       setPreview(data);

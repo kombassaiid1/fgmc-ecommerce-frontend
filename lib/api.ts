@@ -16,7 +16,7 @@ function getBaseUrl(): string {
       u.port === "3000"
     ) {
       u.port = "3001";
-      return u.origin;
+      return `${u.origin}${u.pathname}`;
     }
   } catch {
     // ignore parse errors and fall back to the raw value

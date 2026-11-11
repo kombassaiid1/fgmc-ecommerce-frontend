@@ -21,7 +21,7 @@ function SupplierPricingForm({ supplier }: { supplier: Supplier }) {
       setMessage({ error: true, text: "Indiquez les taux entre 0 et 100 %. La TVA est nécessaire pour un prix TTC, et le pourcentage pour une remise à appliquer." }); setSaving(false); return;
     }
     try {
-      const response = await fetch(`/api/admin/suppliers/${encodeURIComponent(supplier.code)}/pricing`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const response = await fetch(`/frontend-api/admin/suppliers/${encodeURIComponent(supplier.code)}/pricing`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok) throw new Error(Array.isArray(result.message) ? result.message.join(", ") : result.message || "Enregistrement impossible.");
       setPricing({ ...defaults, ...result.pricing });
@@ -49,7 +49,7 @@ export function SupplierPricingSettings() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    void fetch("/api/admin/suppliers", { cache: "no-store" }).then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.message || "Chargement des fournisseurs impossible."); if (active) setSuppliers(data.filter((supplier: Supplier) => supplier.isActive)); }).catch((error) => { if (active) setError(error.message); }).finally(() => { if (active) setLoading(false); });
+    void fetch("/frontend-api/admin/suppliers", { cache: "no-store" }).then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.message || "Chargement des fournisseurs impossible."); if (active) setSuppliers(data.filter((supplier: Supplier) => supplier.isActive)); }).catch((error) => { if (active) setError(error.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
   return <BlockStack gap="300">

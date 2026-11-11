@@ -51,7 +51,7 @@ type AgentHistoryItem = {
 };
 
 async function fetchAgentConversations(): Promise<AgentConversationSummary[]> {
-  const response = await fetch("/api/admin/agent/chat/conversations", {
+  const response = await fetch("/frontend-api/admin/agent/chat/conversations", {
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Impossible de charger les conversations.");
@@ -61,7 +61,7 @@ async function fetchAgentConversations(): Promise<AgentConversationSummary[]> {
 
 async function fetchAgentHistory(sessionId: string): Promise<AgentHistoryItem[]> {
   const response = await fetch(
-    `/api/admin/agent/chat?sessionId=${encodeURIComponent(sessionId)}`,
+    `/frontend-api/admin/agent/chat?sessionId=${encodeURIComponent(sessionId)}`,
     { cache: "no-store" },
   );
   if (!response.ok) throw new Error("Impossible de charger la conversation.");
@@ -71,7 +71,7 @@ async function fetchAgentHistory(sessionId: string): Promise<AgentHistoryItem[]>
 
 async function fetchAgentTaskStatus(sessionId: string): Promise<AgentTaskStatus> {
   const response = await fetch(
-    `/api/admin/agent/chat/task?sessionId=${encodeURIComponent(sessionId)}`,
+    `/frontend-api/admin/agent/chat/task?sessionId=${encodeURIComponent(sessionId)}`,
     { cache: "no-store" },
   );
   if (!response.ok) throw new Error("Impossible de vérifier l’avancement de l’Agent.");
@@ -83,7 +83,7 @@ async function fetchAgentTaskStatus(sessionId: string): Promise<AgentTaskStatus>
 }
 
 async function fetchSupplierBatch(sessionId: string): Promise<SupplierBatch | null> {
-  const response = await fetch(`/api/admin/agent/chat/batches?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+  const response = await fetch(`/frontend-api/admin/agent/chat/batches?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Impossible de charger le lot fournisseur.");
   const result: unknown = await response.json();
   return isRecord(result) && typeof result.id === "string" ? result as unknown as SupplierBatch : null;
@@ -609,7 +609,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }));
 
     try {
-      const response = await fetch(`/api/admin/agent/chat/${action}`, {
+      const response = await fetch(`/frontend-api/admin/agent/chat/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmationId }),
@@ -745,7 +745,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
         return;
       }
       try {
-        const response = await fetch("/api/admin/agent/chat/batches", {
+        const response = await fetch("/frontend-api/admin/agent/chat/batches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId, message: trimmed }),
@@ -822,7 +822,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     if (!isBusy) return;
     const lastUser = messages.findLast((message) => message.role === "user");
     if (activeSessionId) {
-      void fetch("/api/admin/agent/chat/stop", {
+      void fetch("/frontend-api/admin/agent/chat/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: activeSessionId }),

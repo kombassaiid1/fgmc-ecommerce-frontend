@@ -1,4 +1,4 @@
-// Erreur d'envoi vers /api/admin/agent/chat : conserve le statut HTTP pour réagir (409, 5xx…).
+// Erreur d'envoi vers /frontend-api/admin/agent/chat : conserve le statut HTTP pour réagir (409, 5xx…).
 export class AgentRequestError extends Error {
   readonly statusCode: number;
   readonly serverMessage: string;

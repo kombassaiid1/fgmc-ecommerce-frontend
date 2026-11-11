@@ -1,7 +1,7 @@
 const LOCAL_BACKEND_API_URL = "http://localhost:3001";
 
 export function normalizeBackendUrl(url: string | undefined | null): string {
-  const trimmed = url?.trim().replace(/\/$/, "");
+  const trimmed = url?.trim().replace(/\/+$/, "");
 
   if (!trimmed) {
     if (process.env.NODE_ENV === "production") {
@@ -13,10 +13,14 @@ export function normalizeBackendUrl(url: string | undefined | null): string {
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
+    return ensureApiPrefix(trimmed);
   }
 
-  return `http://${trimmed}`;
+  return ensureApiPrefix(`http://${trimmed}`);
+}
+
+function ensureApiPrefix(url: string): string {
+  return url.endsWith("/api") ? url : `${url}/api`;
 }
 
 export function getBackendBaseUrl(): string {
