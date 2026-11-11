@@ -30,6 +30,7 @@ import en from "@shopify/polaris/locales/en.json";
 import type { AdminUser } from "@/lib/admin-auth";
 import Image from "next/image";
 import { AgentFloatingButton } from "@/components/agent/agent-floating-button";
+import { AgentAdminNavigationContext } from "@/components/agent/agent-admin-navigation-context";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -104,13 +105,16 @@ const NAV_ITEMS = [
     subNavigationItems: [
       { label: "Taxes", url: "/admin_ben/settings/taxes" },
       { label: "Couleurs des statuts", url: "/admin_ben/settings/order-status-colors" },
+      { label: "Paramètres produit", url: "/admin_ben/settings/products" },
     ],
   },
 ];
 
 export function AdminShell({ children, user }: AdminShellProps) {
   const pathname = usePathname();
+  const isAgentPage = pathname === "/admin_ben/agent";
   const [showMobileNavigation, setShowMobileNavigation] = useState(false);
+  const [showAgentAdminMenu, setShowAgentAdminMenu] = useState(true);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const displayName =
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
@@ -134,7 +138,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
 
   const topBarMarkup = (
     <TopBar
-      showNavigationToggle
+      showNavigationToggle={!isAgentPage}
       onNavigationToggle={() => setShowMobileNavigation((prev) => !prev)}
       userMenu={
         <TopBar.UserMenu
@@ -172,19 +176,26 @@ export function AdminShell({ children, user }: AdminShellProps) {
 
   return (
     <AppProvider i18n={en} linkComponent={PolarisNextLink}>
-      <Frame
-        topBar={topBarMarkup}
-        navigation={navigationMarkup}
-        showMobileNavigation={showMobileNavigation}
-        onNavigationDismiss={() => setShowMobileNavigation(false)}>
-        {pathname === "/admin_ben/agent" ? (
-          <div className="px-4 py-3">{children}</div>
-        ) : (
-          <Page>
-            <Card roundedAbove="sm">{children}</Card>
-          </Page>
-        )}
-      </Frame>
+      <AgentAdminNavigationContext.Provider
+        value={{
+          isVisible: showAgentAdminMenu,
+          toggle: () => setShowAgentAdminMenu((visible) => !visible),
+        }}
+      >
+        <Frame
+          topBar={topBarMarkup}
+          navigation={isAgentPage && !showAgentAdminMenu ? undefined : navigationMarkup}
+          showMobileNavigation={showMobileNavigation}
+          onNavigationDismiss={() => setShowMobileNavigation(false)}>
+          {pathname === "/admin_ben/agent" ? (
+            <div className="px-4 py-3">{children}</div>
+          ) : (
+            <Page>
+              <Card roundedAbove="sm">{children}</Card>
+            </Page>
+          )}
+        </Frame>
+      </AgentAdminNavigationContext.Provider>
       {pathname !== "/admin_ben/agent" && <AgentFloatingButton />}
     </AppProvider>
   );

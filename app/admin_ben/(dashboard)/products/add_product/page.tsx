@@ -41,6 +41,7 @@ import { getCategories, type Category } from "@/lib/api/categories";
 import { getBrands, type Brand } from "@/lib/api/brands";
 import { getAttributes, type Attribute } from "@/lib/api/attributes";
 import { getTaxes, type Tax } from "@/lib/api/taxes";
+import { getAdminSettings } from "@/lib/api/settings";
 import { createProduct, getProductById, getProducts, updateProduct, type ProductListItem, type SpecificPriceRule } from "@/lib/api/products";
 
 type ProductFormState = {
@@ -287,6 +288,19 @@ export default function AdminProductsPage() {
       .catch(() => { if (active) setAvailableProducts([]); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (productId) return;
+    let active = true;
+    void getAdminSettings()
+      .then((settings) => {
+        if (!active) return;
+        const defaultQuantity = Math.max(0, Math.trunc(Number(settings.productSettings?.defaultStockQuantity ?? 0)));
+        setFormState((current) => current.qty === "0" ? { ...current, qty: String(defaultQuantity) } : current);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [productId]);
 
   useEffect(() => {
     if (!productId) {
@@ -738,7 +752,7 @@ export default function AdminProductsPage() {
         sku: "",
         impactPrice: "0",
         price: formState.price || "0",
-        qty: "0",
+        qty: formState.qty || "0",
         stockStatus: formState.stockStatus || "instock",
         image: "",
         isActive: true,

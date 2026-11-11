@@ -21,6 +21,15 @@ const settingsSections = [
     tone: "#f2edff",
     iconColor: "#7044a6",
   },
+  {
+    title: "Paramètres produit",
+    description: "Définissez le stock initial et la règle de calcul du prix de vente utilisée par l’agent.",
+    href: "/admin_ben/settings/products",
+    action: "Configurer les produits",
+    icon: "€",
+    tone: "#e7f7ef",
+    iconColor: "#18794e",
+  },
 ];
 
 export default function AdminSettingsPage() {
