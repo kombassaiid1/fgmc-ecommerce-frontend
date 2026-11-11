@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { getBackendBaseUrl } from "@/lib/backend-url";
 
 export function getSiteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "http://localhost:3000"
-  );
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (configuredUrl) return configuredUrl;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_SITE_URL doit être défini comme Build Arg en production.");
+  }
+  return "http://localhost:3000";
 }
 
 /** Fallback OG image when settings have none. Must exist in public/ folder. */

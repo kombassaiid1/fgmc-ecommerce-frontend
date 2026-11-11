@@ -15,16 +15,9 @@ import {
   fetchCategoryProducts,
 } from "@/lib/category-catalog-api";
 import { getImageUrl } from "@/lib/api";
-import { getDefaultOgImageUrl, toOgSafeImageUrl } from "@/lib/metadata";
+import { getDefaultOgImageUrl, getSiteUrl, toOgSafeImageUrl } from "@/lib/metadata";
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { redirect } from "next/navigation";
-
-function getSiteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://elbootic.com"
-  );
-}
 
 type Props = {
   params: Promise<{ slug: string }>;
