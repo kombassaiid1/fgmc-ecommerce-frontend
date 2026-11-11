@@ -393,6 +393,10 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     }
   }
 
+  const detailHref = categorySlug
+    ? `/${categorySlug}/${product.slug}.html`
+    : `/${product.slug}.html`;
+
   return (
     <main className="min-h-screen! bg-muted/30">
       <div className="container mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
@@ -403,17 +407,17 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 Accueil
               </Link>
             </li>
-            <li aria-hidden className="px-1">
-              /
-            </li>
-            <li>
-              <Link href={`/${categorySlug}`} className="hover:text-slate-900">
-                {categorySlug}
-              </Link>
-            </li>
-            <li aria-hidden className="px-1">
-              /
-            </li>
+            {categorySlug ? (
+              <>
+                <li aria-hidden className="px-1">/</li>
+                <li>
+                  <Link href={`/${categorySlug}`} className="hover:text-slate-900">
+                    {categorySlug}
+                  </Link>
+                </li>
+                <li aria-hidden className="px-1">/</li>
+              </>
+            ) : null}
             <li className="font-medium text-slate-900">{product.title}</li>
           </ol>
         </nav>
@@ -779,7 +783,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-800">Connectez-vous pour laisser un avis après votre achat.</p>
                 <Link
-                  href={`/login?returnTo=${encodeURIComponent(`/${categorySlug}/${product.slug}.html#product-reviews`)}`}
+                  href={`/login?returnTo=${encodeURIComponent(`${detailHref}#product-reviews`)}`}
                   className="mt-3 inline-flex min-h-10 items-center justify-center rounded-md bg-[#153675] px-4 text-sm font-semibold text-white hover:bg-[#0a224f]">
                   Se connecter
                 </Link>

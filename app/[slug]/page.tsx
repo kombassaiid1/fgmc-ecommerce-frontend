@@ -5,6 +5,7 @@ import {
   dehydrate,
 } from "@tanstack/react-query";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
+import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 import {
   categoryFiltersQueryKey,
   categoryProductsQueryKey,
@@ -15,6 +16,8 @@ import {
 } from "@/lib/category-catalog-api";
 import { getImageUrl } from "@/lib/api";
 import { getDefaultOgImageUrl, toOgSafeImageUrl } from "@/lib/metadata";
+import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
+import { redirect } from "next/navigation";
 
 function getSiteUrl(): string {
   return (
@@ -31,6 +34,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const slugTrim = slug?.trim() ?? "";
   if (!slugTrim) return { title: "Catégorie" };
+
+  // Products without a category use the legacy root URL /[product-slug].html.
+  if (slugTrim.toLowerCase().endsWith(".html")) {
+    const productSlug = slugTrim.slice(0, -5);
+    try {
+      const { product } = await fetchProductBySlugWithDebug(productSlug);
+      return {
+        title: product?.title ?? productSlug,
+        description: product?.shortDescription ?? undefined,
+        alternates: { canonical: `${getSiteUrl()}/${slugTrim}` },
+      };
+    } catch {
+      return { title: productSlug };
+    }
+  }
 
   try {
     const [filtersResult, productsResult] = await Promise.all([
@@ -101,6 +119,27 @@ const defaultProductsParams = {
 export default async function CategoryProductPage({ params }: Props) {
   const { slug } = await params;
   const slugTrim = slug?.trim() ?? "";
+
+  // A root-level .html URL is a product detail URL, not a category slug.
+  if (slugTrim.toLowerCase().endsWith(".html")) {
+    const productSlug = slugTrim.slice(0, -5);
+    const { product } = await fetchProductBySlugWithDebug(productSlug);
+    if (product) {
+      const category = product.categories?.find(
+        (item) => item.categoryId === product.mainCategoryId || item.category?.id === product.mainCategoryId,
+      )?.category ?? product.categories?.[0]?.category;
+      if (category?.slug) redirect(`/${category.slug}/${product.slug}.html`);
+      return <ProductDetailClient categorySlug="" product={product} />;
+    }
+
+    return (
+      <main className="min-h-[60vh] bg-muted/30 px-4 py-16">
+        <div className="mx-auto max-w-xl rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm font-semibold text-destructive">Produit introuvable ou non disponible pour le moment.</p>
+        </div>
+      </main>
+    );
+  }
 
   const [filtersResult, productsResult] = await Promise.all([
     slugTrim
