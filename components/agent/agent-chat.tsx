@@ -8,6 +8,7 @@ import { RAW_TOOL_CALL_NOTICE, isRawToolCallText } from "./raw-tool-call";
 import { collectResourceLinks } from "./resource-links";
 import { describeSendError, type SendFailure } from "./send-error";
 import { useChat } from "@ai-sdk/react";
+import { SupplierBatchCard, type SupplierBatch } from "./supplier-batch-card";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
 import { type AgentUIMessage, type AgentTaskStatus, useAgentChatStore } from "./agent-chat-store";
@@ -79,6 +80,13 @@ async function fetchAgentTaskStatus(sessionId: string): Promise<AgentTaskStatus>
     return { status: "idle" };
   }
   return result as AgentTaskStatus;
+}
+
+async function fetchSupplierBatch(sessionId: string): Promise<SupplierBatch | null> {
+  const response = await fetch(`/api/admin/agent/chat/batches?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("Impossible de charger le lot fournisseur.");
+  const result: unknown = await response.json();
+  return isRecord(result) && typeof result.id === "string" ? result as unknown as SupplierBatch : null;
 }
 
 function toUiMessages(
@@ -386,6 +394,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const [confirmationStates, setConfirmationStates] = useState<
     Record<string, ConfirmationState>
   >({});
+  const [supplierBatch, setSupplierBatch] = useState<SupplierBatch | null>(null);
   const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
   const [sendFailure, setSendFailure] = useState<(SendFailure & { text: string; image: File | null }) | null>(null);
   const taskActivityRef = useRef<{ updatedAt: string | undefined; at: number }>({ updatedAt: undefined, at: 0 });
@@ -429,6 +438,31 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       cancelled = true;
     };
   }, [setMessages, setTask]);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    void fetchSupplierBatch(activeSessionId)
+      .then((batch) => { if (!cancelled) setSupplierBatch(batch); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [activeSessionId]);
+
+  const supplierBatchId = supplierBatch?.id;
+  const supplierBatchStatus = supplierBatch?.status;
+  useEffect(() => {
+    if (!activeSessionId || !supplierBatchId || supplierBatchStatus !== "PROCESSING") return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const current = await fetchSupplierBatch(activeSessionId);
+        if (!cancelled && current?.id === supplierBatchId) setSupplierBatch(current);
+      } catch { /* Keep the last persisted progress visible during a network interruption. */ }
+    };
+    const timer = window.setInterval(() => void refresh(), 1800);
+    void refresh();
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [activeSessionId, supplierBatchId, supplierBatchStatus]);
 
   useEffect(() => {
     if (!activeSessionId || task.status !== "running") return;
@@ -627,6 +661,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     setInput("");
     removeImage();
     setConfirmationStates({});
+    setSupplierBatch(null);
     setHistoryOpen(false);
     setInputError(null);
     clearError();
@@ -643,6 +678,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     useAgentChatStore.setState({ responseDurations: {} });
     removeImage();
     setConfirmationStates({});
+    setSupplierBatch(null);
     useAgentChatStore.getState().setSessionId(sessionId);
     setTask({ status: "idle" });
     setSendFailure(null);
@@ -691,6 +727,42 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   async function submitMessage(text: string) {
     const trimmed = text.trim();
     if ((!trimmed && !pendingImage) || isBusy || !historyReady) return;
+    const urls = trimmed.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+    if (urls.length > 100) {
+      setInputError("Un lot est limité à 100 URL. Découpez la demande en plusieurs lots.");
+      return;
+    }
+    if (urls.length >= 2) {
+      if (pendingImage) {
+        setInputError("Retirez l’image jointe pour lancer un lot d’URL fournisseur.");
+        return;
+      }
+      setInputError(null);
+      setInput("");
+      const sessionId = useAgentChatStore.getState().sessionId;
+      if (!sessionId) {
+        setInputError("La conversation n’est pas encore prête. Réessayez.");
+        return;
+      }
+      try {
+        const response = await fetch("/api/admin/agent/chat/batches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, message: trimmed }),
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload && typeof payload === "object" && "message" in payload ? String(payload.message) : "Le lot n’a pas pu démarrer.");
+        if (!isRecord(payload) || typeof payload.id !== "string") throw new Error("Le serveur n’a pas retourné le lot.");
+        setSupplierBatch(payload as unknown as SupplierBatch);
+        const history = await fetchAgentHistory(sessionId);
+        setMessages(toUiMessages(history));
+        refreshConversationList();
+      } catch (cause) {
+        setInputError(cause instanceof Error ? cause.message : "Le lot n’a pas pu démarrer.");
+        setInput(trimmed);
+      }
+      return;
+    }
     const imageToSend = pendingImage;
     setInput("");
     removeImage();
@@ -1305,6 +1377,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             );
           })
         )}
+        {supplierBatch && <SupplierBatchCard batch={supplierBatch} onRefresh={async () => {
+          const sessionId = useAgentChatStore.getState().sessionId;
+          if (!sessionId) return;
+          const latest = await fetchSupplierBatch(sessionId);
+          if (latest?.id === supplierBatch.id) setSupplierBatch(latest);
+        }} />}
         {isBusy && !activeAssistantHasContent && (
           <div className="flex items-end gap-2" aria-live="polite">
             <span className="flex size-7 items-center justify-center rounded-full bg-blue-100 text-[#0858b1]">
