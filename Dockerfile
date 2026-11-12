@@ -10,13 +10,13 @@ RUN npm i --legacy-peer-deps
 COPY . .
 
 # Les variables NEXT_PUBLIC_* sont intégrées au bundle pendant la compilation.
-ARG BACKEND_API_URL
+ARG BACKEND_API_URL=https://apitest.cliniquemachineacoudre.fr/api
 ENV BACKEND_API_URL=${BACKEND_API_URL}
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://apitest.cliniquemachineacoudre.fr/api
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-ARG NEXT_PUBLIC_BACKEND_API_URL
+ARG NEXT_PUBLIC_BACKEND_API_URL=https://apitest.cliniquemachineacoudre.fr/api
 ENV NEXT_PUBLIC_BACKEND_API_URL=${NEXT_PUBLIC_BACKEND_API_URL}
-ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_SITE_URL=https://front.cliniquemachineacoudre.fr
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 
 # Build Next.js
