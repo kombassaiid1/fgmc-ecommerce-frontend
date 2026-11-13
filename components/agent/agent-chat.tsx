@@ -13,6 +13,13 @@ import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
 import { type AgentUIMessage, type AgentTaskStatus, useAgentChatStore } from "./agent-chat-store";
 import {
+  getRetryContext,
+  IDLE_TASK_GRACE_MS,
+  isAgentChatBusy,
+  isChatStreamOpen,
+  shouldFailMissingTask,
+} from "./agent-chat-state";
+import {
   ArrowUp,
   Bot,
   Check,
@@ -76,7 +83,7 @@ async function fetchAgentTaskStatus(sessionId: string): Promise<AgentTaskStatus>
   );
   if (!response.ok) throw new Error("Impossible de vérifier l’avancement de l’Agent.");
   const result: unknown = await response.json();
-  if (!isRecord(result) || !["idle", "running", "completed", "failed"].includes(String(result.status))) {
+  if (!isRecord(result) || !["idle", "running", "completed", "failed", "stopped"].includes(String(result.status))) {
     return { status: "idle" };
   }
   return result as AgentTaskStatus;
@@ -281,7 +288,7 @@ const QUICK_ACTIONS = [
   { label: "Améliorer une fiche", prompt: "Aide-moi à améliorer une fiche produit." },
 ];
 
-// Délai sans changement de updatedAt au-delà duquel une tâche « running » est jugée bloquée.
+// Délai sans trame ni changement de partialText au-delà duquel une tâche « running » est jugée bloquée.
 const TASK_STALE_TIMEOUT_MS = 90_000;
 const TASK_STALE_MESSAGE = "L’agent ne répond plus. Vous pouvez relancer la demande.";
 const MAX_AGENT_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -397,7 +404,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const [supplierBatch, setSupplierBatch] = useState<SupplierBatch | null>(null);
   const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
   const [sendFailure, setSendFailure] = useState<(SendFailure & { text: string; image: File | null }) | null>(null);
-  const taskActivityRef = useRef<{ updatedAt: string | undefined; at: number }>({ updatedAt: undefined, at: 0 });
+  const taskActivityRef = useRef<{
+    updatedAt: string | undefined;
+    partialText: string | undefined;
+    at: number;
+  }>({ updatedAt: undefined, partialText: undefined, at: 0 });
+  const taskSentAtRef = useRef<number | null>(null);
   const { messages, sendMessage, status, error, clearError, setMessages, regenerate, stop } = useChat<AgentUIMessage>({
     chat: sharedChat,
   });
@@ -421,7 +433,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       .then(([history, taskStatus]) => {
         const currentStatus = useAgentChatStore.getState().chat.status;
         if (!cancelled) {
-          setTask(taskStatus);
+          if (taskStatus.status === "running" && taskSentAtRef.current === null) {
+            taskSentAtRef.current = Date.now();
+          }
+          if (!(taskStatus.status === "idle" && isChatStreamOpen(currentStatus))) {
+            setTask(taskStatus);
+          }
           if (currentStatus !== "submitted" && currentStatus !== "streaming") {
             setMessages(toUiMessages(history, taskStatus));
           }
@@ -467,25 +484,38 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   useEffect(() => {
     if (!activeSessionId || task.status !== "running") return;
     let cancelled = false;
-    taskActivityRef.current = { updatedAt: undefined, at: Date.now() };
+    if (taskSentAtRef.current === null) taskSentAtRef.current = Date.now();
+    taskActivityRef.current = { updatedAt: undefined, partialText: undefined, at: Date.now() };
     const pollTask = async () => {
       try {
         const taskStatus = await fetchAgentTaskStatus(activeSessionId);
         if (cancelled) return;
         if (taskStatus.status === "running") {
           const activity = taskActivityRef.current;
-          if (taskStatus.updatedAt !== activity.updatedAt) {
+          const currentPartialText = taskStatus.partialText ?? "";
+          if (taskStatus.updatedAt !== activity.updatedAt || currentPartialText !== activity.partialText) {
             const updatedTime = taskStatus.updatedAt ? Date.parse(taskStatus.updatedAt) : Number.NaN;
-            // Au premier relevé, une tâche déjà ancienne compte depuis sa dernière mise à jour.
-            const isFirstReading = activity.updatedAt === undefined;
+            // Au premier relevé, une tâche déjà ancienne compte depuis sa dernière activité.
+            const isFirstReading = activity.updatedAt === undefined && activity.partialText === undefined;
             taskActivityRef.current = {
               updatedAt: taskStatus.updatedAt,
+              partialText: currentPartialText,
               at: isFirstReading && Number.isFinite(updatedTime) ? Math.min(updatedTime, Date.now()) : Date.now(),
             };
           }
           if (Date.now() - taskActivityRef.current.at > TASK_STALE_TIMEOUT_MS) {
+            taskActivityRef.current = { ...taskActivityRef.current, at: Date.now() };
             stop();
-            setTask({ ...taskStatus, status: "failed", error: TASK_STALE_MESSAGE });
+            setTask({ ...taskStatus, error: TASK_STALE_MESSAGE });
+            void fetch("/frontend-api/admin/agent/chat/stop", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: activeSessionId }),
+            })
+              .then((response) => {
+                if (!response.ok) throw new Error("stop failed");
+              })
+              .catch(() => setInputError("L’arrêt n’a pas pu être confirmé côté serveur. La demande peut se terminer en arrière-plan."));
             return;
           }
         }
@@ -495,22 +525,37 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
           // Tâche terminée côté serveur mais flux navigateur encore ouvert : on le ferme,
           // sinon le statut du chat reste « busy » et le spinner tourne indéfiniment.
           const chatStatus = useAgentChatStore.getState().chat.status;
-          const streamStillOpen = chatStatus === "submitted" || chatStatus === "streaming";
+          const streamStillOpen = isChatStreamOpen(chatStatus);
           if (streamStillOpen) stop();
           if (!streamStillOpen || taskStatus.status === "completed") setMessages(toUiMessages(history));
           if (taskStatus.status === "completed") clearError();
-          setTask(taskStatus);
+          const previousTask = useAgentChatStore.getState().task;
+          setTask(
+            taskStatus.status === "stopped" && previousTask.error === TASK_STALE_MESSAGE
+              ? { ...taskStatus, status: "failed", error: TASK_STALE_MESSAGE }
+              : taskStatus,
+          );
+          taskSentAtRef.current = null;
           void fetchAgentConversations().then(setConversations).catch(() => undefined);
           return;
         }
         if (taskStatus.status === "idle") {
-          setTask({
-            ...useAgentChatStore.getState().task,
-            status: "failed",
-            error: "Le statut de cette demande est introuvable. Vous pouvez la relancer.",
-          });
+          const chatStatus = useAgentChatStore.getState().chat.status;
+          if (shouldFailMissingTask(chatStatus, taskSentAtRef.current, Date.now(), IDLE_TASK_GRACE_MS)) {
+            setTask({
+              ...useAgentChatStore.getState().task,
+              status: "failed",
+              error: "Le statut de cette demande est introuvable. Vous pouvez la relancer.",
+            });
+            taskSentAtRef.current = null;
+          }
         } else {
-          setTask(taskStatus);
+          const previousTask = useAgentChatStore.getState().task;
+          setTask(
+            taskStatus.status === "running" && previousTask.error === TASK_STALE_MESSAGE
+              ? { ...taskStatus, error: TASK_STALE_MESSAGE }
+              : taskStatus,
+          );
         }
       } catch {
         // Une panne passagère de polling ne change pas le statut du travail serveur.
@@ -523,7 +568,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       window.clearInterval(timer);
     };
   }, [activeSessionId, clearError, setConversations, setMessages, setTask, stop, task.status]);
-  const isBusy = status === "submitted" || status === "streaming" || task.status === "running";
+  const isBusy = isAgentChatBusy(status, task.status);
   useEffect(() => {
     if (!isBusy) return;
     const handleEscape = (event: globalThis.KeyboardEvent) => {
@@ -652,6 +697,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   function startNewConversation() {
     if (isBusy) return;
     const sessionId = crypto.randomUUID();
+    taskSentAtRef.current = null;
     useAgentChatStore.getState().setSessionId(sessionId);
     setMessages([]);
     setStoppedUserId(null);
@@ -670,6 +716,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
 
   async function openConversation(sessionId: string) {
     if (isBusy) return;
+    taskSentAtRef.current = null;
     setHistoryReady(false);
     setInputError(null);
     clearError();
@@ -777,6 +824,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     if (imageToSend) {
       try {
         const imageDataUrl = await fileToDataUrl(imageToSend);
+        taskSentAtRef.current = Date.now();
         useAgentChatStore.getState().beginTask(trimmed || "Analyse l’image jointe et réponds à ma question.", true);
         markRequestStarted();
         await sendMessage({
@@ -800,6 +848,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       return;
     }
     try {
+      taskSentAtRef.current = Date.now();
       useAgentChatStore.getState().beginTask(trimmed);
       markRequestStarted();
       await sendMessage({ text: trimmed });
@@ -834,7 +883,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }
     stop();
     setStoppedUserId(lastUser?.id ?? null);
-    setTask({ status: "idle" });
+    if (activeSessionId) {
+      setTask({ ...useAgentChatStore.getState().task, status: "running", progress: "Arrêt en cours…" });
+    } else {
+      setTask({ status: "stopped", progress: "Réponse arrêtée." });
+      taskSentAtRef.current = null;
+    }
     useAgentChatStore.setState({
       responseStartedAt: null,
       agentProgress: "Je réfléchis à votre demande…",
@@ -843,12 +897,15 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   }
 
   async function retryFailedTask() {
-    const lastUser = messages.findLast((message) => message.role === "user");
-    if (isBusy || !lastUser) return;
+    const retryContext = getRetryContext(useAgentChatStore.getState().sessionId, messages);
+    if (isBusy || !retryContext) return;
+    // Le déclenchement « regenerate » conserve le message utilisateur et son historique.
+    // Réaffirmer le sessionId courant évite toute création de conversation pendant la relance.
+    useAgentChatStore.getState().setSessionId(retryContext.sessionId);
     clearError();
     setStoppedUserId(null);
-    const lastUserText = lastUser.parts.filter(isTextUIPart).map((part) => part.text).join("");
-    useAgentChatStore.getState().beginTask(task.message ?? (lastUserText || undefined));
+    taskSentAtRef.current = Date.now();
+    useAgentChatStore.getState().beginTask(retryContext.message || undefined);
     markRequestStarted();
     const messagesBefore = messages;
     try {
@@ -864,6 +921,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
           await syncTaskWithServer();
         } else {
           setTask({ status: "failed", error: failure.message });
+          taskSentAtRef.current = null;
         }
       }
     } finally {
