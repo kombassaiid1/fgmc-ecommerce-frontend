@@ -4,6 +4,8 @@ import {
   getRetryContext,
   IDLE_TASK_GRACE_MS,
   isAgentChatBusy,
+  isInterruptedStreamError,
+  nextInterruptedStreamStep,
   shouldFailMissingTask,
 } from "./agent-chat-state.ts";
 
@@ -33,5 +35,32 @@ describe("agent chat task state", () => {
     assert.equal(isAgentChatBusy("submitted", "idle"), true);
     assert.equal(isAgentChatBusy("ready", "running"), true);
     assert.equal(isAgentChatBusy("ready", "failed"), false);
+  });
+});
+
+describe("agent chat interrupted stream recovery", () => {
+  it("flux coupé puis tâche completed : pas d'erreur", () => {
+    assert.equal(nextInterruptedStreamStep("completed", 0), "completed");
+    assert.equal(nextInterruptedStreamStep("completed", IDLE_TASK_GRACE_MS * 2), "completed");
+  });
+
+  it("flux coupé puis tâche failed : erreur après la période de grâce", () => {
+    assert.equal(nextInterruptedStreamStep("failed", 0), "wait");
+    assert.equal(nextInterruptedStreamStep("failed", IDLE_TASK_GRACE_MS), "error");
+    assert.equal(nextInterruptedStreamStep("stopped", IDLE_TASK_GRACE_MS), "error");
+    assert.equal(nextInterruptedStreamStep("idle", IDLE_TASK_GRACE_MS), "error");
+  });
+
+  it("tâche encore running : on garde l'état occupé quel que soit le délai", () => {
+    assert.equal(nextInterruptedStreamStep("running", 0), "running");
+    assert.equal(nextInterruptedStreamStep("running", 10 * IDLE_TASK_GRACE_MS), "running");
+  });
+
+  it("seules les coupures réseau et les 5xx déclenchent la vérification serveur", () => {
+    assert.equal(isInterruptedStreamError(new TypeError("Failed to fetch")), true);
+    assert.equal(isInterruptedStreamError(Object.assign(new Error("Bad Gateway"), { statusCode: 502 })), true);
+    assert.equal(isInterruptedStreamError(Object.assign(new Error("Unauthorized"), { statusCode: 401 })), false);
+    assert.equal(isInterruptedStreamError(Object.assign(new Error("Too many"), { statusCode: 429 })), false);
+    assert.equal(isInterruptedStreamError("texte"), false);
   });
 });

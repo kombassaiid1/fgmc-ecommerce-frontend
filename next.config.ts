@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Le premier tour du modèle peut dépasser 30 s : le proxy ne doit pas couper le flux NDJSON.
+    proxyTimeout: 300_000,
+  },
   turbopack: {
     // The frontend is nested in a workspace directory; process.cwd() can point
     // at that parent and make CSS package resolution miss this app's node_modules.

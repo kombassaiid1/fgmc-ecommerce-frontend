@@ -17,6 +17,8 @@ import {
   IDLE_TASK_GRACE_MS,
   isAgentChatBusy,
   isChatStreamOpen,
+  isInterruptedStreamError,
+  nextInterruptedStreamStep,
   shouldFailMissingTask,
 } from "./agent-chat-state";
 import {
@@ -291,6 +293,8 @@ const QUICK_ACTIONS = [
 // Délai sans trame ni changement de partialText au-delà duquel une tâche « running » est jugée bloquée.
 const TASK_STALE_TIMEOUT_MS = 90_000;
 const TASK_STALE_MESSAGE = "L’agent ne répond plus. Vous pouvez relancer la demande.";
+// Intervalle de vérification de la tâche après un flux coupé (la période de grâce est dans agent-chat-state).
+const INTERRUPTED_STREAM_POLL_MS = 2500;
 const MAX_AGENT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MIN_HISTORY_WIDTH = 280;
 const MAX_HISTORY_WIDTH = 320;
@@ -404,6 +408,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const [supplierBatch, setSupplierBatch] = useState<SupplierBatch | null>(null);
   const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
   const [sendFailure, setSendFailure] = useState<(SendFailure & { text: string; image: File | null }) | null>(null);
+  // Vrai pendant la vérification d'un flux coupé : la saisie reste verrouillée et l'erreur n'est pas encore affichée.
+  const [recoveringStream, setRecoveringStream] = useState(false);
   const taskActivityRef = useRef<{
     updatedAt: string | undefined;
     partialText: string | undefined;
@@ -568,7 +574,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       window.clearInterval(timer);
     };
   }, [activeSessionId, clearError, setConversations, setMessages, setTask, stop, task.status]);
-  const isBusy = isAgentChatBusy(status, task.status);
+  const isBusy = isAgentChatBusy(status, task.status) || recoveringStream;
   useEffect(() => {
     if (!isBusy) return;
     const handleEscape = (event: globalThis.KeyboardEvent) => {
@@ -759,7 +765,46 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     return describeSendError(chat.error);
   }
 
+  // Flux coupé (réseau, 502) : le serveur peut terminer la réponse malgré la coupure.
+  // On interroge la tâche au lieu d'afficher l'erreur tout de suite.
+  async function settleInterruptedStream(sessionId: string): Promise<"handled" | "error"> {
+    const startedAt = Date.now();
+    setRecoveringStream(true);
+    try {
+      for (;;) {
+        const taskStatus = await fetchAgentTaskStatus(sessionId).catch((): AgentTaskStatus => ({ status: "idle" }));
+        const step = nextInterruptedStreamStep(taskStatus.status, Date.now() - startedAt);
+        if (step === "running") {
+          // Saisie verrouillée : le polling existant suit la tâche jusqu'à sa fin.
+          clearError();
+          setTask(taskStatus);
+          return "handled";
+        }
+        if (step === "completed") {
+          clearError();
+          try {
+            setMessages(toUiMessages(await fetchAgentHistory(sessionId)));
+          } catch {
+            setInputError("L’historique n’a pas pu être rechargé. Actualisez la conversation.");
+          }
+          setTask(taskStatus);
+          taskSentAtRef.current = null;
+          refreshConversationList();
+          return "handled";
+        }
+        if (step === "error") return "error";
+        await new Promise<void>((resolve) => window.setTimeout(resolve, INTERRUPTED_STREAM_POLL_MS));
+      }
+    } finally {
+      setRecoveringStream(false);
+    }
+  }
+
   async function recoverFromFailedSend(failure: SendFailure, text: string, image: File | null) {
+    const sessionId = useAgentChatStore.getState().sessionId;
+    if (!failure.conflict && sessionId && isInterruptedStreamError(useAgentChatStore.getState().chat.error)) {
+      if ((await settleInterruptedStream(sessionId)) === "handled") return;
+    }
     setMessages(useAgentChatStore.getState().chat.messages.slice(0, -1));
     clearError();
     useAgentChatStore.setState({ responseStartedAt: null });
