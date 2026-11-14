@@ -7,6 +7,16 @@ import { parseBlocks, parseInline, type InlineNode } from "./markdown-parser";
 import { RAW_TOOL_CALL_NOTICE, isRawToolCallText } from "./raw-tool-call";
 import { collectResourceLinks } from "./resource-links";
 import { describeSendError, type SendFailure } from "./send-error";
+import {
+  clearActiveJob,
+  formatElapsed,
+  loadActiveJob,
+  pollAgentJob,
+  saveActiveJob,
+  type ActiveAgentJob,
+  type AgentJobOutcome,
+} from "./agent-job";
+import { readAgentJob, startAgentJob } from "./agent-job-client";
 import { useChat } from "@ai-sdk/react";
 import { SupplierBatchCard, type SupplierBatch } from "./supplier-batch-card";
 import { isFileUIPart, isTextUIPart } from "ai";
@@ -17,8 +27,6 @@ import {
   IDLE_TASK_GRACE_MS,
   isAgentChatBusy,
   isChatStreamOpen,
-  isInterruptedStreamError,
-  nextInterruptedStreamStep,
   shouldFailMissingTask,
 } from "./agent-chat-state";
 import {
@@ -291,10 +299,9 @@ const QUICK_ACTIONS = [
 ];
 
 // Délai sans trame ni changement de partialText au-delà duquel une tâche « running » est jugée bloquée.
-const TASK_STALE_TIMEOUT_MS = 90_000;
+// Un appel d'outil (scraping fournisseur) peut durer jusqu'à ~3 min sans aucune trame : le seuil reste au-dessus.
+const TASK_STALE_TIMEOUT_MS = 240_000;
 const TASK_STALE_MESSAGE = "L’agent ne répond plus. Vous pouvez relancer la demande.";
-// Intervalle de vérification de la tâche après un flux coupé (la période de grâce est dans agent-chat-state).
-const INTERRUPTED_STREAM_POLL_MS = 2500;
 const MAX_AGENT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MIN_HISTORY_WIDTH = 280;
 const MAX_HISTORY_WIDTH = 320;
@@ -380,7 +387,6 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const task = useAgentChatStore((state) => state.task);
   const activeSessionId = useAgentChatStore((state) => state.sessionId);
   const setTask = useAgentChatStore((state) => state.setTask);
-  const markRequestStarted = useAgentChatStore((state) => state.markRequestStarted);
   const sharedChat = useAgentChatStore((state) => state.chat);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatGridRef = useRef<HTMLDivElement>(null);
@@ -408,15 +414,18 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   const [supplierBatch, setSupplierBatch] = useState<SupplierBatch | null>(null);
   const [stoppedUserId, setStoppedUserId] = useState<string | null>(null);
   const [sendFailure, setSendFailure] = useState<(SendFailure & { text: string; image: File | null }) | null>(null);
-  // Vrai pendant la vérification d'un flux coupé : la saisie reste verrouillée et l'erreur n'est pas encore affichée.
-  const [recoveringStream, setRecoveringStream] = useState(false);
+  // Tâche de chat en cours (POST /agent/jobs puis polling), conservée en localStorage pour survivre à un rafraîchissement.
+  const [activeJob, setActiveJob] = useState<ActiveAgentJob | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const stopRequestedRef = useRef(false);
+  const finishJobRef = useRef<(job: ActiveAgentJob, outcome: AgentJobOutcome) => Promise<void>>(async () => undefined);
   const taskActivityRef = useRef<{
     updatedAt: string | undefined;
     partialText: string | undefined;
     at: number;
   }>({ updatedAt: undefined, partialText: undefined, at: 0 });
   const taskSentAtRef = useRef<number | null>(null);
-  const { messages, sendMessage, status, error, clearError, setMessages, regenerate, stop } = useChat<AgentUIMessage>({
+  const { messages, status, error, clearError, setMessages, stop } = useChat<AgentUIMessage>({
     chat: sharedChat,
   });
 
@@ -447,6 +456,18 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
           }
           if (currentStatus !== "submitted" && currentStatus !== "streaming") {
             setMessages(toUiMessages(history, taskStatus));
+          }
+          // Rafraîchissement pendant un traitement : on reprend le suivi de la tâche enregistrée.
+          const resumed = loadActiveJob(window.localStorage);
+          if (resumed && resumed.sessionId === sessionId) {
+            setTask({
+              ...(taskStatus.status === "running" ? taskStatus : {}),
+              status: "running",
+              progress: "Reprise du suivi de l’agent…",
+              message: resumed.message,
+              hasImage: resumed.hasImage,
+            });
+            setActiveJob(resumed);
           }
         }
       })
@@ -488,7 +509,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   }, [activeSessionId, supplierBatchId, supplierBatchStatus]);
 
   useEffect(() => {
-    if (!activeSessionId || task.status !== "running") return;
+    // Une tâche suivie par polling gère elle-même son état : l'ancien suivi de statut resterait en concurrence.
+    if (!activeSessionId || task.status !== "running" || activeJob) return;
     let cancelled = false;
     if (taskSentAtRef.current === null) taskSentAtRef.current = Date.now();
     taskActivityRef.current = { updatedAt: undefined, partialText: undefined, at: Date.now() };
@@ -573,8 +595,39 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeSessionId, clearError, setConversations, setMessages, setTask, stop, task.status]);
-  const isBusy = isAgentChatBusy(status, task.status) || recoveringStream;
+  }, [activeJob, activeSessionId, clearError, setConversations, setMessages, setTask, stop, task.status]);
+  const isBusy = isAgentChatBusy(status, task.status);
+  useEffect(() => {
+    finishJobRef.current = finishJob;
+  });
+  // Polling de la tâche toutes les 2 s jusqu'à « done » ou « error » (5 échecs réseau consécutifs tolérés, 10 min max).
+  useEffect(() => {
+    if (!activeJob) return;
+    const controller = new AbortController();
+    void pollAgentJob({
+      jobId: activeJob.jobId,
+      startedAt: activeJob.startedAt,
+      fetchJob: readAgentJob,
+      signal: controller.signal,
+      onUpdate: (job) => {
+        const current = useAgentChatStore.getState().task;
+        setTask({
+          ...current,
+          status: "running",
+          progress: job.progress || current.progress,
+          partialText: job.result.text,
+          updatedAt: job.updated_at,
+        });
+      },
+    }).then((outcome) => finishJobRef.current(activeJob, outcome));
+    return () => controller.abort();
+  }, [activeJob, setTask]);
+  // Durée écoulée affichée dans la bulle « L'agent travaille… ».
+  useEffect(() => {
+    if (!activeJob) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeJob]);
   useEffect(() => {
     if (!isBusy) return;
     const handleEscape = (event: globalThis.KeyboardEvent) => {
@@ -758,62 +811,118 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }
   }
 
-  // Envoi refusé ou en échec avant toute réponse : le dernier message est encore celui de l'utilisateur.
-  function detectSendFailure(): SendFailure | null {
-    const chat = useAgentChatStore.getState().chat;
-    if (chat.status !== "error" || chat.messages.at(-1)?.role !== "user") return null;
-    return describeSendError(chat.error);
-  }
-
-  // Flux coupé (réseau, 502) : le serveur peut terminer la réponse malgré la coupure.
-  // On interroge la tâche au lieu d'afficher l'erreur tout de suite.
-  async function settleInterruptedStream(sessionId: string): Promise<"handled" | "error"> {
-    const startedAt = Date.now();
-    setRecoveringStream(true);
-    try {
-      for (;;) {
-        const taskStatus = await fetchAgentTaskStatus(sessionId).catch((): AgentTaskStatus => ({ status: "idle" }));
-        const step = nextInterruptedStreamStep(taskStatus.status, Date.now() - startedAt);
-        if (step === "running") {
-          // Saisie verrouillée : le polling existant suit la tâche jusqu'à sa fin.
-          clearError();
-          setTask(taskStatus);
-          return "handled";
-        }
-        if (step === "completed") {
-          clearError();
-          try {
-            setMessages(toUiMessages(await fetchAgentHistory(sessionId)));
-          } catch {
-            setInputError("L’historique n’a pas pu être rechargé. Actualisez la conversation.");
-          }
-          setTask(taskStatus);
-          taskSentAtRef.current = null;
-          refreshConversationList();
-          return "handled";
-        }
-        if (step === "error") return "error";
-        await new Promise<void>((resolve) => window.setTimeout(resolve, INTERRUPTED_STREAM_POLL_MS));
-      }
-    } finally {
-      setRecoveringStream(false);
-    }
-  }
-
-  async function recoverFromFailedSend(failure: SendFailure, text: string, image: File | null) {
+  // Envoi : la tâche est créée côté serveur (réponse immédiate), puis le polling suit son avancement.
+  async function launchJob({ text, image = null, regenerate = false }: { text: string; image?: File | null; regenerate?: boolean }) {
     const sessionId = useAgentChatStore.getState().sessionId;
-    if (!failure.conflict && sessionId && isInterruptedStreamError(useAgentChatStore.getState().chat.error)) {
-      if ((await settleInterruptedStream(sessionId)) === "handled") return;
+    if (!sessionId) {
+      setInputError("La conversation n’est pas encore prête. Réessayez.");
+      if (!regenerate) {
+        setInput(text);
+        if (image) selectImage(image);
+      }
+      return;
     }
-    setMessages(useAgentChatStore.getState().chat.messages.slice(0, -1));
-    clearError();
-    useAgentChatStore.setState({ responseStartedAt: null });
-    setInput(text);
-    if (image) selectImage(image);
-    setSendFailure({ ...failure, text, image });
-    if (failure.conflict) await syncTaskWithServer();
-    else setTask({ status: "idle" });
-    window.setTimeout(() => inputRef.current?.focus(), 0);
+    const messagesBefore = useAgentChatStore.getState().chat.messages;
+    const fallbackMessage = image ? "Analyse l’image jointe et réponds à ma question." : undefined;
+    let imageDataUrl: string | null = null;
+    if (image) {
+      try {
+        imageDataUrl = await fileToDataUrl(image);
+      } catch {
+        setInputError("Impossible de préparer l’image. Collez-la de nouveau puis réessayez.");
+        setInput(text);
+        selectImage(image);
+        return;
+      }
+    }
+    const startedAt = Date.now();
+    taskSentAtRef.current = startedAt;
+    const taskId = useAgentChatStore.getState().beginTask(text || fallbackMessage, Boolean(image));
+    if (regenerate) {
+      // La réponse précédente est remplacée : le serveur la supprime, on la retire aussi de l'écran.
+      const lastUserIndex = messagesBefore.findLastIndex((message) => message.role === "user");
+      setMessages(messagesBefore.slice(0, lastUserIndex + 1));
+    } else {
+      setMessages([
+        ...messagesBefore,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          parts: [
+            { type: "text", text },
+            ...(image && imageDataUrl
+              ? [{ type: "file" as const, mediaType: image.type, filename: image.name, url: imageDataUrl }]
+              : []),
+          ],
+        },
+      ]);
+    }
+    try {
+      const { jobId } = await startAgentJob({ message: text, sessionId, taskId, regenerate, image });
+      const job: ActiveAgentJob = {
+        jobId,
+        sessionId,
+        startedAt,
+        message: text || fallbackMessage || "",
+        hasImage: Boolean(image),
+      };
+      saveActiveJob(window.localStorage, job);
+      setNowMs(Date.now());
+      setActiveJob(job);
+    } catch (cause) {
+      // Envoi refusé avant tout traitement : conversation inchangée, saisie conservée, erreur visible.
+      const failure = describeSendError(cause);
+      setMessages(messagesBefore);
+      taskSentAtRef.current = null;
+      if (regenerate) {
+        if (failure.conflict) {
+          setSendFailure({ ...failure, text: "", image: null });
+          await syncTaskWithServer();
+        } else {
+          setTask({ status: "failed", error: failure.message });
+        }
+      } else {
+        setInput(text);
+        if (image) selectImage(image);
+        setSendFailure({ ...failure, text, image });
+        if (failure.conflict) await syncTaskWithServer();
+        else setTask({ status: "idle" });
+      }
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }
+
+  // Fin du suivi : l'historique du serveur contient la réponse finale, les vérifications et les brouillons avec boutons.
+  async function finishJob(job: ActiveAgentJob, outcome: AgentJobOutcome) {
+    if (outcome.kind === "aborted") return;
+    clearActiveJob(window.localStorage);
+    setActiveJob(null);
+    taskSentAtRef.current = null;
+    const stoppedByUser = stopRequestedRef.current;
+    stopRequestedRef.current = false;
+    let reloaded = false;
+    try {
+      setMessages(toUiMessages(await fetchAgentHistory(job.sessionId)));
+      reloaded = true;
+    } catch {
+      if (outcome.kind === "done") setInputError("L’historique n’a pas pu être rechargé. Actualisez la conversation.");
+    }
+    if (outcome.kind === "done") {
+      const lastAssistant = useAgentChatStore.getState().chat.messages.findLast((message) => message.role === "assistant");
+      if (reloaded && lastAssistant) {
+        const duration = Date.now() - job.startedAt;
+        useAgentChatStore.setState((current) => ({
+          responseDurations: { ...current.responseDurations, [lastAssistant.id]: duration },
+        }));
+      }
+      setTask({ status: "completed", progress: "Travail terminé." });
+    } else if (stoppedByUser) {
+      setTask({ status: "stopped", progress: "Réponse arrêtée." });
+    } else if (outcome.kind === "error" || outcome.kind === "auth" || outcome.kind === "lost" || outcome.kind === "timeout" || outcome.kind === "network") {
+      // Le message d'erreur reste visible avec le bouton « Relancer la demande ».
+      setTask({ status: "failed", error: outcome.message });
+    }
+    refreshConversationList();
   }
 
   async function submitMessage(text: string) {
@@ -866,39 +975,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     setStoppedUserId(null);
     setInputError(null);
     setSendFailure(null);
-    if (imageToSend) {
-      try {
-        const imageDataUrl = await fileToDataUrl(imageToSend);
-        taskSentAtRef.current = Date.now();
-        useAgentChatStore.getState().beginTask(trimmed || "Analyse l’image jointe et réponds à ma question.", true);
-        markRequestStarted();
-        await sendMessage({
-          text: trimmed,
-          files: [
-            {
-              type: "file",
-              mediaType: imageToSend.type,
-              filename: imageToSend.name,
-              url: imageDataUrl,
-            },
-          ],
-        });
-        const failure = detectSendFailure();
-        if (failure) await recoverFromFailedSend(failure, trimmed, imageToSend);
-      } catch {
-        setInputError("Impossible de préparer l’image. Collez-la de nouveau puis réessayez.");
-      } finally {
-        refreshConversationList();
-      }
-      return;
-    }
     try {
-      taskSentAtRef.current = Date.now();
-      useAgentChatStore.getState().beginTask(trimmed);
-      markRequestStarted();
-      await sendMessage({ text: trimmed });
-      const failure = detectSendFailure();
-      if (failure) await recoverFromFailedSend(failure, trimmed, null);
+      await launchJob({ text: trimmed, image: imageToSend });
     } finally {
       refreshConversationList();
     }
@@ -914,6 +992,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
 
   function stopResponse() {
     if (!isBusy) return;
+    if (activeJob) stopRequestedRef.current = true;
     const lastUser = messages.findLast((message) => message.role === "user");
     if (activeSessionId) {
       void fetch("/frontend-api/admin/agent/chat/stop", {
@@ -944,31 +1023,13 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
   async function retryFailedTask() {
     const retryContext = getRetryContext(useAgentChatStore.getState().sessionId, messages);
     if (isBusy || !retryContext) return;
-    // Le déclenchement « regenerate » conserve le message utilisateur et son historique.
+    // Relance : le serveur remplace la dernière réponse et conserve le message utilisateur.
     // Réaffirmer le sessionId courant évite toute création de conversation pendant la relance.
     useAgentChatStore.getState().setSessionId(retryContext.sessionId);
     clearError();
     setStoppedUserId(null);
-    taskSentAtRef.current = Date.now();
-    useAgentChatStore.getState().beginTask(retryContext.message || undefined);
-    markRequestStarted();
-    const messagesBefore = messages;
     try {
-      await regenerate();
-      const failure = detectSendFailure();
-      if (failure) {
-        // Relance refusée : on garde la conversation telle qu'elle était.
-        setMessages(messagesBefore);
-        clearError();
-        useAgentChatStore.setState({ responseStartedAt: null });
-        if (failure.conflict) {
-          setSendFailure({ ...failure, text: "", image: null });
-          await syncTaskWithServer();
-        } else {
-          setTask({ status: "failed", error: failure.message });
-          taskSentAtRef.current = null;
-        }
-      }
+      await launchJob({ text: retryContext.message, regenerate: true });
     } finally {
       refreshConversationList();
     }
@@ -1493,7 +1554,17 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
             </span>
             <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-slate-100 bg-white px-3.5 py-3 text-xs text-slate-500 shadow-sm">
               <LoaderCircle size={15} className="animate-spin text-[#0858b1]" />
-              {task.progress || agentProgress}
+              {activeJob ? (
+                <span role="status">
+                  <span className="font-medium text-slate-700">L’agent travaille…</span>{" "}
+                  <span className="tabular-nums">{formatElapsed(nowMs - activeJob.startedAt)}</span>
+                  {(task.progress || agentProgress) && (
+                    <span className="ml-2 text-slate-400">{task.progress || agentProgress}</span>
+                  )}
+                </span>
+              ) : (
+                task.progress || agentProgress
+              )}
             </div>
           </div>
         )}

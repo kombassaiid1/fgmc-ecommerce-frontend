@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test-reporter=spec components/agent/agent-chat-state.spec.ts"
+    "test": "node --experimental-strip-types --test --test-reporter=spec components/agent/agent-chat-state.spec.ts components/agent/agent-job.spec.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.303",
