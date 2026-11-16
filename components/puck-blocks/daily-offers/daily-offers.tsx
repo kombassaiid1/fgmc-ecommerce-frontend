@@ -56,7 +56,7 @@ export const DAILY_OFFERS_DEFAULTS: DailyOffersProps = {
   title: "Offres du jour",
   subtitle: "Machines et accessoires à prix réduit, jusqu'à la fin de chaque offre.",
   maxProducts: 8,
-  columns: 4,
+  columns: 5,
   autoplaySeconds: 0,
   showCountdown: true,
   showDots: true,
@@ -77,7 +77,8 @@ const COLUMN_CLASS: Record<DailyOffersProps["columns"], string> = {
   2: "lg:basis-1/2",
   3: "lg:basis-1/3",
   4: "lg:basis-1/4",
-  5: "lg:basis-1/5",
+  // Five across needs about 1280px; on smaller desktops it falls back to four.
+  5: "lg:basis-1/4 xl:basis-1/5",
 };
 
 const INK = "#0f1f45";
@@ -332,14 +333,10 @@ function CarouselButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={direction === "prev" ? "Offres précédentes" : "Offres suivantes"}
-      className="grid size-11 cursor-pointer place-items-center rounded border-2 bg-white transition-colors duration-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white disabled:hover:text-inherit"
-      style={{ borderColor: color, color }}
-      onMouseEnter={(event) => {
-        if (!disabled) event.currentTarget.style.background = color;
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.background = "";
-      }}
+      // The colour comes from a CSS variable, not an inline `color`, so the hover
+      // state can swap it: navy arrow on white, white arrow on navy.
+      className="grid size-11 cursor-pointer place-items-center rounded border-2 border-[color:var(--btn)] bg-white text-[color:var(--btn)] transition-colors duration-200 hover:bg-[var(--btn)] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white disabled:hover:text-[color:var(--btn)]"
+      style={{ ["--btn" as string]: color }}
     >
       <Icon className="size-5" aria-hidden="true" />
     </button>
@@ -401,11 +398,11 @@ function OfferCountdown({
           Offre terminée
         </p>
       ) : (
-        <div className="flex items-baseline justify-between gap-2" aria-hidden="true">
-          <span className="text-[13px]" style={{ color: MUTED }}>
+        <div className="flex flex-col gap-1.5" aria-hidden="true">
+          <span className="whitespace-nowrap text-[13px]" style={{ color: MUTED }}>
             Se termine dans
           </span>
-          <span className="flex items-baseline gap-2.5" style={{ color: clock.urgent ? accentColor : INK }}>
+          <span className="flex items-baseline justify-between" style={{ color: clock.urgent ? accentColor : INK }}>
             {parts.map(({ value, unit }) => (
               <span key={unit} className="flex items-baseline gap-0.5 tabular-nums">
                 <span className="text-xl font-semibold leading-none">
@@ -558,12 +555,10 @@ function OfferCard({
             <span className="text-sm font-medium" style={{ color: MUTED }}>
               TTC
             </span>
-            <s className="ml-auto text-base tabular-nums" style={{ color: MUTED }}>
-              {formatEuro(offer.price)}
-            </s>
           </div>
-          <p className="mt-1.5 text-base tabular-nums" style={{ color: MUTED }}>
-            {formatEuro(offer.saleBasePrice)} HT
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base tabular-nums" style={{ color: MUTED }}>
+            <s>{formatEuro(offer.price)}</s>
+            <span>{formatEuro(offer.saleBasePrice)} HT</span>
           </p>
 
           {showCountdown ? (

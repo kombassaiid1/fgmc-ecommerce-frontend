@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import "./puck-theme.css";
 import { BlockIcon } from "./block-icons";
 import { BuilderShell, TabbedFields } from "./builder-shell";
+import { markMigrated, migrateSavedData } from "./migrate-data";
 import { blockLabel, puckConfig, initialData } from "./puck-config";
 
 const DRAFT_KEY = "page-builder:home:draft:v2";
@@ -152,8 +153,14 @@ export function PageBuilderClient() {
 
   useEffect(() => {
     // Draft lives in localStorage until the backend is wired up.
+    // Blocks saved before a default changed are updated once, and saved back.
+    const draft = migrateSavedData(readStored(DRAFT_KEY));
+    const published = migrateSavedData(readStored(PUBLISHED_KEY));
+    if (draft.changed && draft.data) writeStored(DRAFT_KEY, draft.data);
+    if (published.changed && published.data) writeStored(PUBLISHED_KEY, published.data);
+    markMigrated();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setData(readStored(DRAFT_KEY) ?? readStored(PUBLISHED_KEY) ?? initialData);
+    setData(draft.data ?? published.data ?? initialData);
   }, []);
 
   // Autosave the draft (debounced) on every change.
