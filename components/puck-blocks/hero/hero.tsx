@@ -3,9 +3,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { getImageUrl } from "@/lib/api";
 import { getCategories, type Category } from "@/lib/api/categories";
@@ -179,15 +178,16 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
   const isEditing = Boolean(props.isEditing);
 
   const [activeSlide, setActiveSlide] = useState(0);
-  // Mobile: which panel's side sheet is open.
-  const [sheet, setSheet] = useState<"left" | "right" | null>(null);
-  // The sheet is rendered in <body> of the document the block lives in (the
-  // editor canvas is an iframe), so it is never clipped or stacked under
-  // anything inside the block.
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const attachSection = useCallback((element: HTMLElement | null) => {
-    setPortalTarget(element ? element.ownerDocument.body : null);
-  }, []);
+  // Mobile: which panel's list is open under the two buttons.
+  const [openPanel, setOpenPanel] = useState<"left" | "right" | null>(null);
+  // The panels are following the visitor. The mobile list is then an overlay under
+  // the pinned buttons; it closes whenever the panels pin or unpin, so it never
+  // jumps between "in the page" and "over the page".
+  const [panelsPinned, setPanelsPinned] = useState(false);
+  const handlePanelsPinned = useCallback((next: boolean) => {
+    setPanelsPinned(next);
+    setOpenPanel(null);
+  }, [setOpenPanel, setPanelsPinned]);
 
   const categoriesQuery = useQuery({
     queryKey: ["navbar-categories"],
@@ -227,7 +227,6 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
 
   return (
     <section
-      ref={attachSection}
       className="px-4 py-5 sm:px-6 lg:py-6"
       style={{ background: background || undefined }}
       aria-label="Accueil et catégories"
@@ -251,7 +250,9 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
             className="order-1"
             submenuSide="right"
             footer={leftFooter}
-            onOpenSheet={() => setSheet("left")}
+            onOpenSheet={() => setOpenPanel((current) => (current === "left" ? null : "left"))}
+            sheetOpen={openPanel === "left"}
+            onPinned={handlePanelsPinned}
             onLinkClick={guardClick}
             follow={isEditing ? "none" : followScroll}
             followOffset={followOffset}
@@ -260,7 +261,7 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
 
         <div
           className={cn(
-            "relative order-3 aspect-[1046/657] w-full overflow-hidden bg-[#0a224f] shadow-sm lg:order-2",
+            "relative order-4 aspect-[1046/657] w-full overflow-hidden bg-[#0a224f] shadow-sm lg:order-2",
             showPanels && "col-span-2 lg:col-span-1",
           )}
           style={{ borderRadius: sliderRadius }}
@@ -353,37 +354,38 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
             categories={individuals.categories}
             className="order-2 lg:order-3"
             submenuSide="left"
-            onOpenSheet={() => setSheet("right")}
+            onOpenSheet={() => setOpenPanel((current) => (current === "right" ? null : "right"))}
+            sheetOpen={openPanel === "right"}
+            onPinned={handlePanelsPinned}
             onLinkClick={guardClick}
             follow={isEditing ? "none" : followScroll}
             followOffset={followOffset}
           />
         ) : null}
-      </div>
 
-      {sheet && portalTarget
-        ? createPortal(
-            <CategorySheet
-              side={sheet}
-              title={
-                sheet === "left"
-                  ? leftTitle || professionals.audienceRoot?.title || "Professionnels"
-                  : rightTitle || individuals.audienceRoot?.title || "Particuliers"
-              }
-              href={
-                (sheet === "left" ? professionals : individuals).audienceRoot
-                  ? `/${(sheet === "left" ? professionals : individuals).audienceRoot?.slug}`
-                  : "/categorie-produit"
-              }
-              color={sheet === "left" ? leftColor : rightColor}
-              categories={(sheet === "left" ? professionals : individuals).categories}
-              footer={sheet === "left" ? leftFooter : undefined}
-              onLinkClick={guardClick}
-              onClose={() => setSheet(null)}
-            />,
-            portalTarget,
-          )
-        : null}
+        {showPanels && openPanel ? (
+          <MobileDropdown
+            key={openPanel}
+            pinned={panelsPinned}
+            className="order-3 col-span-2 lg:hidden"
+            title={
+              openPanel === "left"
+                ? leftTitle || professionals.audienceRoot?.title || "Professionnels"
+                : rightTitle || individuals.audienceRoot?.title || "Particuliers"
+            }
+            href={
+              (openPanel === "left" ? professionals : individuals).audienceRoot
+                ? `/${(openPanel === "left" ? professionals : individuals).audienceRoot?.slug}`
+                : "/categorie-produit"
+            }
+            color={openPanel === "left" ? leftColor : rightColor}
+            categories={(openPanel === "left" ? professionals : individuals).categories}
+            footer={openPanel === "left" ? leftFooter : undefined}
+            onLinkClick={guardClick}
+            onClose={() => setOpenPanel(null)}
+          />
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -401,6 +403,8 @@ function CategoryPanel({
   footer,
   submenuSide,
   onOpenSheet,
+  sheetOpen,
+  onPinned,
   onLinkClick,
   follow,
   followOffset,
@@ -414,6 +418,10 @@ function CategoryPanel({
   submenuSide: "left" | "right";
   /** Mobile: open this panel's categories in a side sheet. */
   onOpenSheet: () => void;
+  /** Mobile: this panel's list is open under the buttons. */
+  sheetOpen: boolean;
+  /** Called when the panel starts or stops following the visitor. */
+  onPinned: (pinned: boolean) => void;
   onLinkClick: (event: React.MouseEvent) => void;
   /** Follow the visitor while scrolling (never in the editor). */
   follow: FollowMode;
@@ -426,10 +434,14 @@ function CategoryPanel({
   // only when the title is clicked.
   const [pinned, setPinned] = useState(false);
   const [open, setOpen] = useState(false);
-  const handlePinnedChange = useCallback((next: boolean) => {
-    setPinned(next);
-    if (!next) setOpen(false);
-  }, []);
+  const handlePinnedChange = useCallback(
+    (next: boolean) => {
+      setPinned(next);
+      if (!next) setOpen(false);
+      onPinned(next);
+    },
+    [onPinned],
+  );
   useFollowScroll(cellRef, panelRef, follow, followOffset, handlePinnedChange);
   const collapsed = pinned && !open;
 
@@ -455,22 +467,28 @@ function CategoryPanel({
     <div ref={cellRef} className={cn("min-w-0", className)}>
     <aside
       ref={panelRef}
-      className="relative z-20 h-fit min-w-0 rounded-xl border border-[#dce3ec] bg-white shadow-sm hover:z-50 focus-within:z-50"
+      className={cn(
+        "relative z-20 h-fit min-w-0 rounded-xl border border-[#dce3ec] bg-white shadow-sm hover:z-50 focus-within:z-50",
+        pinned && "shadow-lg",
+      )}
       aria-label={title}
     >
       <h2
         className={cn("overflow-hidden rounded-xl", !collapsed && "lg:rounded-b-none lg:rounded-t-xl")}
         style={{ background: color }}
       >
-        {/* Mobile: only the title is shown, and it opens the side sheet. */}
+        {/* Mobile: only the title is shown; it opens the list under the buttons. */}
         <button
           type="button"
           onClick={onOpenSheet}
-          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
           className="flex min-h-11 w-full items-center justify-between gap-1 px-3 text-left text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white sm:min-h-[52px] sm:px-4 sm:text-base lg:hidden"
         >
           {title}
-          <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+          <ChevronDown
+            className={cn("size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none", sheetOpen && "rotate-180")}
+            aria-hidden="true"
+          />
         </button>
         {pinned ? (
           <button
@@ -588,7 +606,7 @@ function CategoryPanel({
 type FollowMode = "none" | "section" | "page";
 
 /**
- * Keeps a panel in view while the page scrolls (desktop only).
+ * Keeps a panel in view while the page scrolls (desktop and mobile).
  *
  * The panel starts in its normal place, level with the slider. Once its row
  * scrolls up to the top of the screen, it is pinned there, below the
@@ -611,7 +629,6 @@ function useFollowScroll(
     const win = doc.defaultView;
     if (!win) return;
 
-    const desktop = win.matchMedia("(min-width: 1024px)");
     let pinned = false;
     let fullHeight = 0; // the panel's height when it is not pinned (not collapsed)
 
@@ -631,11 +648,6 @@ function useFollowScroll(
     // Runs straight from the scroll event (no animation-frame delay), so a pinned
     // panel never lags a frame behind the page.
     const update = () => {
-      if (!desktop.matches) {
-        release();
-        return;
-      }
-
       // Sit below the storefront's sticky header, when it has one.
       let top = offset;
       const header = doc.querySelector("header");
@@ -690,25 +702,28 @@ function useFollowScroll(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Mobile side sheet                                                          */
+/* Mobile list, opened under the two panel buttons                            */
 /* -------------------------------------------------------------------------- */
 
-function CategorySheet({
-  side,
+function MobileDropdown({
   title,
   href,
   color,
   categories,
   footer,
+  pinned,
+  className,
   onLinkClick,
   onClose,
 }: {
-  side: "left" | "right";
   title: string;
   href: string;
   color: string;
   categories: CategoryNode[];
   footer?: string;
+  /** The buttons above are following the visitor, so this list floats under them. */
+  pinned: boolean;
+  className?: string;
   onLinkClick: (event: React.MouseEvent) => void;
   onClose: () => void;
 }) {
@@ -718,20 +733,66 @@ function CategorySheet({
     closeRef.current = onClose;
   });
 
-  // Lock page scroll and close on Escape, in the document the sheet lives in.
+  // Escape closes it, in the document the block lives in (the editor canvas is an iframe).
   useEffect(() => {
     const doc = rootRef.current?.ownerDocument ?? document;
-    const previous = doc.body.style.overflow;
-    doc.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeRef.current();
     };
     doc.addEventListener("keydown", onKey);
-    return () => {
-      doc.body.style.overflow = previous;
-      doc.removeEventListener("keydown", onKey);
-    };
+    return () => doc.removeEventListener("keydown", onKey);
   }, []);
+
+  // A tap anywhere else closes it (the other panel's button swaps it instead).
+  useEffect(() => {
+    const doc = rootRef.current?.ownerDocument ?? document;
+    const onDown = (event: Event) => {
+      const target = event.target as Element | null;
+      if (!target || rootRef.current?.contains(target) || target.closest?.("aside")) return;
+      closeRef.current();
+    };
+    doc.addEventListener("pointerdown", onDown);
+    return () => doc.removeEventListener("pointerdown", onDown);
+  }, []);
+
+  // While the buttons follow the visitor, float the list just under them.
+  useEffect(() => {
+    const root = rootRef.current;
+    const container = root?.parentElement;
+    const win = root?.ownerDocument.defaultView;
+    if (!root || !container || !win || !pinned) return;
+
+    const reset = () => {
+      root.style.position = "";
+      root.style.top = "";
+      root.style.left = "";
+      root.style.width = "";
+      root.style.maxHeight = "";
+      root.style.zIndex = "";
+    };
+
+    const place = () => {
+      const panels = Array.from(container.querySelectorAll<HTMLElement>(":scope > div > aside"));
+      const bottom = Math.max(0, ...panels.map((panel) => panel.getBoundingClientRect().bottom));
+      const rect = container.getBoundingClientRect();
+      const top = bottom + 8;
+      root.style.position = "fixed";
+      root.style.top = `${top}px`;
+      root.style.left = `${rect.left}px`;
+      root.style.width = `${rect.width}px`;
+      root.style.maxHeight = `${Math.max(160, win.innerHeight - top - 12)}px`;
+      root.style.zIndex = "30";
+    };
+
+    place();
+    win.addEventListener("scroll", place, { passive: true });
+    win.addEventListener("resize", place);
+    return () => {
+      win.removeEventListener("scroll", place);
+      win.removeEventListener("resize", place);
+      reset();
+    };
+  }, [pinned]);
 
   const navigate = (event: React.MouseEvent) => {
     onLinkClick(event);
@@ -739,46 +800,40 @@ function CategorySheet({
   };
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[1000] lg:hidden" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={onClose} aria-hidden="true" />
-      <div
-        className={cn(
-          "absolute inset-y-0 flex w-[88%] max-w-sm flex-col bg-white shadow-2xl animate-in duration-200",
-          side === "left" ? "left-0 slide-in-from-left" : "right-0 slide-in-from-right",
-        )}
-      >
-        <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 pl-4 pr-2 text-white" style={{ background: color }}>
-          <Link href={href} onClick={navigate} className="py-3 text-base font-bold uppercase tracking-wide">
-            {title}
-          </Link>
-          <button
-            type="button"
-            onClick={onClose}
-            autoFocus
-            aria-label="Fermer"
-            className="flex size-11 items-center justify-center rounded-full transition-colors hover:bg-black/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+    <div
+      ref={rootRef}
+      role="region"
+      aria-label={title}
+      className={cn(
+        "flex flex-col overflow-hidden rounded-xl border border-[#dce3ec] bg-white shadow-md animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+        className,
+      )}
+      style={{ borderTop: `3px solid ${color}` }}
+    >
+      <ul className="max-h-[65vh] min-h-0 divide-y divide-[#e8edf3] overflow-y-auto overscroll-contain" aria-label={`${title} categories`}>
+        <li>
+          <Link
+            href={href}
+            onClick={navigate}
+            className="flex min-h-12 items-center justify-between px-4 py-3 text-[15px] font-semibold text-[#2456b1] transition-colors hover:bg-[#f2f6fc] focus-visible:bg-[#f2f6fc] focus-visible:outline-none"
           >
-            <X className="size-5" aria-hidden="true" />
-          </button>
-        </div>
+            Tout voir
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Link>
+        </li>
+        {categories.map((category) => (
+          <SheetItem key={category.id} category={category} onNavigate={navigate} />
+        ))}
+      </ul>
 
-        <ul className="min-h-0 flex-1 divide-y divide-[#e8edf3] overflow-y-auto overscroll-contain" aria-label={`${title} categories`}>
-          {categories.map((category) => (
-            <SheetItem key={category.id} category={category} onNavigate={navigate} />
-          ))}
-        </ul>
-
-        {footer ? (
-          <p className="shrink-0 border-t border-[#e8edf3] bg-[#f6f8fc] px-4 py-3 text-xs leading-relaxed text-[#63748f]">
-            {footer}
-          </p>
-        ) : null}
-      </div>
+      {footer ? (
+        <p className="border-t border-[#e8edf3] bg-[#f6f8fc] px-4 py-3 text-xs leading-relaxed text-[#63748f]">{footer}</p>
+      ) : null}
     </div>
   );
 }
 
-/** One category in the sheet; its sub-categories open as an accordion (no hover on touch screens). */
+/** One category in the list; its sub-categories open as an accordion (no hover on touch screens). */
 function SheetItem({
   category,
   onNavigate,

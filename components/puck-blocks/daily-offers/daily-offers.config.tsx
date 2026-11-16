@@ -27,6 +27,14 @@ export const dailyOffersBlock: ComponentConfig<DailyOffersProps> = {
         { label: "5", value: 5 },
       ],
     },
+    mobileColumns: {
+      type: "radio",
+      label: "Produits visibles (mobile)",
+      options: [
+        { label: "1", value: 1 },
+        { label: "2", value: 2 },
+      ],
+    },
     autoplaySeconds: {
       type: "number",
       label: "Défilement auto (secondes, 0 = arrêt)",

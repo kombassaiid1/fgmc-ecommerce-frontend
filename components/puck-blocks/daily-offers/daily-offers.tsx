@@ -33,6 +33,8 @@ export type DailyOffersProps = {
   subtitle: string;
   maxProducts: number;
   columns: 2 | 3 | 4 | 5;
+  /** Cards visible at once on a phone (under 640px). */
+  mobileColumns: 1 | 2;
   autoplaySeconds: number;
   /** A countdown on every card, each for its own offer. */
   showCountdown: boolean;
@@ -57,6 +59,7 @@ export const DAILY_OFFERS_DEFAULTS: DailyOffersProps = {
   subtitle: "Machines et accessoires à prix réduit, jusqu'à la fin de chaque offre.",
   maxProducts: 8,
   columns: 5,
+  mobileColumns: 1,
   autoplaySeconds: 0,
   showCountdown: true,
   showDots: true,
@@ -73,6 +76,12 @@ export const DAILY_OFFERS_DEFAULTS: DailyOffersProps = {
 };
 
 // Literal class names so Tailwind can see them.
+// On a phone: one card with the next one peeking in, or two side by side.
+const MOBILE_CLASS: Record<DailyOffersProps["mobileColumns"], string> = {
+  1: "basis-[85%] sm:basis-1/2",
+  2: "basis-1/2",
+};
+
 const COLUMN_CLASS: Record<DailyOffersProps["columns"], string> = {
   2: "lg:basis-1/2",
   3: "lg:basis-1/3",
@@ -103,6 +112,7 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
     subtitle,
     maxProducts,
     columns,
+    mobileColumns,
     autoplaySeconds,
     showCountdown,
     showDots,
@@ -238,14 +248,14 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
             <div className="-ml-4 flex">
               {productsQuery.isLoading
                 ? [0, 1, 2, 3].map((item) => (
-                    <div key={item} className={cn("min-w-0 shrink-0 grow-0 basis-[85%] pl-4 sm:basis-1/2", COLUMN_CLASS[columns])}>
+                    <div key={item} className={cn("min-w-0 shrink-0 grow-0 pl-4", MOBILE_CLASS[mobileColumns], COLUMN_CLASS[columns])}>
                       <div className="h-[500px] animate-pulse border bg-white" style={{ borderRadius: cardRadius, borderColor: LINE }} />
                     </div>
                   ))
                 : offers.map(({ product, offer }) => (
                     <div
                       key={product.id}
-                      className={cn("min-w-0 shrink-0 grow-0 basis-[85%] pl-4 sm:basis-1/2", COLUMN_CLASS[columns])}
+                      className={cn("min-w-0 shrink-0 grow-0 pl-4", MOBILE_CLASS[mobileColumns], COLUMN_CLASS[columns])}
                       role="group"
                       aria-roledescription="slide"
                       aria-label={product.title}
@@ -258,6 +268,7 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
                         cardRadius={cardRadius}
                         showCountdown={showCountdown}
                         imageFit={imageFit}
+                        compact={mobileColumns === 2}
                         imageRatio={imageRatio}
                         isEditing={isEditing}
                         onLinkClick={guardClick}
@@ -355,11 +366,13 @@ function OfferCountdown({
   accentColor,
   buttonColor,
   title,
+  compact,
 }: {
   offer: Offer;
   accentColor: string;
   buttonColor: string;
   title: string;
+  compact: boolean;
 }) {
   const clock = computeOfferClock(offer, useNow());
   const tone = clock.urgent ? accentColor : buttonColor;
@@ -383,7 +396,7 @@ function OfferCountdown({
           : "Calcul du temps restant"
       }
     >
-      <div className="mb-2 flex items-center gap-[3px]" aria-hidden="true">
+      <div className={cn("mb-2 flex items-center gap-[3px]", compact && "max-sm:mb-1.5")} aria-hidden="true">
         {Array.from({ length: STITCH_COUNT }).map((_, index) => (
           <span
             key={index}
@@ -399,16 +412,16 @@ function OfferCountdown({
         </p>
       ) : (
         <div className="flex flex-col gap-1.5" aria-hidden="true">
-          <span className="whitespace-nowrap text-[13px]" style={{ color: MUTED }}>
+          <span className={cn("whitespace-nowrap text-[13px]", compact && "max-sm:text-[11px]")} style={{ color: MUTED }}>
             Se termine dans
           </span>
           <span className="flex items-baseline justify-between" style={{ color: clock.urgent ? accentColor : INK }}>
             {parts.map(({ value, unit }) => (
               <span key={unit} className="flex items-baseline gap-0.5 tabular-nums">
-                <span className="text-xl font-semibold leading-none">
+                <span className={cn("text-xl font-semibold leading-none", compact && "max-sm:text-sm")}>
                   {clock.ready ? String(value).padStart(2, "0") : "--"}
                 </span>
-                <span className="text-xs" style={{ color: MUTED }}>
+                <span className={cn("text-xs", compact && "max-sm:text-[10px]")} style={{ color: MUTED }}>
                   {unit}
                 </span>
               </span>
@@ -429,6 +442,7 @@ function OfferCard({
   showCountdown,
   imageFit,
   imageRatio,
+  compact,
   isEditing,
   onLinkClick,
 }: {
@@ -440,6 +454,8 @@ function OfferCard({
   showCountdown: boolean;
   imageFit: DailyOffersProps["imageFit"];
   imageRatio: DailyOffersProps["imageRatio"];
+  /** Two cards across on a phone: smaller type and spacing under 640px. */
+  compact: boolean;
   isEditing: boolean;
   onLinkClick: (event: React.MouseEvent) => void;
 }) {
@@ -512,83 +528,106 @@ function OfferCard({
 
         {/* The discount is a label sewn onto the corner. */}
         <span
-          className="absolute left-0 top-4 p-[3px] pr-1.5 text-white"
+          className={cn("absolute left-0 top-4 p-[3px] pr-1.5 text-white", compact && "max-sm:top-2")}
           style={{ background: accentColor, borderTopRightRadius: 3, borderBottomRightRadius: 3 }}
         >
-          <span className="block border border-dashed border-white/70 px-2.5 py-0.5 text-xl font-semibold leading-tight tabular-nums">
+          <span
+            className={cn(
+              "block border border-dashed border-white/70 px-2.5 py-0.5 text-xl font-semibold leading-tight tabular-nums",
+              compact && "max-sm:px-1.5 max-sm:text-sm",
+            )}
+          >
             −{offer.percentOff}%
           </span>
         </span>
       </Link>
 
-      <div className="flex flex-1 flex-col px-4 pb-4 pt-4">
-        <p className="mb-1 line-clamp-1 text-sm" style={{ color: MUTED }}>
+      <div className={cn("flex flex-1 flex-col px-4 pb-4 pt-4", compact && "max-sm:px-2.5 max-sm:pb-3 max-sm:pt-2.5")}>
+        <p className={cn("mb-1 line-clamp-1 text-sm", compact && "max-sm:text-xs")} style={{ color: MUTED }}>
           {product.brand?.title ?? category?.title ?? "Offre spéciale"}
         </p>
-        <h3 className="min-h-[3.1rem]">
+        <h3 className={cn("min-h-[3.1rem]", compact && "max-sm:min-h-[2.4rem]")}>
           <Link
             href={href}
             onClick={onLinkClick}
-            className="line-clamp-2 cursor-pointer text-lg font-medium leading-snug transition-colors duration-200 hover:text-[var(--offer-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className={cn(
+              "line-clamp-2 cursor-pointer text-lg font-medium leading-snug transition-colors duration-200 hover:text-[var(--offer-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+              compact && "max-sm:text-sm",
+            )}
           >
             {product.title}
           </Link>
         </h3>
 
-        <div className="mt-auto pt-4">
+        <div className={cn("mt-auto pt-4", compact && "max-sm:pt-2")}>
           <div className="flex items-baseline gap-x-2">
             <span
               className="whitespace-nowrap font-semibold leading-none tracking-tight tabular-nums"
               style={{ color: accentColor }}
               aria-label={formatEuro(offer.salePrice)}
             >
-              <span className="text-[38px]" aria-hidden="true">
+              <span className={cn("text-[38px]", compact && "max-sm:text-[26px]")} aria-hidden="true">
                 {euros}
               </span>
-              <span className="align-top text-xl" aria-hidden="true">
+              <span className={cn("align-top text-xl", compact && "max-sm:text-sm")} aria-hidden="true">
                 ,{cents}
               </span>
-              <span className="ml-1 text-base" aria-hidden="true">
+              <span className={cn("ml-1 text-base", compact && "max-sm:text-xs")} aria-hidden="true">
                 €
               </span>
             </span>
-            <span className="text-sm font-medium" style={{ color: MUTED }}>
+            <span className={cn("text-sm font-medium", compact && "max-sm:text-xs")} style={{ color: MUTED }}>
               TTC
             </span>
           </div>
-          <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base tabular-nums" style={{ color: MUTED }}>
+          <p
+            className={cn("mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base tabular-nums", compact && "max-sm:text-xs")}
+            style={{ color: MUTED }}
+          >
             <s>{formatEuro(offer.price)}</s>
             <span>{formatEuro(offer.saleBasePrice)} HT</span>
           </p>
 
           {showCountdown ? (
-            <div className="mt-4 border-t border-dashed pt-4" style={{ borderColor: STITCH }}>
-              <OfferCountdown offer={offer} accentColor={accentColor} buttonColor={buttonColor} title={product.title} />
+            <div className={cn("mt-4 border-t border-dashed pt-4", compact && "max-sm:mt-2.5 max-sm:pt-2.5")} style={{ borderColor: STITCH }}>
+              <OfferCountdown
+                offer={offer}
+                accentColor={accentColor}
+                buttonColor={buttonColor}
+                title={product.title}
+                compact={compact}
+              />
             </div>
           ) : null}
 
-          <div className="mt-4">
+          <div className={cn("mt-4", compact && "max-sm:mt-2.5")}>
             {quantity === 0 ? (
               <button
                 type="button"
                 onClick={add}
                 disabled={expired}
-                className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded px-4 text-base font-medium text-white transition duration-200 hover:brightness-110 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none"
+                className={cn(
+                  "flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded px-4 text-base font-medium text-white transition duration-200 hover:brightness-110 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none",
+                  compact && "max-sm:min-h-11 max-sm:gap-1 max-sm:px-1.5 max-sm:text-sm",
+                )}
                 style={{ background: buttonColor }}
               >
-                <ShoppingCart className="size-[18px]" aria-hidden="true" />
+                <ShoppingCart className={cn("size-[18px]", compact && "max-sm:size-4")} aria-hidden="true" />
                 {expired ? "Offre terminée" : "Ajouter au panier"}
               </button>
             ) : (
               <div
-                className="flex min-h-12 items-center justify-between rounded border-2 bg-white p-1"
+                className={cn("flex min-h-12 items-center justify-between rounded border-2 bg-white p-1", compact && "max-sm:min-h-11")}
                 style={{ borderColor: buttonColor }}
               >
                 <button
                   type="button"
                   aria-label={`Diminuer la quantité de ${product.title}`}
                   onClick={() => change(quantity - 1)}
-                  className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2"
+                  className={cn(
+                    "grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2",
+                    compact && "max-sm:size-9",
+                  )}
                   style={{ color: buttonColor }}
                 >
                   <Minus className="size-4" aria-hidden="true" />
@@ -600,7 +639,10 @@ function OfferCard({
                   type="button"
                   aria-label={`Augmenter la quantité de ${product.title}`}
                   onClick={() => change(quantity + 1)}
-                  className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2"
+                  className={cn(
+                    "grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2",
+                    compact && "max-sm:size-9",
+                  )}
                   style={{ color: buttonColor }}
                 >
                   <Plus className="size-4" aria-hidden="true" />
