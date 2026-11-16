@@ -17,6 +17,7 @@ import {
 import { FileIcon, PlayIcon, SearchIcon } from "@shopify/polaris-icons";
 
 import { listMedia, uploadMedia, type MediaItem } from "@/lib/api/media";
+export type { MediaItem };
 import styles from "./media-picker-dialog.module.css";
 
 type MediaPickerDialogProps = {

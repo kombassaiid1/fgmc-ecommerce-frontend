@@ -2,44 +2,29 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Banner, BlockStack, Button, Text, TextField } from "@shopify/polaris";
 import {
-  Badge,
-  Banner,
-  BlockStack,
-  Button,
-  Card,
-  Checkbox,
-  Divider,
-  InlineStack,
-  Text,
-  TextField,
-} from "@shopify/polaris";
-import {
-  DeleteIcon as PolarisDeleteIcon,
-  PlusIcon as PolarisPlusIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  DeleteIcon,
+  PlusIcon,
   SaveIcon,
 } from "@shopify/polaris-icons";
 import {
   AlignJustify,
   BadgePercent,
   ChevronDown,
-  Eye,
   Menu,
   Palette,
   Phone,
   Search,
   ShoppingBag,
   User,
+  X,
 } from "lucide-react";
 
-import {
-  getAdminHeaderSettings,
-  updateHeaderSettings,
-} from "@/lib/api/header";
-import {
-  MediaPickerDialog,
-  type MediaItem,
-} from "@/components/admin/media-picker-dialog";
+import { getAdminHeaderSettings, updateHeaderSettings } from "@/lib/api/header";
+import { MediaPickerDialog, type MediaItem } from "@/components/admin/media-picker-dialog";
 import {
   DEFAULT_HEADER_CONFIG,
   normalizeHeaderConfig,
@@ -48,31 +33,61 @@ import {
 } from "@/lib/header-config";
 import styles from "./header.module.css";
 
-type TabId =
-  | "appearance"
-  | "promo"
-  | "desktop"
-  | "mobile"
-  | "actions";
+type TabId = "appearance" | "promo" | "desktop" | "mobile" | "actions";
+type LinkCollection = "links" | "mobileLinks";
+type OnChange = <Key extends keyof HeaderConfig>(key: Key, value: HeaderConfig[Key]) => void;
 
-const TABS: Array<{ id: TabId; label: string; icon: typeof Palette }> = [
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "promo", label: "Top bar", icon: BadgePercent },
-  { id: "desktop", label: "Desktop menu", icon: AlignJustify },
-  { id: "mobile", label: "Mobile menu", icon: Menu },
-  { id: "actions", label: "Cart and search", icon: ShoppingBag },
+const SECTIONS: Array<{ id: TabId; label: string; help: string; icon: typeof Palette }> = [
+  { id: "appearance", label: "Logo et couleurs", help: "Identité visuelle de l'en-tête", icon: Palette },
+  { id: "promo", label: "Barre du haut", help: "Contact et horaires", icon: BadgePercent },
+  { id: "desktop", label: "Menu ordinateur", help: "Liens de navigation", icon: AlignJustify },
+  { id: "mobile", label: "Menu mobile", help: "Liens du menu sur téléphone", icon: Menu },
+  { id: "actions", label: "Recherche et panier", help: "Boutons affichés et position", icon: ShoppingBag },
 ];
 
-const EMPTY_LINK: HeaderLink = { label: "New link", url: "/" };
+const COLOR_PRESETS: Array<{ name: string; colors: Partial<HeaderConfig> }> = [
+  {
+    name: "Marine et rouge",
+    colors: {
+      backgroundColor: "#ffffff",
+      utilityColor: "#10295f",
+      utilityTextColor: "#ffffff",
+      textColor: "#153675",
+      accentColor: "#df1e32",
+    },
+  },
+  {
+    name: "Clair",
+    colors: {
+      backgroundColor: "#ffffff",
+      utilityColor: "#eef2f9",
+      utilityTextColor: "#153675",
+      textColor: "#0f1f45",
+      accentColor: "#d6202e",
+    },
+  },
+  {
+    name: "Nuit",
+    colors: {
+      backgroundColor: "#0f1f45",
+      utilityColor: "#060e24",
+      utilityTextColor: "#ffffff",
+      textColor: "#ffffff",
+      accentColor: "#ff5a6a",
+    },
+  },
+];
 
-function compactLinkLabel(link: HeaderLink) {
-  return link.label.trim() || "Link";
-}
+const EMPTY_LINK: HeaderLink = { label: "Nouveau lien", url: "/" };
+
+const sameConfig = (a: HeaderConfig, b: HeaderConfig) =>
+  JSON.stringify(normalizeHeaderConfig(a)) === JSON.stringify(normalizeHeaderConfig(b));
 
 export default function AdminHeaderAppearancePage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("appearance");
   const [draftConfig, setDraftConfig] = useState<HeaderConfig | null>(null);
+  const [lastSaved, setLastSaved] = useState<HeaderConfig | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -82,54 +97,35 @@ export default function AdminHeaderAppearancePage() {
     queryFn: getAdminHeaderSettings,
   });
 
-  const config = draftConfig ?? headerQuery.data ?? DEFAULT_HEADER_CONFIG;
+  const baseline = lastSaved ?? headerQuery.data ?? DEFAULT_HEADER_CONFIG;
+  const config = draftConfig ?? baseline;
+  const isDirty = !sameConfig(config, baseline);
 
-  const updateConfig = <Key extends keyof HeaderConfig>(
-    key: Key,
-    value: HeaderConfig[Key],
-  ) => {
-    setDraftConfig((current) => ({
-      ...(current ?? config),
-      [key]: value,
+  const edit = (changes: (current: HeaderConfig) => HeaderConfig) =>
+    setDraftConfig((current) => changes(current ?? config));
+
+  const updateConfig: OnChange = (key, value) => edit((current) => ({ ...current, [key]: value }));
+
+  const updateLink = (collection: LinkCollection, index: number, key: keyof HeaderLink, value: string) =>
+    edit((base) => ({
+      ...base,
+      [collection]: base[collection].map((item, i) => (i === index ? { ...item, [key]: value } : item)),
     }));
-  };
 
-  const updateLink = (
-    collection: "links" | "mobileLinks",
-    index: number,
-    key: keyof HeaderLink,
-    value: string,
-  ) => {
-    setDraftConfig((current) => {
-      const base = current ?? config;
-      return {
-        ...base,
-        [collection]: base[collection].map((item, itemIndex) =>
-          itemIndex === index ? { ...item, [key]: value } : item,
-        ),
-      };
-    });
-  };
+  const addLink = (collection: LinkCollection) =>
+    edit((base) => ({ ...base, [collection]: [...base[collection], EMPTY_LINK] }));
 
-  const addLink = (collection: "links" | "mobileLinks") => {
-    setDraftConfig((current) => {
-      const base = current ?? config;
-      return {
-        ...base,
-        [collection]: [...base[collection], EMPTY_LINK],
-      };
-    });
-  };
+  const removeLink = (collection: LinkCollection, index: number) =>
+    edit((base) => ({ ...base, [collection]: base[collection].filter((_, i) => i !== index) }));
 
-  const removeLink = (collection: "links" | "mobileLinks", index: number) => {
-    setDraftConfig((current) => {
-      const base = current ?? config;
-      return {
-        ...base,
-        [collection]: base[collection].filter((_, itemIndex) => itemIndex !== index),
-      };
+  const moveLink = (collection: LinkCollection, index: number, offset: -1 | 1) =>
+    edit((base) => {
+      const next = [...base[collection]];
+      const target = index + offset;
+      if (target < 0 || target >= next.length) return base;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...base, [collection]: next };
     });
-  };
 
   const publishConfig = async () => {
     setSaving(true);
@@ -138,18 +134,13 @@ export default function AdminHeaderAppearancePage() {
     try {
       const saved = await updateHeaderSettings(normalizeHeaderConfig(config));
       setDraftConfig(saved);
+      setLastSaved(saved);
       queryClient.setQueryData(["admin-header-settings"], saved);
       queryClient.setQueryData(["storefront-header-settings"], saved);
-      setNotice("Header saved and published on the storefront.");
-      await queryClient.invalidateQueries({
-        queryKey: ["storefront-header-settings"],
-      });
+      setNotice("En-tête publié sur la boutique.");
+      await queryClient.invalidateQueries({ queryKey: ["storefront-header-settings"] });
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Impossible de publier le header.",
-      );
+      setError(saveError instanceof Error ? saveError.message : "Impossible de publier l'en-tête. Réessayez.");
     } finally {
       setSaving(false);
     }
@@ -157,136 +148,128 @@ export default function AdminHeaderAppearancePage() {
 
   const resetConfig = () => {
     setDraftConfig(DEFAULT_HEADER_CONFIG);
-    setNotice("Header reset locally. Save and publish to apply it on the storefront.");
+    setNotice("Valeurs d'origine rétablies. Cliquez sur Publier pour les appliquer à la boutique.");
   };
+
+  const section = SECTIONS.find((item) => item.id === activeTab) ?? SECTIONS[0];
 
   return (
     <div className={styles.page}>
-      <div className={styles.hero}>
-        <BlockStack gap="100">
-          <Text as="h1" variant="headingLg">
-            Header configuration
-          </Text>
-          <Text as="p" tone="subdued">
-            Edit the fixed storefront header shown in the live preview.
-          </Text>
-        </BlockStack>
-        <InlineStack gap="200">
-          <Badge tone={config.sticky ? "success" : undefined}>
-            {config.sticky ? "Sticky" : "Static"}
-          </Badge>
-          <Badge tone="info">Fixed storefront header</Badge>
-        </InlineStack>
-      </div>
+      <header className={styles.bar}>
+        <div className={styles.barTitle}>
+          <Text as="h1" variant="headingLg">En-tête du site</Text>
+          <Text as="p" tone="subdued">Ce que vos clients voient tout en haut de chaque page.</Text>
+        </div>
+        <div className={styles.barActions}>
+          <span
+            className={`${styles.status} ${isDirty ? styles.statusDirty : ""}`}
+            role="status">
+            <span className={styles.statusDot} aria-hidden="true" />
+            {isDirty ? "Modifications non publiées" : "À jour sur la boutique"}
+          </span>
+          <Button onClick={resetConfig}>Rétablir</Button>
+          <Button
+            icon={SaveIcon}
+            variant="primary"
+            onClick={publishConfig}
+            loading={saving}
+            disabled={headerQuery.isLoading || !isDirty}>
+            Publier
+          </Button>
+        </div>
+      </header>
 
-      {notice ? (
-        <Banner tone="success" title={notice} onDismiss={() => setNotice(null)} />
-      ) : null}
-      {error ? (
-        <Banner tone="critical" title={error} onDismiss={() => setError(null)} />
-      ) : null}
+      {notice ? <Banner tone="success" title={notice} onDismiss={() => setNotice(null)} /> : null}
+      {error ? <Banner tone="critical" title={error} onDismiss={() => setError(null)} /> : null}
       {headerQuery.isError ? (
         <Banner
           tone="warning"
-          title="Header settings could not be loaded. The default header is shown for editing."
+          title="Les réglages n'ont pas pu être chargés. L'en-tête par défaut est affiché."
         />
       ) : null}
 
-      <nav className={styles.tabs} aria-label="Header configuration sections">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
-              aria-current={isActive ? "page" : undefined}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon size={17} strokeWidth={1.9} aria-hidden />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <section className={styles.stage} aria-label="Aperçu en direct">
+        <div className={styles.stageHead}>
+          <Text as="h2" variant="headingMd">Aperçu en direct</Text>
+          <span className={styles.stageHint}>Cliquez sur une zone de l&apos;aperçu pour la modifier.</span>
+        </div>
+        <HeaderPreview config={config} activeTab={activeTab} onSelect={setActiveTab} />
+        {activeTab === "mobile" ? <DrawerPreview config={config} /> : null}
+      </section>
 
-      <div className={styles.workspace}>
-        <BlockStack gap="400">
-          <Card>
-            <BlockStack gap="400">
-              {activeTab === "appearance" ? (
-                <AppearanceSection config={config} onChange={updateConfig} />
-              ) : null}
+      <div className={styles.editor}>
+        <nav className={styles.sections} aria-label="Sections de l'en-tête">
+          {SECTIONS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.section} ${isActive ? styles.sectionActive : ""}`}
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => setActiveTab(item.id)}>
+                <span className={styles.sectionIcon}>
+                  <Icon size={18} strokeWidth={1.9} aria-hidden />
+                </span>
+                <span>
+                  <span className={styles.sectionName}>{item.label}</span>
+                  <span className={styles.sectionHelp}>{item.help}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
-              {activeTab === "promo" ? (
-                <PromoSection config={config} onChange={updateConfig} />
-              ) : null}
-
-              {activeTab === "desktop" ? (
-                <LinksSection
-                  title="Desktop menu"
-                  description="Edit the primary navigation shown on wider screens."
-                  links={config.links}
-                  onAdd={() => addLink("links")}
-                  onRemove={(index) => removeLink("links", index)}
-                  onChange={(index, key, value) => updateLink("links", index, key, value)}
-                />
-              ) : null}
-
-              {activeTab === "mobile" ? (
-                <LinksSection
-                  title="Mobile menu"
-                  description="Set the links shown in the drawer on small screens."
-                  links={config.mobileLinks}
-                  onAdd={() => addLink("mobileLinks")}
-                  onRemove={(index) => removeLink("mobileLinks", index)}
-                  onChange={(index, key, value) =>
-                    updateLink("mobileLinks", index, key, value)
-                  }
-                />
-              ) : null}
-
-              {activeTab === "actions" ? (
-                <ActionsSection config={config} onChange={updateConfig} />
-              ) : null}
-            </BlockStack>
-          </Card>
-
-        </BlockStack>
-
-        <Card>
-          <div className={styles.previewShell}>
-            <BlockStack gap="300">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">
-                    Live preview
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Preview updates as you edit the selected header.
-                  </Text>
-                </BlockStack>
-                <Eye size={20} strokeWidth={1.9} aria-hidden />
-              </InlineStack>
-              <HeaderPreview config={config} />
-              <Divider />
-              <InlineStack gap="200" align="end">
-                <Button onClick={resetConfig}>Reset</Button>
-                <Button
-                  icon={SaveIcon}
-                  variant="primary"
-                  onClick={publishConfig}
-                  loading={saving}
-                  disabled={headerQuery.isLoading}
-                >
-                  Save and publish
-                </Button>
-              </InlineStack>
-            </BlockStack>
+        <div className={styles.panel}>
+          <div className={styles.panelHead}>
+            <Text as="h2" variant="headingMd">{section.label}</Text>
+            <Text as="p" tone="subdued">{section.help}</Text>
           </div>
-        </Card>
+
+          {activeTab === "appearance" ? (
+            <AppearanceSection config={config} onChange={updateConfig} onApply={(colors) => edit((c) => ({ ...c, ...colors }))} />
+          ) : null}
+          {activeTab === "promo" ? <PromoSection config={config} onChange={updateConfig} /> : null}
+          {activeTab === "desktop" ? (
+            <LinksSection
+              intro="Ces liens apparaissent dans la barre de navigation, sur ordinateur et tablette."
+              links={config.links}
+              onAdd={() => addLink("links")}
+              onRemove={(index) => removeLink("links", index)}
+              onMove={(index, offset) => moveLink("links", index, offset)}
+              onChange={(index, key, value) => updateLink("links", index, key, value)}
+            />
+          ) : null}
+          {activeTab === "mobile" ? (
+            <LinksSection
+              intro="Ces liens apparaissent dans le menu qui s'ouvre sur téléphone."
+              links={config.mobileLinks}
+              onAdd={() => addLink("mobileLinks")}
+              onRemove={(index) => removeLink("mobileLinks", index)}
+              onMove={(index, offset) => moveLink("mobileLinks", index, offset)}
+              onChange={(index, key, value) => updateLink("mobileLinks", index, key, value)}
+            />
+          ) : null}
+          {activeTab === "actions" ? <ActionsSection config={config} onChange={updateConfig} /> : null}
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sections                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function Group({ title, help, children }: { title: string; help?: string; children: React.ReactNode }) {
+  return (
+    <div className={styles.group}>
+      <BlockStack gap="050">
+        <Text as="h3" variant="headingSm">{title}</Text>
+        {help ? <Text as="p" tone="subdued" variant="bodySm">{help}</Text> : null}
+      </BlockStack>
+      {children}
     </div>
   );
 }
@@ -294,120 +277,87 @@ export default function AdminHeaderAppearancePage() {
 function AppearanceSection({
   config,
   onChange,
+  onApply,
 }: {
   config: HeaderConfig;
-  onChange: <Key extends keyof HeaderConfig>(
-    key: Key,
-    value: HeaderConfig[Key],
-  ) => void;
+  onChange: OnChange;
+  onApply: (colors: Partial<HeaderConfig>) => void;
 }) {
   const [isLogoPickerOpen, setIsLogoPickerOpen] = useState(false);
 
   const selectLogo = (item: MediaItem) => {
-    if (item.fileType && !item.fileType.toLowerCase().startsWith("image/")) {
-      return;
-    }
+    if (item.fileType && !item.fileType.toLowerCase().startsWith("image/")) return;
     onChange("logoUrl", item.url);
-    if (item.altText?.trim()) {
-      onChange("logoAlt", item.altText.trim());
-    }
+    if (item.altText?.trim()) onChange("logoAlt", item.altText.trim());
     setIsLogoPickerOpen(false);
   };
 
   return (
     <>
-      <BlockStack gap="300">
-        <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
-            Appearance
-          </Text>
-          <Text as="p" tone="subdued">
-            Tune the logo, header height, and color system.
-          </Text>
-        </BlockStack>
-
-        <div className={styles.logoPickerRow}>
+      <Group title="Logo" help="Affiché en haut à gauche de chaque page.">
+        <div className={styles.logoRow}>
           <div className={styles.logoPreviewBox}>
             {config.logoUrl.trim() ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={config.logoUrl} alt={config.logoAlt || "Selected logo"} />
+              <img src={config.logoUrl} alt={config.logoAlt || "Logo sélectionné"} />
             ) : (
-              <span>No logo selected</span>
+              <span>Aucun logo</span>
             )}
           </div>
           <BlockStack gap="200">
-            <Text as="p" variant="bodySm" fontWeight="semibold">
-              Header logo
-            </Text>
-            <InlineStack gap="200">
-              <Button onClick={() => setIsLogoPickerOpen(true)}>
-                Choose from media
-              </Button>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <Button onClick={() => setIsLogoPickerOpen(true)}>Choisir dans la médiathèque</Button>
               {config.logoUrl.trim() ? (
-                <Button tone="critical" onClick={() => onChange("logoUrl", "")}>
-                  Remove logo
-                </Button>
+                <Button tone="critical" onClick={() => onChange("logoUrl", "")}>Retirer le logo</Button>
               ) : null}
-            </InlineStack>
+            </div>
+            <TextField
+              label="Texte alternatif"
+              helpText="Décrit le logo aux lecteurs d'écran et si l'image ne charge pas."
+              value={config.logoAlt}
+              onChange={(value) => onChange("logoAlt", value)}
+              autoComplete="off"
+            />
           </BlockStack>
         </div>
-
-        <div className={styles.formGrid}>
+        <details className={styles.advanced}>
+          <summary>Utiliser l&apos;adresse d&apos;une image</summary>
           <TextField
-            label="Logo URL"
+            label="Adresse de l'image"
             value={config.logoUrl}
             onChange={(value) => onChange("logoUrl", value)}
             autoComplete="off"
           />
-          <TextField
-            label="Logo alt text"
-            value={config.logoAlt}
-            onChange={(value) => onChange("logoAlt", value)}
-            autoComplete="off"
-          />
-          <RangeField
-            label="Logo width"
-            value={config.logoWidth}
-            min={72}
-          max={300}
-            suffix="px"
-            onChange={(value) => onChange("logoWidth", value)}
-          />
-          <RangeField
-            label="Header height"
-            value={config.headerHeight}
-            min={56}
-            max={112}
-            suffix="px"
-            onChange={(value) => onChange("headerHeight", value)}
-          />
-          <ColorField
-            label="Background color"
-            value={config.backgroundColor}
-            onChange={(value) => onChange("backgroundColor", value)}
-          />
-          <ColorField
-            label="Utility bar color"
-            value={config.utilityColor}
-            onChange={(value) => onChange("utilityColor", value)}
-          />
-          <ColorField
-            label="Utility text color"
-            value={config.utilityTextColor}
-            onChange={(value) => onChange("utilityTextColor", value)}
-          />
-          <ColorField
-            label="Text color"
-            value={config.textColor}
-            onChange={(value) => onChange("textColor", value)}
-          />
-          <ColorField
-            label="Accent color"
-            value={config.accentColor}
-            onChange={(value) => onChange("accentColor", value)}
-          />
+        </details>
+        <div className={styles.formGrid}>
+          <RangeField label="Largeur du logo" value={config.logoWidth} min={72} max={300} suffix="px" onChange={(v) => onChange("logoWidth", v)} />
+          <RangeField label="Hauteur de l'en-tête" value={config.headerHeight} min={56} max={112} suffix="px" onChange={(v) => onChange("headerHeight", v)} />
         </div>
-      </BlockStack>
+      </Group>
+
+      <Group title="Couleurs" help="Choisissez un thème, puis ajustez chaque couleur si besoin.">
+        <div className={styles.presets} role="group" aria-label="Thèmes de couleurs">
+          {COLOR_PRESETS.map((preset) => (
+            <button key={preset.name} type="button" className={styles.preset} onClick={() => onApply(preset.colors)}>
+              <span className={styles.presetSwatches} aria-hidden="true">
+                {[preset.colors.backgroundColor, preset.colors.utilityColor, preset.colors.textColor, preset.colors.accentColor].map(
+                  (color, index) => (
+                    <i key={index} style={{ background: color }} />
+                  ),
+                )}
+              </span>
+              {preset.name}
+            </button>
+          ))}
+        </div>
+        <div className={styles.colorGrid}>
+          <ColorField label="Fond de l'en-tête" value={config.backgroundColor} onChange={(v) => onChange("backgroundColor", v)} />
+          <ColorField label="Fond de la barre du haut" value={config.utilityColor} onChange={(v) => onChange("utilityColor", v)} />
+          <ColorField label="Texte de la barre du haut" value={config.utilityTextColor} onChange={(v) => onChange("utilityTextColor", v)} />
+          <ColorField label="Texte" value={config.textColor} onChange={(v) => onChange("textColor", v)} />
+          <ColorField label="Couleur d'accent" value={config.accentColor} onChange={(v) => onChange("accentColor", v)} />
+        </div>
+      </Group>
 
       <MediaPickerDialog
         open={isLogoPickerOpen}
@@ -419,205 +369,137 @@ function AppearanceSection({
   );
 }
 
-function PromoSection({
-  config,
-  onChange,
-}: {
-  config: HeaderConfig;
-  onChange: <Key extends keyof HeaderConfig>(
-    key: Key,
-    value: HeaderConfig[Key],
-  ) => void;
-}) {
+function PromoSection({ config, onChange }: { config: HeaderConfig; onChange: OnChange }) {
   return (
-    <BlockStack gap="300">
-      <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
-            Top contact bar
-        </Text>
-        <Text as="p" tone="subdued">
-          Configure the contact strip above the logo and search row.
-        </Text>
-      </BlockStack>
-      <Checkbox
-        label="Show top contact bar"
-        checked={config.showUtilityBar}
-        onChange={(checked) => onChange("showUtilityBar", checked)}
-      />
-      <Divider />
-      <BlockStack gap="100">
-        <Text as="h3" variant="headingSm">
-          Contact and opening hours
-        </Text>
-        <Text as="p" tone="subdued">
-          These values appear in the storefront utility bar and mobile menu.
-        </Text>
-      </BlockStack>
-      <div className={styles.formGrid}>
-        <TextField
-          label="Email"
-          type="email"
-          value={config.contactEmail}
-          onChange={(value) => onChange("contactEmail", value)}
-          autoComplete="email"
-        />
-        <TextField
-          label="Phone number"
-          type="tel"
-          value={config.phoneNumber}
-          onChange={(value) => onChange("phoneNumber", value)}
-          autoComplete="tel"
-        />
-        <TextField
-          label="Opening days"
-          value={config.openingDays}
-          onChange={(value) => onChange("openingDays", value)}
-          autoComplete="off"
-          helpText="Example: Lun-Sam or Mon-Fri"
-        />
-        <TextField
-          label="Opening time"
-          value={config.openingTime}
-          onChange={(value) => onChange("openingTime", value)}
-          autoComplete="off"
-          helpText="Example: 8h or 08:00"
-        />
-        <TextField
-          label="Closing time"
-          value={config.closingTime}
-          onChange={(value) => onChange("closingTime", value)}
-          autoComplete="off"
-          helpText="Example: 18h or 18:00"
-        />
-      </div>
-    </BlockStack>
+    <>
+      <Group title="Affichage">
+        <div className={styles.toggleList}>
+          <ToggleRow
+            label="Afficher la barre du haut"
+            help="La bande au-dessus du logo, avec le téléphone et les liens d'aide."
+            checked={config.showUtilityBar}
+            onChange={(checked) => onChange("showUtilityBar", checked)}
+          />
+        </div>
+      </Group>
+      <Group title="Contact" help="Affichés dans la barre du haut et dans le menu mobile.">
+        <div className={styles.formGrid}>
+          <TextField label="E-mail" type="email" value={config.contactEmail} onChange={(v) => onChange("contactEmail", v)} autoComplete="email" />
+          <TextField label="Téléphone" type="tel" value={config.phoneNumber} onChange={(v) => onChange("phoneNumber", v)} autoComplete="tel" />
+        </div>
+      </Group>
+      <Group title="Horaires d'ouverture">
+        <div className={styles.formGrid}>
+          <TextField label="Jours" value={config.openingDays} onChange={(v) => onChange("openingDays", v)} autoComplete="off" helpText="Par exemple : Lun-Sam" />
+          <span />
+          <TextField label="Ouverture" value={config.openingTime} onChange={(v) => onChange("openingTime", v)} autoComplete="off" helpText="Par exemple : 8h ou 08:00" />
+          <TextField label="Fermeture" value={config.closingTime} onChange={(v) => onChange("closingTime", v)} autoComplete="off" helpText="Par exemple : 18h ou 18:00" />
+        </div>
+      </Group>
+    </>
   );
 }
 
 function LinksSection({
-  title,
-  description,
+  intro,
   links,
   onAdd,
   onRemove,
+  onMove,
   onChange,
 }: {
-  title: string;
-  description: string;
+  intro: string;
   links: HeaderLink[];
   onAdd: () => void;
   onRemove: (index: number) => void;
+  onMove: (index: number, offset: -1 | 1) => void;
   onChange: (index: number, key: keyof HeaderLink, value: string) => void;
 }) {
   return (
-    <BlockStack gap="300">
-      <InlineStack align="space-between" blockAlign="center">
-        <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
-            {title}
-          </Text>
-          <Text as="p" tone="subdued">
-            {description}
-          </Text>
-        </BlockStack>
-        <Button icon={PolarisPlusIcon} onClick={onAdd}>
-          Add link
-        </Button>
-      </InlineStack>
-      <div className={styles.linkList}>
-        {links.map((link, index) => (
-          <div key={`${link.label}-${String(index)}`} className={styles.linkRow}>
-            <TextField
-              label="Label"
-              value={link.label}
-              onChange={(value) => onChange(index, "label", value)}
-              autoComplete="off"
-            />
-            <TextField
-              label="URL"
-              value={link.url}
-              onChange={(value) => onChange(index, "url", value)}
-              autoComplete="off"
-            />
-            <Button
-              icon={PolarisDeleteIcon}
-              accessibilityLabel={`Remove ${compactLinkLabel(link)}`}
-              onClick={() => onRemove(index)}
-              disabled={links.length <= 1}
-            />
-          </div>
-        ))}
+    <Group title="Liens" help={`${intro} L'ordre ci-dessous est l'ordre d'affichage.`}>
+      {links.length === 0 ? (
+        <div className={styles.empty}>Aucun lien pour le moment. Ajoutez-en un pour commencer.</div>
+      ) : (
+        <div className={styles.linkList}>
+          {links.map((link, index) => (
+            <div key={index} className={styles.linkRow}>
+              <TextField
+                label="Texte du lien"
+                value={link.label}
+                onChange={(value) => onChange(index, "label", value)}
+                autoComplete="off"
+              />
+              <TextField
+                label="Adresse"
+                value={link.url}
+                onChange={(value) => onChange(index, "url", value)}
+                autoComplete="off"
+                placeholder="/contact"
+              />
+              <div className={styles.linkActions}>
+                <Button icon={ArrowUpIcon} accessibilityLabel={`Monter ${link.label || "le lien"}`} disabled={index === 0} onClick={() => onMove(index, -1)} />
+                <Button icon={ArrowDownIcon} accessibilityLabel={`Descendre ${link.label || "le lien"}`} disabled={index === links.length - 1} onClick={() => onMove(index, 1)} />
+                <Button icon={DeleteIcon} tone="critical" accessibilityLabel={`Supprimer ${link.label || "le lien"}`} disabled={links.length <= 1} onClick={() => onRemove(index)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div>
+        <Button icon={PlusIcon} onClick={onAdd}>Ajouter un lien</Button>
       </div>
-    </BlockStack>
+    </Group>
   );
 }
 
-function ActionsSection({
-  config,
-  onChange,
-}: {
-  config: HeaderConfig;
-  onChange: <Key extends keyof HeaderConfig>(
-    key: Key,
-    value: HeaderConfig[Key],
-  ) => void;
-}) {
+function ActionsSection({ config, onChange }: { config: HeaderConfig; onChange: OnChange }) {
   return (
-    <BlockStack gap="300">
-      <BlockStack gap="100">
-        <Text as="h2" variant="headingMd">
-          Cart and search
-        </Text>
-        <Text as="p" tone="subdued">
-          Decide which storefront actions appear in the header.
-        </Text>
-      </BlockStack>
-      <Checkbox
-        label="Show search field"
-        checked={config.showSearch}
-        onChange={(checked) => onChange("showSearch", checked)}
-      />
-      <Checkbox
-        label="Show cart action"
-        checked={config.showCart}
-        onChange={(checked) => onChange("showCart", checked)}
-      />
-      <Checkbox
-        label="Show account action"
-        checked={config.showAccount}
-        onChange={(checked) => onChange("showAccount", checked)}
-      />
-      <Checkbox
-        label="Sticky header"
-        checked={config.sticky}
-        onChange={(checked) => onChange("sticky", checked)}
-      />
-    </BlockStack>
+    <Group title="Boutons de l'en-tête" help="Activez seulement ce dont vos clients ont besoin.">
+      <div className={styles.toggleList}>
+        <ToggleRow label="Champ de recherche" help="Permet de chercher une machine, une marque ou une référence." checked={config.showSearch} onChange={(c) => onChange("showSearch", c)} />
+        <ToggleRow label="Compte client" help="Lien « Se connecter » ou « Mon compte »." checked={config.showAccount} onChange={(c) => onChange("showAccount", c)} />
+        <ToggleRow label="Panier" help="Bouton panier avec le total en cours." checked={config.showCart} onChange={(c) => onChange("showCart", c)} />
+        <ToggleRow label="En-tête toujours visible" help="Reste en haut de l'écran quand on fait défiler la page." checked={config.sticky} onChange={(c) => onChange("sticky", c)} />
+      </div>
+    </Group>
   );
 }
 
-function ColorField({
+/* -------------------------------------------------------------------------- */
+/* Fields                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function ToggleRow({
   label,
-  value,
+  help,
+  checked,
   onChange,
 }: {
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  help: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={styles.fieldGroup}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <span className={styles.colorControl}>
-        <input
-          className={styles.colorInput}
-          type="color"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          aria-label={label}
-        />
+    <button type="button" role="switch" aria-checked={checked} className={styles.toggle} onClick={() => onChange(!checked)}>
+      <span>
+        <span className={styles.toggleName}>{label}</span>
+        <span className={styles.toggleHelp}>{help}</span>
+      </span>
+      <span className={styles.switch} aria-hidden="true" />
+    </button>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className={styles.colorTile}>
+      <span className={styles.colorSwatch} style={{ background: value }} />
+      <span>
+        <span className={styles.colorName}>{label}</span>
         <span className={styles.colorValue}>{value}</span>
       </span>
+      <input className={styles.colorInput} type="color" value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
     </label>
   );
 }
@@ -638,25 +520,64 @@ function RangeField({
   onChange: (value: number) => void;
 }) {
   return (
-    <label className={styles.fieldGroup}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <span className={styles.rangeControl}>
-        <input
-          className={styles.rangeInput}
-          type="range"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          aria-label={label}
-        />
+    <label className={styles.rangeField}>
+      <span className={styles.rangeHead}>
+        {label}
         <span className={styles.rangeValue}>{`${value}${suffix}`}</span>
       </span>
+      <input className={styles.rangeInput} type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
 }
 
-function HeaderPreview({ config }: { config: HeaderConfig }) {
+/* -------------------------------------------------------------------------- */
+/* Preview                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A part of the preview that opens its own settings when clicked. */
+function Zone({
+  id,
+  label,
+  activeTab,
+  onSelect,
+  children,
+}: {
+  id: TabId;
+  label: string;
+  activeTab: TabId;
+  onSelect: (id: TabId) => void;
+  children: React.ReactNode;
+}) {
+  const isActive = activeTab === id;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Modifier : ${label}`}
+      aria-pressed={isActive}
+      className={`${styles.zone} ${isActive ? styles.zoneActive : ""}`}
+      onClick={() => onSelect(id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(id);
+        }
+      }}>
+      <span className={styles.zoneTag}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function HeaderPreview({
+  config,
+  activeTab,
+  onSelect,
+}: {
+  config: HeaderConfig;
+  activeTab: TabId;
+  onSelect: (id: TabId) => void;
+}) {
   const cssVars = {
     "--header-bg": config.backgroundColor,
     "--utility-bg": config.utilityColor,
@@ -666,65 +587,94 @@ function HeaderPreview({ config }: { config: HeaderConfig }) {
     "--header-height": `${config.headerHeight}px`,
     "--logo-width": `${config.logoWidth}px`,
   } as React.CSSProperties;
+  // Editing the mobile menu highlights the same zone as the desktop navigation.
+  const navTab: TabId = activeTab === "mobile" ? "mobile" : "desktop";
 
   return (
     <div className={styles.previewStage}>
       <div className={styles.storeHeader} style={cssVars}>
         <div className={styles.topStripe} aria-hidden="true" />
         {config.showUtilityBar ? (
-          <div className={styles.utilityBar}>
-            <span />
-            <span className={styles.utilityMeta}>
-              <span><Phone size={13} />{config.phoneNumber}</span>
-              <span>Nous contacter</span>
-              <span>Aide &amp; SAV</span>
-            </span>
-          </div>
+          <Zone id="promo" label="Barre du haut" activeTab={activeTab} onSelect={onSelect}>
+            <div className={styles.utilityBar}>
+              <span />
+              <span className={styles.utilityMeta}>
+                <span><Phone size={13} />{config.phoneNumber}</span>
+                <span>Nous contacter</span>
+                <span>Aide &amp; SAV</span>
+              </span>
+            </div>
+          </Zone>
         ) : null}
 
         <div className={styles.mainRow}>
-          <div className={styles.logo}>
-            <img src={config.logoUrl || "/logo.png"} alt={config.logoAlt} />
-          </div>
-          <div className={styles.searchControl}>
-            <span className={styles.storeSelector}>TOUT LE MAGASIN <ChevronDown size={12} /></span>
-            {config.showSearch ? (
-              <span className={styles.searchBox}>
-                Rechercher une machine, une marque, une reference...
-                <Search size={15} />
-              </span>
-            ) : null}
-            {config.showAccount ? (
-              <span className={styles.accountPreview}>
-                <User size={17} /> Bonjour<br /><strong>SE CONNECTER</strong>
-              </span>
-            ) : null}
-            {config.showCart ? (
-              <span className={styles.cartPreview}>
-                <ShoppingBag size={16} /> Panier<br /><strong>0,00 €</strong>
-              </span>
-            ) : null}
-          </div>
+          <Zone id="appearance" label="Logo et couleurs" activeTab={activeTab} onSelect={onSelect}>
+            <div className={styles.logo}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={config.logoUrl || "/logo.png"} alt={config.logoAlt} />
+            </div>
+          </Zone>
+          <Zone id="actions" label="Recherche et panier" activeTab={activeTab} onSelect={onSelect}>
+            <div className={styles.searchControl}>
+              <span className={styles.storeSelector}>TOUT LE MAGASIN <ChevronDown size={12} /></span>
+              {config.showSearch ? (
+                <span className={styles.searchBox}>
+                  Rechercher une machine, une marque, une référence...
+                  <Search size={15} />
+                </span>
+              ) : null}
+              {config.showAccount ? (
+                <span className={styles.accountPreview}>
+                  <User size={17} /> Bonjour<br /><strong>SE CONNECTER</strong>
+                </span>
+              ) : null}
+              {config.showCart ? (
+                <span className={styles.cartPreview}>
+                  <ShoppingBag size={16} /> Panier<br /><strong>0,00 €</strong>
+                </span>
+              ) : null}
+            </div>
+          </Zone>
         </div>
 
-        <div className={styles.navBar}>
-          <PreviewNav links={config.links} />
-          <span>Livraison France &amp; Europe</span>
-        </div>
+        <Zone id={navTab} label={navTab === "mobile" ? "Menu mobile" : "Menu ordinateur"} activeTab={activeTab} onSelect={onSelect}>
+          <div className={styles.navBar}>
+            <div className={styles.navLinks}>
+              {config.links.slice(0, 5).map((link, index) => (
+                <span key={index} className={styles.navLink}>
+                  {link.label.trim() || "Lien"}
+                </span>
+              ))}
+            </div>
+            <span>Livraison France &amp; Europe</span>
+          </div>
+        </Zone>
       </div>
     </div>
   );
 }
 
-function PreviewNav({ links }: { links: HeaderLink[] }) {
+/** Mock-up of the menu that opens on a phone. */
+function DrawerPreview({ config }: { config: HeaderConfig }) {
   return (
-    <div className={styles.navLinks}>
-      {links.slice(0, 5).map((link) => (
-        <span key={`${link.label}-${link.url}`} className={styles.navLink}>
-          {compactLinkLabel(link)}
-        </span>
-      ))}
+    <div className={styles.drawerWrap} aria-label="Aperçu du menu mobile">
+      <div className={styles.drawer}>
+        <div className={styles.drawerTop}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={config.logoUrl || "/logo.png"} alt={config.logoAlt} />
+          <X size={18} aria-hidden="true" />
+        </div>
+        <div className={styles.drawerLinks}>
+          {config.mobileLinks.map((link, index) => (
+            <span key={index}>{link.label.trim() || "Lien"}</span>
+          ))}
+        </div>
+        <div className={styles.drawerFoot}>
+          {config.phoneNumber}
+          <br />
+          {config.openingDays} {config.openingTime}–{config.closingTime}
+        </div>
+      </div>
     </div>
   );
 }
-
