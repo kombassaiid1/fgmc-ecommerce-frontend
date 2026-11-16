@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { DiscoverProducts } from "@/components/home/discover-products";
+import { fetchHomeRecommendations, impressionsSent } from "@/components/home/discover-products";
 import { getCategories } from "@/lib/api/categories";
 import { getProducts } from "@/lib/api/products";
+import { RECOMMENDATIONS_SECTION_TITLE } from "@/lib/header-config";
+import { rememberRecoAttribution, trackRecoClick, trackRecoImpressions } from "@/lib/reco/events";
 import { cn } from "@/lib/utils";
 
 import type { OfferProduct } from "../daily-offers/offers";
@@ -134,9 +136,33 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
     staleTime: 60_000,
   });
 
+  // « À découvrir »: one personalised call per display, same rules as the home block.
+  const recoQuery = useQuery({
+    queryKey: ["home-reco"],
+    queryFn: fetchHomeRecommendations,
+    enabled: isRecommendations,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  const requestId = isRecommendations ? (recoQuery.data?.requestId ?? null) : null;
+  const recoItems = useMemo(
+    () => (isRecommendations && recoQuery.data?.show ? recoQuery.data.products : []),
+    [isRecommendations, recoQuery.data],
+  );
   const products = useMemo(
-    () => (productsQuery.data?.data ?? []).slice(0, Math.max(1, maxProducts)),
-    [productsQuery.data, maxProducts],
+    () =>
+      isRecommendations
+        ? recoItems.map((item) => item.product)
+        : (productsQuery.data?.data ?? []).slice(0, Math.max(1, maxProducts)),
+    [isRecommendations, recoItems, productsQuery.data, maxProducts],
+  );
+  const isLoading = isRecommendations ? recoQuery.isLoading : productsQuery.isLoading;
+  const positionById = useMemo(
+    () => new Map(recoItems.map((item) => [item.product.id, item.position])),
+    [recoItems],
   );
   const category = categoriesQuery.data?.find((item) => item.id === categoryId);
   const viewAllHref = category?.slug ? `/${category.slug}` : "/categorie-produit";
@@ -146,8 +172,41 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
   // « Meilleures ventes » was the old default: it follows the category too.
   const isAutoTitle = typedTitle === "" || typedTitle === FEATURED_PRODUCTS_FALLBACK_TITLE;
   const title = isAutoTitle
-    ? (!isRecommendations && category?.title) || FEATURED_PRODUCTS_FALLBACK_TITLE
+    ? isRecommendations
+      ? RECOMMENDATIONS_SECTION_TITLE
+      : category?.title || FEATURED_PRODUCTS_FALLBACK_TITLE
     : typedTitle;
+
+  // Impressions are reported once per request, when half of the block is visible.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (isEditing || !requestId || recoItems.length === 0 || !section) return;
+    if (impressionsSent.has(requestId) || typeof IntersectionObserver === "undefined") return;
+    const tracked = recoItems.map((item) => ({ productId: item.product.id, position: item.position }));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.intersectionRatio >= 0.5)) return;
+        observer.disconnect();
+        if (impressionsSent.has(requestId)) return;
+        impressionsSent.add(requestId);
+        trackRecoImpressions(requestId, tracked);
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [isEditing, requestId, recoItems]);
+
+  // Capture phase: the attribution exists before addItem() and before the link navigation.
+  const handleRecoClickCapture = (event: MouseEvent<HTMLDivElement>, productId: string) => {
+    const position = positionById.get(productId);
+    if (isEditing || !requestId || position === undefined) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("a")) trackRecoClick(requestId, productId, position);
+    else if (target.closest("button")) rememberRecoAttribution(requestId, productId, position);
+  };
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", containScroll: "trimSnaps" });
   const [nav, setNav] = useState({ snaps: 0, selected: 0, canPrev: false, canNext: false });
@@ -191,22 +250,14 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
     return () => window.clearInterval(timer);
   }, [emblaApi, autoplaySeconds]);
 
-  if (isRecommendations) {
-    return (
-      <div style={{ background }}>
-        <DiscoverProducts title={isAutoTitle ? undefined : typedTitle} />
-      </div>
-    );
-  }
-
   // Nothing to show: stay invisible on the storefront, but explain it in the editor.
-  if (!productsQuery.isLoading && products.length === 0) {
+  if (!isLoading && products.length === 0) {
     return isEditing ? (
       <section className="px-4 py-8 sm:px-6" style={{ background }}>
         <p
           className="mx-auto border-2 border-dashed bg-white/70 px-6 py-10 text-center text-sm"
           style={{ maxWidth, borderColor: STITCH, color: INK }}>
-          « {title} » : aucun produit publié dans cette catégorie.
+          {isRecommendations ? `« ${title} » : aucune recommandation à afficher pour le moment.` : `« ${title} » : aucun produit publié dans cette catégorie.`}
         </p>
       </section>
     ) : null;
@@ -218,6 +269,7 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
 
   return (
     <section
+      ref={sectionRef}
       className="px-4 py-9 sm:px-6 lg:py-12"
       style={{ background: background || undefined, color: INK }}
       aria-labelledby="featured-products-title">
@@ -240,6 +292,16 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
               <CarouselButton direction="prev" disabled={!nav.canPrev} onClick={() => emblaApi?.scrollPrev()} color={buttonColor} />
               <CarouselButton direction="next" disabled={!nav.canNext} onClick={() => emblaApi?.scrollNext()} color={buttonColor} />
             </div>
+            {/* On a phone « Voir tout » sits next to the title (the arrows are hidden there). */}
+            {showViewAll && !isRecommendations ? (
+              <Link
+                href={viewAllHref}
+                onClick={guardClick}
+                className="inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap text-base font-medium underline decoration-2 underline-offset-[6px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:hidden"
+                style={{ color: buttonColor }}>
+                {viewAllLabel || "Voir tout"}
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -251,7 +313,7 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
           aria-roledescription="carousel"
           aria-label={title}>
           <div className="-ml-4 flex">
-            {productsQuery.isLoading
+            {isLoading
               ? [0, 1, 2, 3].map((item) => (
                   <div key={item} className={cn("min-w-0 shrink-0 grow-0 pl-4", MOBILE_CLASS[mobileColumns], COLUMN_CLASS[columns])}>
                     <div className="h-[460px] animate-pulse border bg-white" style={{ borderColor: LINE, borderRadius: cardRadius }} />
@@ -263,7 +325,8 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
                     className={cn("flex min-w-0 shrink-0 grow-0 pl-4", MOBILE_CLASS[mobileColumns], COLUMN_CLASS[columns])}
                     role="group"
                     aria-roledescription="slide"
-                    aria-label={product.title}>
+                    aria-label={product.title}
+                    onClickCapture={isRecommendations ? (event) => handleRecoClickCapture(event, product.id) : undefined}>
                     <FeaturedProductCard
                       product={product as OfferProduct}
                       style={{ accentColor, buttonColor, cardRadius, imageFit, imageRatio }}
@@ -276,8 +339,8 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
         </div>
 
         {/* Footer: stitched page markers + link */}
-        {(showDots && nav.snaps > 1) || showViewAll ? (
-          <div className="mt-12 flex items-center justify-between gap-4">
+        {(showDots && nav.snaps > 1) || (showViewAll && !isRecommendations) ? (
+          <div className={cn("mt-12 flex items-center justify-between gap-4", !(showDots && nav.snaps > 1) && "max-sm:hidden")}>
             <div className="relative flex items-center" role="group" aria-label="Pages du carrousel">
               {showDots && nav.snaps > 1 ? (
                 <div className="absolute left-0 top-1/2 h-0">
@@ -302,11 +365,11 @@ export function FeaturedProducts(props: Partial<FeaturedProductsProps> & { isEdi
                   ))
                 : null}
             </div>
-            {showViewAll ? (
+            {showViewAll && !isRecommendations ? (
               <Link
                 href={viewAllHref}
                 onClick={guardClick}
-                className="inline-flex min-h-11 cursor-pointer items-center text-base font-medium underline decoration-2 underline-offset-[6px] transition-opacity duration-200 hover:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="hidden min-h-11 cursor-pointer items-center text-base font-medium underline sm:inline-flex decoration-2 underline-offset-[6px] transition-opacity duration-200 hover:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={{ color: buttonColor }}>
                 {viewAllLabel || "Voir tout"}
               </Link>

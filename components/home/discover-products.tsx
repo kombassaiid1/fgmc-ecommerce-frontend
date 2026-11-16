@@ -17,9 +17,9 @@ import { useCartStore } from "@/lib/stores/cart-store";
 import { useRecentlyViewedStore } from "@/lib/stores/recently-viewed-store";
 
 /** requestIds whose impressions were already sent (once per requestId). */
-const impressionsSent = new Set<string>();
+export const impressionsSent = new Set<string>();
 
-function fetchHomeRecommendations() {
+export function fetchHomeRecommendations() {
   // History is read once, when the block is requested: cart or history
   // changes must not trigger a new call (each call is a new display).
   const viewed = useRecentlyViewedStore.getState().items;
