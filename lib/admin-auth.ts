@@ -62,6 +62,8 @@ export type AdminUser = {
   firstName: string | null;
   lastName: string | null;
   role: string;
+  permissions?: string[];
+  adminRole?: { id: string; name: string } | null;
 };
 
 type LoginResponse = {

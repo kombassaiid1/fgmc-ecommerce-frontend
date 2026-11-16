@@ -28,6 +28,8 @@ import {
 import en from "@shopify/polaris/locales/en.json";
 
 import type { AdminUser } from "@/lib/admin-auth";
+import { AdminSessionContext } from "@/components/admin/admin-session";
+import { can, permissionForPath } from "@/lib/permissions";
 import Image from "next/image";
 import { AgentFloatingButton } from "@/components/agent/agent-floating-button";
 import { AgentAdminNavigationContext } from "@/components/agent/agent-admin-navigation-context";
@@ -72,11 +74,13 @@ const NAV_ITEMS = [
     url: "/admin_ben",
     icon: HomeIcon,
     exactMatch: true,
+    permission: "dashboard.view",
   },
   {
     label: "Produits",
     url: "/admin_ben/products",
     icon: ProductIcon,
+    permission: "products.view",
     subNavigationItems: [
       { label: "Categories", url: "/admin_ben/products/categories" },
       { label: "Attributs", url: "/admin_ben/products/attributs" },
@@ -87,6 +91,7 @@ const NAV_ITEMS = [
     label: "Apparence",
     url: "/admin_ben/apparence",
     icon: ColorIcon,
+    permission: "appearance.view",
     subNavigationItems: [
       { label: "Header", url: "/admin_ben/apparence/header", icon: MenuHorizontalIcon },
       { label: "Accueil & hero", url: "/admin_ben/apparence/hero", icon: ImageIcon },
@@ -94,15 +99,16 @@ const NAV_ITEMS = [
       { label: "Page builder", url: "/admin_ben/page-builder", icon: AppsIcon },
     ],
   },
-  { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },
-  { label: "Modules", url: "/admin_ben/modules", icon: AppsIcon },
-  { label: "Avis clients", url: "/admin_ben/reviews", icon: StarIcon },
-  { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon },
-  { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon },
+  { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon, permission: "orders.view" },
+  { label: "Modules", url: "/admin_ben/modules", icon: AppsIcon, permission: "modules.view" },
+  { label: "Avis clients", url: "/admin_ben/reviews", icon: StarIcon, permission: "reviews.view" },
+  { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon, permission: "clients.view" },
+  { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon, permission: "users.view" },
   {
     label: "Parametres",
     url: "/admin_ben/settings",
     icon: SettingsIcon,
+    permission: "settings.view",
     subNavigationItems: [
       { label: "Taxes", url: "/admin_ben/settings/taxes" },
       { label: "Couleurs des statuts", url: "/admin_ben/settings/order-status-colors" },
@@ -122,19 +128,25 @@ export function AdminShell({ children, user }: AdminShellProps) {
     user.username?.trim() ||
     user.email;
 
+  const permissions = useMemo(() => user.permissions ?? [], [user.permissions]);
+  const requiredPermission = permissionForPath(pathname);
+  const hasAccess = can(permissions, requiredPermission);
+
   const navigationMarkup = useMemo(
     () => (
       <Navigation location={pathname}>
         <Navigation.Section
           title="Menu administration"
-          items={NAV_ITEMS.map((item) => ({
-            ...item,
-            onClick: () => setShowMobileNavigation(false),
-          }))}
+          items={NAV_ITEMS.filter((item) => can(permissions, item.permission)).map(
+            ({ permission: _permission, ...item }) => ({
+              ...item,
+              onClick: () => setShowMobileNavigation(false),
+            }),
+          )}
         />
       </Navigation>
     ),
-    [pathname],
+    [pathname, permissions],
   );
 
   const topBarMarkup = (
@@ -177,6 +189,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
 
   return (
     <AppProvider i18n={en} linkComponent={PolarisNextLink}>
+      <AdminSessionContext.Provider value={{ userId: user.id, permissions }}>
       <AgentAdminNavigationContext.Provider
         value={{
           isVisible: showAgentAdminMenu,
@@ -188,7 +201,18 @@ export function AdminShell({ children, user }: AdminShellProps) {
           navigation={isAgentPage && !showAgentAdminMenu ? undefined : navigationMarkup}
           showMobileNavigation={showMobileNavigation}
           onNavigationDismiss={() => setShowMobileNavigation(false)}>
-          {pathname === "/admin_ben/agent" ? (
+          {!hasAccess ? (
+            <Page>
+              <Card roundedAbove="sm">
+                <div role="alert" className="py-8 text-center">
+                  <h2 className="text-lg font-semibold">Accès refusé</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Votre rôle ne vous autorise pas à accéder à cette section.
+                  </p>
+                </div>
+              </Card>
+            </Page>
+          ) : pathname === "/admin_ben/agent" ? (
             <div className="px-4 py-3">{children}</div>
           ) : (
             <Page>
@@ -197,7 +221,8 @@ export function AdminShell({ children, user }: AdminShellProps) {
           )}
         </Frame>
       </AgentAdminNavigationContext.Provider>
-      {pathname !== "/admin_ben/agent" && <AgentFloatingButton />}
+      {pathname !== "/admin_ben/agent" && hasAccess && can(permissions, "agent.view") && <AgentFloatingButton />}
+      </AdminSessionContext.Provider>
     </AppProvider>
   );
 }
