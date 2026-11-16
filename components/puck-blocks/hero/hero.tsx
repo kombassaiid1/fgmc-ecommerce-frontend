@@ -421,7 +421,35 @@ function CategoryPanel({
 }) {
   const cellRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  useFollowScroll(cellRef, panelRef, follow, followOffset);
+
+  // While the panel follows the visitor it shrinks to its title; the list opens
+  // only when the title is clicked.
+  const [pinned, setPinned] = useState(false);
+  const [open, setOpen] = useState(false);
+  const handlePinnedChange = useCallback((next: boolean) => {
+    setPinned(next);
+    if (!next) setOpen(false);
+  }, []);
+  useFollowScroll(cellRef, panelRef, follow, followOffset, handlePinnedChange);
+  const collapsed = pinned && !open;
+
+  // An open list closes on a click elsewhere or on Escape.
+  useEffect(() => {
+    if (!pinned || !open) return;
+    const doc = panelRef.current?.ownerDocument ?? document;
+    const onDown = (event: MouseEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    doc.addEventListener("mousedown", onDown);
+    doc.addEventListener("keydown", onKey);
+    return () => {
+      doc.removeEventListener("mousedown", onDown);
+      doc.removeEventListener("keydown", onKey);
+    };
+  }, [pinned, open]);
 
   return (
     <div ref={cellRef} className={cn("min-w-0", className)}>
@@ -430,7 +458,10 @@ function CategoryPanel({
       className="relative z-20 h-fit min-w-0 rounded-xl border border-[#dce3ec] bg-white shadow-sm hover:z-50 focus-within:z-50"
       aria-label={title}
     >
-      <h2 className="overflow-hidden rounded-xl lg:rounded-b-none lg:rounded-t-xl" style={{ background: color }}>
+      <h2
+        className={cn("overflow-hidden rounded-xl", !collapsed && "lg:rounded-b-none lg:rounded-t-xl")}
+        style={{ background: color }}
+      >
         {/* Mobile: only the title is shown, and it opens the side sheet. */}
         <button
           type="button"
@@ -441,16 +472,31 @@ function CategoryPanel({
           {title}
           <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
         </button>
-        <Link
-          href={href}
-          onClick={onLinkClick}
-          className="hidden min-h-[52px] items-center justify-between gap-1 px-4 text-base font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex"
-        >
-          {title}
-          <ChevronRight className="size-4" aria-hidden="true" />
-        </Link>
+        {pinned ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            className="hidden min-h-[52px] w-full cursor-pointer items-center justify-between gap-1 px-4 text-left text-base font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex"
+          >
+            {title}
+            <ChevronDown
+              className={cn("size-4 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")}
+              aria-hidden="true"
+            />
+          </button>
+        ) : (
+          <Link
+            href={href}
+            onClick={onLinkClick}
+            className="hidden min-h-[52px] items-center justify-between gap-1 px-4 text-base font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex"
+          >
+            {title}
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Link>
+        )}
       </h2>
-      <ul className="hidden divide-y divide-[#e8edf3] lg:block" aria-label={`${title} categories`}>
+      <ul className={cn("divide-y divide-[#e8edf3]", collapsed ? "hidden" : "hidden lg:block")} aria-label={`${title} categories`}>
         {categories.map((category) => (
           <li key={category.id} className="group relative">
             <Link
@@ -521,7 +567,12 @@ function CategoryPanel({
         ))}
       </ul>
       {footer ? (
-        <p className="hidden border-t border-[#e8edf3] bg-[#f6f8fc] px-4 py-3 text-xs leading-relaxed text-[#63748f] lg:block">
+        <p
+          className={cn(
+            "border-t border-[#e8edf3] bg-[#f6f8fc] px-4 py-3 text-xs leading-relaxed text-[#63748f]",
+            collapsed ? "hidden" : "hidden lg:block",
+          )}
+        >
           {footer}
         </p>
       ) : null}
@@ -550,6 +601,7 @@ function useFollowScroll(
   panelRef: React.RefObject<HTMLElement | null>,
   mode: FollowMode,
   offset: number,
+  onPinnedChange: (pinned: boolean) => void,
 ) {
   useEffect(() => {
     const cell = cellRef.current;
@@ -560,8 +612,14 @@ function useFollowScroll(
     if (!win) return;
 
     const desktop = win.matchMedia("(min-width: 1024px)");
+    let pinned = false;
+    let fullHeight = 0; // the panel's height when it is not pinned (not collapsed)
 
     const release = () => {
+      if (pinned) {
+        pinned = false;
+        onPinnedChange(false);
+      }
       panel.style.position = "";
       panel.style.top = "";
       panel.style.left = "";
@@ -605,8 +663,14 @@ function useFollowScroll(
         y = Math.min(top, limit - panelHeight);
       }
 
-      // Keep the row's height while the panel is out of the flow.
-      cell.style.minHeight = `${panelHeight}px`;
+      // The first time it pins, remember its full height and tell the panel to
+      // collapse to its title. Its row keeps that height, so nothing jumps.
+      if (!pinned) {
+        fullHeight = panelHeight;
+        pinned = true;
+        onPinnedChange(true);
+      }
+      cell.style.minHeight = `${fullHeight}px`;
       panel.style.position = "fixed";
       panel.style.top = `${y}px`;
       panel.style.left = `${cellRect.left}px`;
@@ -622,7 +686,7 @@ function useFollowScroll(
       win.removeEventListener("resize", update);
       release();
     };
-  }, [cellRef, panelRef, mode, offset]);
+  }, [cellRef, panelRef, mode, offset, onPinnedChange]);
 }
 
 /* -------------------------------------------------------------------------- */
