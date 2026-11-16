@@ -115,7 +115,7 @@ export function DiscoverProducts({ title }: { title?: string }) {
             <h2
               id="discover-products-title"
               className="text-2xl! font-extrabold uppercase tracking-wide text-[#0a224f] sm:text-3xl!">
-              {title?.trim() || RECOMMENDATIONS_SECTION_TITLE}
+              {(typeof title === "string" && title.trim()) || RECOMMENDATIONS_SECTION_TITLE}
             </h2>
             <div
               className="mt-2 flex h-1 w-16 overflow-hidden rounded-full"

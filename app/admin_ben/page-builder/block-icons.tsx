@@ -27,6 +27,8 @@ const BLOCK_ICONS: Record<string, LucideIcon> = {
   Input: TextCursorInput,
   Hero: LayoutTemplate,
   DailyOffers: Zap,
+  FeaturedProducts: ShoppingBag,
+  ImageMosaic: LayoutGrid,
   Heading,
   Text: Type,
   Button: MousePointerClick,

@@ -1,13 +1,17 @@
 import type { Config, Data, Slot } from "@puckeditor/core";
 
-import { dailyOffersBlock, heroBlock } from "@/components/puck-blocks";
+import { dailyOffersBlock, featuredProductsBlock, heroBlock, imageMosaicBlock } from "@/components/puck-blocks";
 import { colorField, yesNoOptions as yesNo } from "@/components/puck-blocks/fields";
 import type { DailyOffersProps } from "@/components/puck-blocks/daily-offers/daily-offers";
+import type { FeaturedProductsProps } from "@/components/puck-blocks/featured-products/featured-products";
+import type { ImageMosaicProps } from "@/components/puck-blocks/image-mosaic/image-mosaic";
 import type { HeroProps } from "@/components/puck-blocks/hero/hero";
 
 type Props = {
   Hero: HeroProps;
   DailyOffers: DailyOffersProps;
+  FeaturedProducts: FeaturedProductsProps;
+  ImageMosaic: ImageMosaicProps;
   Container: {
     content: Slot;
     width: "boxed" | "full";
@@ -50,7 +54,7 @@ type Props = {
 
 export const puckConfig: Config<Props> = {
   categories: {
-    home: { title: "Accueil", components: ["Hero", "DailyOffers"] },
+    home: { title: "Accueil", components: ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic"] },
     layout: { title: "Mise en page", components: ["Container", "Grid"] },
     basic: { title: "Basique", components: ["Button", "Input"] },
   },
@@ -65,6 +69,8 @@ export const puckConfig: Config<Props> = {
   components: {
     Hero: heroBlock,
     DailyOffers: dailyOffersBlock,
+    FeaturedProducts: featuredProductsBlock,
+    ImageMosaic: imageMosaicBlock,
 
     /* ------------------------------------------------------------ Container */
     Container: {

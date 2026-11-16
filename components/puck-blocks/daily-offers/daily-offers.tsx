@@ -13,6 +13,7 @@ import { getProducts } from "@/lib/api/products";
 import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
 import { cn } from "@/lib/utils";
 
+import { SewingMachine } from "../sewing-machine";
 import { ClockProvider, useNow } from "./clock";
 import {
   computeOfferClock,
@@ -146,6 +147,14 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", containScroll: "trimSnaps" });
   const [nav, setNav] = useState({ snaps: 0, selected: 0, canPrev: false, canNext: false });
+  // The sewing machine swings while it travels to the new page.
+  const [machineMoving, setMachineMoving] = useState(false);
+  useEffect(() => {
+    if (nav.snaps === 0) return;
+    setMachineMoving(true);
+    const timer = window.setTimeout(() => setMachineMoving(false), 600);
+    return () => window.clearTimeout(timer);
+  }, [nav.selected, nav.snaps]);
 
   const syncNav = useCallback(() => {
     if (!emblaApi) return;
@@ -281,8 +290,13 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
 
         {/* Footer: stitched page markers + link */}
         {(showDots && nav.snaps > 1) || showViewAll ? (
-          <div className="mt-5 flex items-center justify-between gap-4">
-            <div className="flex items-center" role="group" aria-label="Pages du carrousel">
+          <div className={cn("flex items-center justify-between gap-4", showDots && nav.snaps > 1 ? "mt-12" : "mt-5")}>
+            <div className="relative flex items-center" role="group" aria-label="Pages du carrousel">
+              {showDots && nav.snaps > 1 ? (
+                <div className="absolute left-0 top-1/2 h-0">
+                  <SewingMachine index={nav.selected} moving={machineMoving} color={buttonColor} threadColor={accentColor} />
+                </div>
+              ) : null}
               {showDots && nav.snaps > 1
                 ? Array.from({ length: nav.snaps }).map((_, index) => (
                     <button
@@ -295,11 +309,11 @@ export function DailyOffers(props: Partial<DailyOffersProps> & { isEditing?: boo
                     >
                       <span
                         className="block h-1 rounded-full transition-all duration-200 group-focus-visible:ring-2 group-focus-visible:ring-offset-2 motion-reduce:transition-none"
-                        style={
-                          index === nav.selected
-                            ? { width: 24, background: buttonColor }
-                            : { width: 10, background: STITCH }
-                        }
+                        style={{
+                          width: 10,
+                          // Blue at the start; stitches the machine has left behind turn red.
+                          background: index < nav.selected ? accentColor : index === nav.selected ? buttonColor : STITCH,
+                        }}
                       />
                     </button>
                   ))
