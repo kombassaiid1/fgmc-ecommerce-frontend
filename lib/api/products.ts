@@ -1,5 +1,8 @@
 import { apiRequest } from "./http-client";
 
+/** `url` is absent on the storefront for restricted (isPublic === false) files. */
+export type ProductAttachment = { name: string; url?: string; size?: number; isPublic?: boolean };
+
 export type ProductListItem = {
   id: string;
   title: string;
@@ -17,6 +20,8 @@ export type ProductListItem = {
   combinaisons?: ProductVariantPayload[];
   stockStatus: string;
   sparePartIds?: string[];
+  associatedIds?: string[];
+  attachments?: ProductAttachment[];
   mainCategoryId?: string | null;
   status: "DRAFT" | "PUBLIC";
   brandId: string;
@@ -146,6 +151,8 @@ export type CreateProductPayload = {
   reviewRating?: number | null;
   reviewCount?: number | null;
   sparePartIds?: string[];
+  associatedIds?: string[];
+  attachments?: ProductAttachment[];
   mainCategoryId?: string | null;
   categoryIds?: string[];
   attributeTerms?: ProductAttributeTermPayload[];
@@ -213,6 +220,14 @@ export async function getProducts(params?: {
 export async function getProductById(id: string): Promise<ProductDetails> {
   return apiRequest<ProductDetails>({
     path: `/products/${id}`,
+    method: "GET",
+  });
+}
+
+/** Full product incl. restricted attachment URLs (admin editor only). */
+export async function getProductForAdmin(id: string): Promise<ProductDetails> {
+  return apiRequest<ProductDetails>({
+    path: `/products/${id}/admin`,
     method: "GET",
   });
 }

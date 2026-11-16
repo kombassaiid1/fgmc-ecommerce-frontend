@@ -1,6 +1,15 @@
 @import "tailwindcss";
 
+/*
+ * The site has one theme: light. There is no dark mode, whatever the visitor's
+ * system setting is. `color-scheme: light` keeps the browser's own controls and
+ * scrollbars light, and the variant below stops any `dark:` class (for example in
+ * a newly generated shadcn component) from ever applying.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
   --pg-layout-width-primary-max: "100%";
@@ -44,13 +53,6 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --font-sans: var(--font-oswald);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

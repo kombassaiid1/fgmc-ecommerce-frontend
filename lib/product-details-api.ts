@@ -21,6 +21,8 @@ export type ProductDetailsResponse = {
   reviewCount?: number;
   reviewRating?: number;
   sparePartIds?: string[];
+  associatedIds?: string[];
+  attachments?: Array<{ name: string; url?: string; size?: number; isPublic?: boolean }>;
   mainCategoryId?: string | null;
   taxRelation?: { rate: number; name?: string } | null;
   brand?: {
@@ -163,3 +165,20 @@ export async function fetchProductBySlugWithDebug(slug: string): Promise<{
   return { product, debug: { url, status: res.status, ok: true } };
 }
 
+
+export async function getAttachmentAccess(
+  productId: string,
+  index: number,
+  token: string,
+): Promise<{ url: string; name?: string }> {
+  const base = getBaseUrl();
+  const res = await fetch(
+    `${base}/products/${encodeURIComponent(productId)}/attachments/${index}/access`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? `Accès refusé (${res.status})`);
+  }
+  return (await res.json()) as { url: string; name?: string };
+}

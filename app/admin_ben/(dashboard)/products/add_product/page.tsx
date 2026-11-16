@@ -38,11 +38,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { getCategories, type Category } from "@/lib/api/categories";
+import { AttachmentsEditor } from "@/components/admin/attachments-editor";
+import { SparePartsPicker } from "@/components/admin/spare-parts-picker";
 import { getBrands, type Brand } from "@/lib/api/brands";
 import { getAttributes, type Attribute } from "@/lib/api/attributes";
 import { getTaxes, type Tax } from "@/lib/api/taxes";
 import { getAdminSettings } from "@/lib/api/settings";
-import { createProduct, getProductById, getProducts, updateProduct, type ProductListItem, type SpecificPriceRule } from "@/lib/api/products";
+import { createProduct, getProductForAdmin, updateProduct, type ProductAttachment, type SpecificPriceRule } from "@/lib/api/products";
 
 type ProductFormState = {
   title: string;
@@ -156,8 +158,8 @@ export default function AdminProductsPage() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [mainCategoryId, setMainCategoryId] = useState<string | null>(null);
   const [sparePartIds, setSparePartIds] = useState<string[]>([]);
-  const [availableProducts, setAvailableProducts] = useState<ProductListItem[]>([]);
-  const [sparePartSearch, setSparePartSearch] = useState("");
+  const [associatedIds, setAssociatedIds] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<ProductAttachment[]>([]);
   const [specificPrices, setSpecificPrices] = useState<SpecificPriceRule[]>([]);
   const [showSpecificPriceEditor, setShowSpecificPriceEditor] = useState(false);
   const [editingSpecificPriceId, setEditingSpecificPriceId] = useState<string | null>(null);
@@ -282,14 +284,6 @@ export default function AdminProductsPage() {
   }, [categoryIdParam, productId]);
 
   useEffect(() => {
-    let active = true;
-    getProducts({ page: 1, limit: 100 })
-      .then((result) => { if (active) setAvailableProducts(result.data); })
-      .catch(() => { if (active) setAvailableProducts([]); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
     if (productId) return;
     let active = true;
     void getAdminSettings()
@@ -311,7 +305,7 @@ export default function AdminProductsPage() {
       setLoadingProduct(true);
       setError(null);
       try {
-        const product = await getProductById(productId);
+        const product = await getProductForAdmin(productId);
         const basePrice = Number(product.price ?? "0");
         const basePriceSafe = Number.isFinite(basePrice) ? basePrice : 0;
         const termMap: Record<string, string[]> = {};
@@ -360,6 +354,8 @@ export default function AdminProductsPage() {
             : productCategoryIds[0] ?? null,
         );
         setSparePartIds(product.sparePartIds ?? []);
+        setAssociatedIds(product.associatedIds ?? []);
+        setAttachments(product.attachments ?? []);
         setSpecificPrices(Array.isArray(product.specificPrices) ? product.specificPrices : []);
         setSelectedTermIdsByAttribute(termMap);
         setImages(product.images ?? []);
@@ -420,10 +416,6 @@ export default function AdminProductsPage() {
     () => new Map(categories.map((item) => [item.id, item])),
     [categories],
   );
-  const selectableSparePartProducts = availableProducts.filter((item) =>
-    item.id !== productId &&
-    `${item.title} ${item.sku}`.toLocaleLowerCase().includes(sparePartSearch.trim().toLocaleLowerCase()),
-  );
   const childrenByCategory = useMemo(
     () => buildCategoryChildrenMap(categories),
     [categories],
@@ -468,6 +460,8 @@ export default function AdminProductsPage() {
         { id: "seo", content: "SEO" },
         { id: "attributes", content: "Attributs" },
         { id: "spareParts", content: "Pièces de rechange" },
+        { id: "associated", content: "Associées" },
+        { id: "attachments", content: "Pièces jointes" },
         { id: "options", content: "Options" },
       );
 
@@ -943,6 +937,8 @@ export default function AdminProductsPage() {
       categoryIds: selectedCategoryIds,
       mainCategoryId,
       sparePartIds,
+      associatedIds,
+      attachments,
       attributeTerms,
       combinaisons:
         combinationMode === "with_combinations"
@@ -987,6 +983,8 @@ export default function AdminProductsPage() {
       setSelectedCategoryIds(nextCategoryIds);
       setMainCategoryId(nextCategoryIds[0] ?? null);
       setSparePartIds([]);
+      setAssociatedIds([]);
+      setAttachments([]);
       setSelectedTermIdsByAttribute({});
       setImages([]);
       setSelectedImageUrl(null);
@@ -1979,26 +1977,27 @@ export default function AdminProductsPage() {
               <Text as="p" variant="bodySm" tone="subdued">
                 Sélectionnez les produits qui s&apos;afficheront dans l&apos;onglet « Pièces de rechange » de cette fiche.
               </Text>
-              {availableProducts.filter((item) => item.id !== productId).length ? (
-                <>
-                <TextField label="Rechercher un produit" value={sparePartSearch} onChange={setSparePartSearch} autoComplete="off" />
-                {selectableSparePartProducts.length ? (
-                <div className="max-h-[520px] space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-3">
-                  {selectableSparePartProducts.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-slate-50">
-                      <Checkbox
-                        label={`${item.title} (${item.sku})${item.status === "DRAFT" ? " — Brouillon" : ""}`}
-                        checked={sparePartIds.includes(item.id)}
-                        onChange={(checked) => setSparePartIds((current) => checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
-                      />
-                    </div>
-                  ))}
-                </div>
-                ) : <Text as="p" variant="bodySm" tone="subdued">Aucun résultat pour cette recherche.</Text>}
-                </>
-              ) : (
-                <Banner tone="info" title="Aucun autre produit publié à sélectionner" />
-              )}
+              <SparePartsPicker value={sparePartIds} onChange={setSparePartIds} excludeId={productId} />
+            </BlockStack>
+          ) : null}
+
+          {selectedTabId === "associated" ? (
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">Produits associés</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Sélectionnez les produits qui s&apos;afficheront dans l&apos;onglet « Associées » de cette fiche.
+              </Text>
+              <SparePartsPicker value={associatedIds} onChange={setAssociatedIds} excludeId={productId} />
+            </BlockStack>
+          ) : null}
+
+          {selectedTabId === "attachments" ? (
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">Pièces jointes</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Ajoutez des fichiers PDF (fiche technique, notice…) téléchargeables depuis la fiche produit.
+              </Text>
+              <AttachmentsEditor value={attachments} onChange={setAttachments} />
             </BlockStack>
           ) : null}
 

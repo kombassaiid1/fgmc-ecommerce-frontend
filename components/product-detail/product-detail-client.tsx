@@ -17,7 +17,7 @@ import {
   Truck,
 } from "lucide-react";
 
-import { canClientReviewProduct, fetchProductReviews, submitProductReview, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
+import { canClientReviewProduct, fetchProductReviews, getAttachmentAccess, submitProductReview, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
 import { getImageUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/lib/stores/cart-store";
@@ -112,12 +112,13 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [recommendationTab, setRecommendationTab] = useState<"similar" | "spareParts">("similar");
+  const [recommendationTab, setRecommendationTab] = useState<"similar" | "spareParts" | "associated">("similar");
   const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
   const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
+  const [associatedProducts, setAssociatedProducts] = useState<ProductCardProduct[]>([]);
   const addItem = useCartStore((s) => s.addItem);
   const addRecentlyViewed = useRecentlyViewedStore((s) => s.addView);
-  const [tab, setTab] = useState<"description" | "details" | "comments">(
+  const [tab, setTab] = useState<string>(
     "description",
   );
 
@@ -182,8 +183,17 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
         if (!active) return;
         setSpareParts(results.flatMap((result) => result.status === "fulfilled" && result.value.status === "PUBLIC" ? [result.value] : []));
       });
+    const associatedIds = (product.associatedIds ?? []).filter((id) => id !== product.id);
+    Promise.allSettled(associatedIds.map((id) => getProductById(id)))
+      .then((results) => {
+        if (!active) return;
+        setAssociatedProducts(results.flatMap((result) => result.status === "fulfilled" && result.value.status === "PUBLIC" ? [result.value] : []));
+      });
     return () => { active = false; };
-  }, [categorySlug, product.categories, product.id, product.sparePartIds]);
+  }, [categorySlug, product.categories, product.id, product.sparePartIds, product.associatedIds]);
+
+  const visibleRecommendations =
+    recommendationTab === "similar" ? similarProducts : recommendationTab === "associated" ? associatedProducts : spareParts;
 
   const images = product.images ?? [];
   const selectedImageUrl = images[selectedImageIndex]
@@ -696,6 +706,20 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
               )}>
               Détail de produit
             </button>
+            {(product.attachments ?? []).map((file, index) => (
+              <button
+                key={`att-tab-${index}`}
+                type="button"
+                onClick={() => setTab(`attachment-${index}`)}
+                className={cn(
+                  "rounded-t-xl border border-transparent px-4 py-2 text-sm font-semibold transition",
+                  tab === `attachment-${index}`
+                    ? "border-slate-200 bg-white text-slate-900"
+                    : "text-slate-500 hover:text-slate-900",
+                )}>
+                {file.name}
+              </button>
+            ))}
           </div>
 
           <div className="px-5 py-6">
@@ -738,6 +762,20 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 </p>
               )
             ) : null}
+
+            {tab.startsWith("attachment-") ? (() => {
+              const index = Number(tab.slice("attachment-".length));
+              const file = (product.attachments ?? [])[index];
+              return file ? (
+                <ProductAttachmentPanel
+                  key={tab}
+                  productId={product.id}
+                  index={index}
+                  file={file}
+                  token={clientSession?.token}
+                />
+              ) : null;
+            })() : null}
 
             {tab === "comments" ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center">
@@ -853,23 +891,101 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "spareParts" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
                 Pièces de rechange
               </button>
+              <button type="button" role="tab" aria-selected={recommendationTab === "associated"}
+                onClick={() => setRecommendationTab("associated")}
+                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "associated" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                Associées
+              </button>
             </div>
           </div>
           <div className="p-4 sm:p-6">
-            {(recommendationTab === "similar" ? similarProducts : spareParts).length ? (
+            {visibleRecommendations.length ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                {(recommendationTab === "similar" ? similarProducts : spareParts).slice(0, 6).map((relatedProduct) => (
+                {visibleRecommendations.slice(0, 6).map((relatedProduct) => (
                   <ProductCard key={relatedProduct.id} product={relatedProduct} categorySlug={categorySlug} />
                 ))}
               </div>
             ) : (
               <p className="py-8 text-center text-sm text-slate-500">
-                {recommendationTab === "similar" ? "Aucun autre produit disponible dans cette catégorie." : "Aucune pièce de rechange associée à ce produit."}
+                {recommendationTab === "similar" ? "Aucun autre produit disponible dans cette catégorie." : recommendationTab === "associated" ? "Aucun produit associé à ce produit." : "Aucune pièce de rechange associée à ce produit."}
               </p>
             )}
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+
+function ProductAttachmentPanel({
+  productId,
+  index,
+  file,
+  token,
+}: {
+  productId: string;
+  index: number;
+  file: { name: string; url?: string; isPublic?: boolean };
+  token?: string | null;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const restricted = file.isPublic === false;
+
+  if (!restricted && file.url) {
+    return (
+      <div className="space-y-3">
+        <iframe
+          src={file.url}
+          title={file.name}
+          className="h-[600px] w-full rounded-lg border border-slate-200"
+        />
+        <a
+          href={file.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-sm font-semibold text-[#153675] underline-offset-4 hover:underline">
+          Télécharger le PDF
+        </a>
+      </div>
+    );
+  }
+
+  const download = async () => {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await getAttachmentAccess(productId, index, token);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (accessError) {
+      setError(accessError instanceof Error ? accessError.message : "Téléchargement impossible.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center">
+      <h3 className="text-base font-semibold text-slate-900">{file.name}</h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Ce document est réservé aux clients ayant acheté ce produit, une fois la commande livrée.
+      </p>
+      {token ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void download()}
+          className="mt-3 cursor-pointer rounded-md bg-[#153675] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          {busy ? "Vérification…" : "Télécharger le PDF"}
+        </button>
+      ) : (
+        <p className="mt-3 text-sm font-medium text-slate-700">
+          Connectez-vous à votre compte pour accéder à ce document.
+        </p>
+      )}
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+    </div>
   );
 }
