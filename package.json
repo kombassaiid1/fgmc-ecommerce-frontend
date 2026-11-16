@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.303",
+    "@puckeditor/core": "^0.24.0",
     "@shopify/polaris": "^13.9.5",
     "@shopify/polaris-icons": "^9.3.1",
     "@tanstack/react-query": "^5.100.6",

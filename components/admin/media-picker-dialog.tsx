@@ -24,6 +24,7 @@ type MediaPickerDialogProps = {
   selectedUrl?: string | null;
   selectedUrls?: string[];
   multiple?: boolean;
+  imagesOnly?: boolean;
   onClose: () => void;
   onSelect: (item: MediaItem) => void;
   onSelectMany?: (items: MediaItem[]) => void;
@@ -36,6 +37,7 @@ function detectKind(item: MediaItem): "image" | "video" | "file" {
   const type = (item.fileType ?? "").toLowerCase();
   if (type.startsWith("image/")) return "image";
   if (type.startsWith("video/")) return "video";
+  if (!type && /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|tiff?|webp)(?:[?#]|$)/i.test(item.url)) return "image";
   return "file";
 }
 
@@ -44,6 +46,7 @@ export function MediaPickerDialog({
   selectedUrl,
   selectedUrls,
   multiple = false,
+  imagesOnly = false,
   onClose,
   onSelect,
   onSelectMany,
@@ -60,6 +63,10 @@ export function MediaPickerDialog({
   const [totalPages, setTotalPages] = useState(1);
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const availableItems = useMemo(
+    () => imagesOnly ? items.filter((item) => detectKind(item) === "image") : items,
+    [imagesOnly, items],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +107,7 @@ export function MediaPickerDialog({
     if (!open) return;
     if (multiple) {
       const next = new Set<string>();
-      for (const item of items) {
+      for (const item of availableItems) {
         if (safeSelectedUrls.includes(item.url)) {
           next.add(item.id);
         }
@@ -112,9 +119,9 @@ export function MediaPickerDialog({
       setSelected(null);
       return;
     }
-    const found = items.find((item) => item.url === selectedUrl) ?? null;
+    const found = availableItems.find((item) => item.url === selectedUrl) ?? null;
     setSelected(found);
-  }, [items, multiple, open, safeSelectedUrls, selectedUrl]);
+  }, [availableItems, multiple, open, safeSelectedUrls, selectedUrl]);
 
   const selectedId = useMemo(() => selected?.id ?? null, [selected?.id]);
 
@@ -182,13 +189,13 @@ export function MediaPickerDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Choisir un media"
+      title={imagesOnly ? "Choisir une image" : "Choisir un media"}
       primaryAction={{
-        content: multiple ? "Utiliser les medias" : "Utiliser ce media",
+        content: multiple ? "Utiliser les medias" : imagesOnly ? "Utiliser cette image" : "Utiliser ce media",
         disabled: multiple ? selectedIds.size === 0 : !selected,
         onAction: () => {
           if (multiple) {
-            const selectedItems = items.filter((item) => selectedIds.has(item.id));
+            const selectedItems = availableItems.filter((item) => selectedIds.has(item.id));
             if (selectedItems.length === 0) return;
             if (onSelectMany) {
               onSelectMany(selectedItems);
@@ -209,7 +216,7 @@ export function MediaPickerDialog({
           <DropZone
             type="file"
             allowMultiple
-            accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+            accept={imagesOnly ? "image/*" : "image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"}
             onDrop={(_, acceptedFiles) => {
               void uploadFromPicker(acceptedFiles);
             }}
@@ -238,13 +245,13 @@ export function MediaPickerDialog({
                 <Spinner accessibilityLabel="Chargement des medias" />
               </InlineStack>
             </Box>
-          ) : items.length === 0 ? (
+          ) : availableItems.length === 0 ? (
             <Text as="p" tone="subdued">
-              Aucun media trouve.
+              {imagesOnly ? "Aucune image trouvée sur cette page." : "Aucun media trouve."}
             </Text>
           ) : (
             <div className={styles.grid}>
-              {items.map((item) => {
+              {availableItems.map((item) => {
                 const kind = detectKind(item);
                 const selectedCard = multiple
                   ? selectedIds.has(item.id)

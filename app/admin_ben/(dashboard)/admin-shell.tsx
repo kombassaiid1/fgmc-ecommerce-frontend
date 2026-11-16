@@ -91,6 +91,7 @@ const NAV_ITEMS = [
       { label: "Header", url: "/admin_ben/apparence/header", icon: MenuHorizontalIcon },
       { label: "Accueil & hero", url: "/admin_ben/apparence/hero", icon: ImageIcon },
       { label: "Media", url: "/admin_ben/apparence/media", icon: ImageIcon },
+      { label: "Page builder", url: "/admin_ben/page-builder", icon: AppsIcon },
     ],
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon },

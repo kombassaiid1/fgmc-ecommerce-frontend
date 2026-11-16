@@ -195,3 +195,34 @@ export async function deleteCategory(id: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+export function deleteSelectedCategories(ids: string[]): Promise<{ count: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return Promise.reject(new Error("Sélectionnez au moins une catégorie."));
+  }
+  return requestCategoryDeletion(ids);
+}
+
+async function requestCategoryDeletion(ids: string[]): Promise<{ count: number }> {
+  const response = await fetch("/api/admin/categories", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    count?: number;
+    message?: string | string[];
+  } | null;
+  if (!response.ok) {
+    throw new Error(
+      Array.isArray(payload?.message)
+        ? payload.message.join(", ")
+        : payload?.message ?? "Impossible de supprimer les catégories.",
+    );
+  }
+  if (typeof payload?.count !== "number") {
+    throw new Error("Réponse du serveur invalide. Actualisez la liste des catégories.");
+  }
+  return { count: payload.count };
+}

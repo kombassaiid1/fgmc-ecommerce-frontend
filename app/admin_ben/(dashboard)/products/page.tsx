@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Banner, BlockStack, Button, Card, Icon, Pagination, Text } from "@shopify/polaris";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Banner, BlockStack, Button, Card, Icon, Modal, Pagination, Text } from "@shopify/polaris";
 import { DeleteIcon, DuplicateIcon, ViewIcon } from "@shopify/polaris-icons";
 import { getCategories, type Category } from "@/lib/api/categories";
 import {
@@ -73,6 +73,10 @@ export default function AdminProductsListPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [productsToDelete, setProductsToDelete] = useState<ProductListItem[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [categorySearch, setCategorySearch] = useState("");
@@ -82,6 +86,7 @@ export default function AdminProductsListPage() {
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const mutationBusy = saving || bulkDeleting || actionBusyId !== null || statusBusyId !== null;
   const [meta, setMeta] = useState({
     total: 0,
     page: 1,
@@ -98,8 +103,10 @@ export default function AdminProductsListPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     const timeout = setTimeout(async () => {
       setLoading(true);
+      setSelectedIds([]);
       setError(null);
       try {
         const response = await getProducts({
@@ -109,21 +116,26 @@ export default function AdminProductsListPage() {
           categoryId: filters.category || undefined,
           status: filters.status || undefined,
         });
+        if (!active) return;
         setItems(response.data);
         setMeta(response.meta);
         setSelectedIds([]);
       } catch (loadError) {
+        if (!active) return;
         setError(
           loadError instanceof Error
             ? loadError.message
             : "Impossible de charger les produits.",
         );
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }, 220);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
   }, [page, filters.name, filters.category, filters.status, refreshKey]);
 
   const visibleItems = useMemo(() => {
@@ -145,8 +157,24 @@ export default function AdminProductsListPage() {
   }, [items, filters.reference, filters.minPrice, filters.maxPrice, filters.minQuantity, filters.maxQuantity, categorySearch]);
 
   const updateFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    setSelectedIds([]);
+    if (page !== 1 || key === "name" || key === "category" || key === "status") {
+      setLoading(true);
+    }
     setPage(1);
     setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const refreshProducts = () => {
+    setLoading(true);
+    setSelectedIds([]);
+    setRefreshKey((key) => key + 1);
+  };
+
+  const changePage = (nextPage: number) => {
+    setLoading(true);
+    setSelectedIds([]);
+    setPage(nextPage);
   };
 
   const toggleSelected = (id: string) => {
@@ -156,6 +184,14 @@ export default function AdminProductsListPage() {
   };
 
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedIds.includes(item.id));
+  const someVisibleSelected = visibleItems.some((item) => selectedIds.includes(item.id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [allVisibleSelected, someVisibleSelected]);
+
   const toggleAllVisible = () => {
     setSelectedIds((current) =>
       allVisibleSelected
@@ -165,7 +201,7 @@ export default function AdminProductsListPage() {
   };
 
   const applyBulkAction = async () => {
-    if (!bulkAction || selectedIds.length === 0) return;
+    if (!bulkAction || selectedIds.length === 0 || mutationBusy || loading) return;
     setSaving(true);
     setError(null);
     try {
@@ -173,7 +209,7 @@ export default function AdminProductsListPage() {
         selectedIds.map((id) => updateProduct(id, { status: bulkAction })),
       );
       setSelectedIds([]);
-      setRefreshKey((key) => key + 1);
+      refreshProducts();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "La mise à jour a échoué.");
     } finally {
@@ -188,7 +224,7 @@ export default function AdminProductsListPage() {
     try {
       await updateProduct(product.id, { status });
       setItems((current) => current.map((item) => item.id === product.id ? { ...item, status } : item));
-      setRefreshKey((key) => key + 1);
+      refreshProducts();
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : "La mise a jour du statut a echoue.");
     } finally {
@@ -237,7 +273,7 @@ export default function AdminProductsListPage() {
         })),
       });
       setOpenMenuId(null);
-      setRefreshKey((key) => key + 1);
+      refreshProducts();
     } catch (duplicateError) {
       setError(duplicateError instanceof Error ? duplicateError.message : "La duplication a échoué.");
     } finally {
@@ -263,6 +299,58 @@ export default function AdminProductsListPage() {
     }
   };
 
+  const removeSelectedProducts = async () => {
+    if (productsToDelete.length === 0 || mutationBusy) return;
+    setBulkDeleting(true);
+    setError(null);
+    setNotice(null);
+    setOpenMenuId(null);
+
+    try {
+      const results = await Promise.allSettled(
+        productsToDelete.map((product) => deleteProduct(product.id)),
+      );
+      const deletedIds = new Set(
+        productsToDelete
+          .filter((_, index) => results[index].status === "fulfilled")
+          .map((product) => product.id),
+      );
+      const failures = results.filter((result) => result.status === "rejected");
+      const total = Math.max(0, meta.total - deletedIds.size);
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const nextPage = Math.min(page, totalPages);
+
+      setItems((current) => current.filter((product) => !deletedIds.has(product.id)));
+      setSelectedIds((current) => current.filter((id) => !deletedIds.has(id)));
+      setMeta((current) => ({
+        ...current,
+        total,
+        totalPages,
+        page: nextPage,
+        hasPreviousPage: nextPage > 1,
+        hasNextPage: nextPage < totalPages,
+      }));
+      if (deletedIds.size > 0) {
+        setNotice(`${deletedIds.size} produit${deletedIds.size > 1 ? "s" : ""} supprimé${deletedIds.size > 1 ? "s" : ""}.`);
+      }
+      if (failures.length > 0) {
+        const reason = failures[0].reason;
+        const detail = reason instanceof Error ? ` ${reason.message}` : "";
+        setError(`${failures.length} produit${failures.length > 1 ? "s n’ont" : " n’a"} pas pu être supprimé${failures.length > 1 ? "s" : ""}. Les produits concernés restent sélectionnés pour réessayer.${detail}`);
+      } else {
+        setSelectedIds([]);
+        if (nextPage !== page) {
+          changePage(nextPage);
+        } else {
+          refreshProducts();
+        }
+      }
+    } finally {
+      setBulkDeleting(false);
+      setProductsToDelete([]);
+    }
+  };
+
   const productPreviewUrl = (product: ProductListItem) => {
     const mainCategory = product.categories?.find(
       (entry) => (entry.categoryId ?? entry.category?.id) === product.mainCategoryId,
@@ -274,6 +362,7 @@ export default function AdminProductsListPage() {
   return (
     <BlockStack gap="400">
       {error ? <Banner tone="critical" title={error} /> : null}
+      {notice ? <Banner tone="success" title={notice} onDismiss={() => setNotice(null)} /> : null}
       <Card padding="0">
         <div className="admin-products-toolbar">
           <label className="products-category-filter">
@@ -282,6 +371,7 @@ export default function AdminProductsListPage() {
               value={filters.category}
               onChange={(event) => updateFilter("category", event.target.value)}
               aria-label="Filtrer par catégorie"
+              disabled={bulkDeleting}
             >
               <option value="">Filtrer par catégories</option>
               {categories.map((category) => (
@@ -293,6 +383,7 @@ export default function AdminProductsListPage() {
             <select
               aria-label="Actions groupées"
               value={bulkAction}
+              disabled={mutationBusy}
               onChange={(event) => setBulkAction(event.target.value as "" | "PUBLIC" | "DRAFT")}
             >
               <option value="">Actions groupées</option>
@@ -303,7 +394,7 @@ export default function AdminProductsListPage() {
               className="products-toolbar-button"
               type="button"
               onClick={applyBulkAction}
-              disabled={!bulkAction || selectedIds.length === 0 || saving}
+              disabled={!bulkAction || selectedIds.length === 0 || mutationBusy || loading}
             >
               {saving ? "Enregistrement…" : "Appliquer"}
             </button>
@@ -313,15 +404,33 @@ export default function AdminProductsListPage() {
             type="button"
             aria-label="Actualiser la liste"
             title="Actualiser"
-            onClick={() => setRefreshKey((key) => key + 1)}
+            onClick={refreshProducts}
+            disabled={mutationBusy || loading}
           >
             ↻
           </button>
         </div>
-        <label className="products-select-all">
-          <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} />
-          <span>Tout sélectionner</span>
-        </label>
+        <div className="products-selection-bar">
+          <label className="products-select-all">
+            <input ref={selectAllRef} type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} disabled={loading || mutationBusy || visibleItems.length === 0} />
+            <span>Tout sélectionner sur cette page</span>
+          </label>
+          <span className="products-selection-count" role="status">
+            {selectedIds.length} produit{selectedIds.length > 1 ? "s" : ""} sélectionné{selectedIds.length > 1 ? "s" : ""}
+          </span>
+          <div className="products-page-actions">
+            <Button
+              tone="critical"
+              icon={DeleteIcon}
+              disabled={selectedIds.length === 0 || loading || mutationBusy}
+              loading={bulkDeleting}
+              onClick={() => setProductsToDelete(items.filter((product) => selectedIds.includes(product.id)))}
+            >
+              Supprimer la sélection
+            </Button>
+            <Button url="/admin_ben/products/add_product" variant="primary">Ajouter un produit</Button>
+          </div>
+        </div>
 
         <div className="products-table-scroll">
           <table className="admin-products-table">
@@ -343,7 +452,7 @@ export default function AdminProductsListPage() {
                 <th />
                 <th><input value={filters.name} onChange={(event) => updateFilter("name", event.target.value)} placeholder="Rechercher nom" /></th>
                 <th><input value={filters.reference} onChange={(event) => updateFilter("reference", event.target.value)} placeholder="Rechercher réf." /></th>
-                <th><input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Rechercher catégorie" /></th>
+                <th><input value={categorySearch} onChange={(event) => { setSelectedIds([]); setCategorySearch(event.target.value); }} placeholder="Rechercher catégorie" /></th>
                 <th className="range-filter"><input inputMode="decimal" value={filters.minPrice} onChange={(event) => updateFilter("minPrice", event.target.value)} placeholder="Min" /><input inputMode="decimal" value={filters.maxPrice} onChange={(event) => updateFilter("maxPrice", event.target.value)} placeholder="Max" /></th>
                 <th />
                 <th className="range-filter"><input inputMode="numeric" value={filters.minQuantity} onChange={(event) => updateFilter("minQuantity", event.target.value)} placeholder="Min" /><input inputMode="numeric" value={filters.maxQuantity} onChange={(event) => updateFilter("maxQuantity", event.target.value)} placeholder="Max" /></th>
@@ -354,7 +463,7 @@ export default function AdminProductsListPage() {
                     <option value="DRAFT">Hors ligne</option>
                   </select>
                 </th>
-                <th><button className="products-search-button" type="button" onClick={() => setRefreshKey((key) => key + 1)}>⌕ <span>Rechercher</span></button></th>
+                <th><button className="products-search-button" type="button" onClick={refreshProducts} disabled={mutationBusy || loading}>⌕ <span>Rechercher</span></button></th>
               </tr>
             </thead>
             <tbody>
@@ -368,7 +477,7 @@ export default function AdminProductsListPage() {
                   .filter((title): title is string => Boolean(title));
                 return (
                   <tr key={product.id}>
-                    <td className="products-check-column"><input type="checkbox" aria-label={`Sélectionner ${product.title}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} /></td>
+                    <td className="products-check-column"><input type="checkbox" aria-label={`Sélectionner ${product.title}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} disabled={loading || mutationBusy} /></td>
                     <td className="products-image-column">
                       {product.images?.[0] ? <img className="products-thumbnail" src={product.images[0]} alt="" /> : <span className="products-no-image">—</span>}
                     </td>
@@ -378,7 +487,7 @@ export default function AdminProductsListPage() {
                     <td className="products-price-cell">{money(Number(product.price) || 0)}</td>
                     <td className="products-price-cell">{money(priceWithTax(product))}</td>
                     <td className="products-quantity-cell">{stockFor(product)}</td>
-                    <td><button type="button" className={`products-status ${product.status === "PUBLIC" ? "is-online" : "is-offline"}`} aria-label={`Passer ${product.title} ${product.status === "PUBLIC" ? "hors ligne" : "en ligne"}`} title={product.status === "PUBLIC" ? "Cliquer pour mettre hors ligne" : "Cliquer pour mettre en ligne"} aria-pressed={product.status === "PUBLIC"} disabled={statusBusyId === product.id} onClick={() => void toggleProductStatus(product)}>{product.status === "PUBLIC" ? "✓" : "×"}</button></td>
+                    <td><button type="button" className={`products-status ${product.status === "PUBLIC" ? "is-online" : "is-offline"}`} aria-label={`Passer ${product.title} ${product.status === "PUBLIC" ? "hors ligne" : "en ligne"}`} title={product.status === "PUBLIC" ? "Cliquer pour mettre hors ligne" : "Cliquer pour mettre en ligne"} aria-pressed={product.status === "PUBLIC"} disabled={mutationBusy} onClick={() => void toggleProductStatus(product)}>{product.status === "PUBLIC" ? "✓" : "×"}</button></td>
                     <td className="products-actions-cell">
                       <a href={`/admin_ben/products/add_product?id=${product.id}`} aria-label={`Modifier ${product.title}`} title="Modifier">✎</a>
                       <div className="products-row-menu-wrap">
@@ -388,6 +497,7 @@ export default function AdminProductsListPage() {
                           aria-haspopup="menu"
                           aria-expanded={openMenuId === product.id}
                           title="Plus d’actions"
+                          disabled={mutationBusy}
                           onClick={() => setOpenMenuId((current) => current === product.id ? null : product.id)}
                         >
                           ⋮
@@ -397,10 +507,10 @@ export default function AdminProductsListPage() {
                             <a href={productPreviewUrl(product)} target="_blank" rel="noreferrer" role="menuitem" onClick={() => setOpenMenuId(null)}>
                               <Icon source={ViewIcon} /> Aperçu
                             </a>
-                            <button type="button" role="menuitem" disabled={actionBusyId === product.id} onClick={() => duplicateProduct(product.id)}>
+                            <button type="button" role="menuitem" disabled={mutationBusy} onClick={() => duplicateProduct(product.id)}>
                               <Icon source={DuplicateIcon} /> {actionBusyId === product.id ? "Duplication…" : "Dupliquer"}
                             </button>
-                            <button className="products-delete-action" type="button" role="menuitem" disabled={actionBusyId === product.id} onClick={() => removeProduct(product)}>
+                            <button className="products-delete-action" type="button" role="menuitem" disabled={mutationBusy} onClick={() => removeProduct(product)}>
                               <Icon source={DeleteIcon} /> Supprimer
                             </button>
                           </div>
@@ -419,14 +529,37 @@ export default function AdminProductsListPage() {
             {`Page ${meta.page} / ${Math.max(1, meta.totalPages)} · ${meta.total} produits`}
           </Text>
           <Pagination
-            hasPrevious={meta.hasPreviousPage}
-            hasNext={meta.hasNextPage}
-            onPrevious={() => setPage((current) => Math.max(1, current - 1))}
-            onNext={() => setPage((current) => Math.min(Math.max(1, meta.totalPages), current + 1))}
+            hasPrevious={meta.hasPreviousPage && !loading && !mutationBusy}
+            hasNext={meta.hasNextPage && !loading && !mutationBusy}
+            onPrevious={() => changePage(Math.max(1, page - 1))}
+            onNext={() => changePage(Math.min(Math.max(1, meta.totalPages), page + 1))}
           />
         </div>
       </Card>
-      <div className="products-add-button"><Button url="/admin_ben/products/add_product" variant="primary">Ajouter un produit</Button></div>
+      <Modal
+        open={productsToDelete.length > 0}
+        title={`Supprimer ${productsToDelete.length} produit${productsToDelete.length > 1 ? "s" : ""} ?`}
+        onClose={() => { if (!bulkDeleting) setProductsToDelete([]); }}
+        primaryAction={{
+          content: `Supprimer ${productsToDelete.length} produit${productsToDelete.length > 1 ? "s" : ""}`,
+          destructive: true,
+          loading: bulkDeleting,
+          onAction: () => { void removeSelectedProducts(); },
+        }}
+        secondaryActions={[{
+          content: "Annuler",
+          disabled: bulkDeleting,
+          onAction: () => setProductsToDelete([]),
+        }]}
+      >
+        <Modal.Section>
+          <Text as="p">
+            {productsToDelete.length === 1
+              ? "Le produit sélectionné sera supprimé définitivement. Cette action est irréversible."
+              : `Les ${productsToDelete.length} produits sélectionnés seront supprimés définitivement. Cette action est irréversible.`}
+          </Text>
+        </Modal.Section>
+      </Modal>
     </BlockStack>
   );
 }

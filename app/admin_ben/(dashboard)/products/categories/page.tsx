@@ -34,6 +34,7 @@ import {
 import {
   createCategory,
   deleteCategory,
+  deleteSelectedCategories,
   getCategories,
   updateCategory,
   type Category,
@@ -130,6 +131,11 @@ export default function AdminProductCategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[] } | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const mutationBusy = saving || bulkDeleting || deletingId !== null;
 
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -142,12 +148,16 @@ export default function AdminProductCategoriesPage() {
   const [formState, setFormState] = useState<CategoryFormState>(EMPTY_FORM);
   const [slugWasEdited, setSlugWasEdited] = useState(false);
 
+  const applyCategories = (data: Category[]) => {
+    setCategories(data);
+    setExpandedIds((prev) => prev.size > 0
+      ? prev
+      : new Set(data.filter((item) => !item.parentCategoryId).map((item) => item.id)));
+  };
+
   const loadCategories = async () => {
-    setLoading(true);
-    setError(null);
     try {
-      const data = await getCategories();
-      setCategories(data);
+      applyCategories(await getCategories());
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -160,7 +170,16 @@ export default function AdminProductCategoriesPage() {
   };
 
   useEffect(() => {
-    void loadCategories();
+    let active = true;
+    getCategories()
+      .then((data) => { if (active) applyCategories(data); })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(loadError instanceof Error ? loadError.message : "Impossible de charger les categories.");
+        }
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const allCategoriesSorted = useMemo(() => sortByTitle(categories), [categories]);
@@ -181,18 +200,6 @@ export default function AdminProductCategoriesPage() {
   );
 
   const childrenByParent = useMemo(() => buildChildrenMap(categories), [categories]);
-
-  useEffect(() => {
-    if (mainCategories.length === 0) {
-      return;
-    }
-    setExpandedIds((prev) => {
-      if (prev.size > 0) {
-        return prev;
-      }
-      return new Set(mainCategories.map((item) => item.id));
-    });
-  }, [mainCategories]);
 
   const searchTerm = search.trim().toLowerCase();
 
@@ -352,9 +359,18 @@ export default function AdminProductCategoriesPage() {
     selectedResources,
     allResourcesSelected,
     handleSelectionChange,
+    clearSelection,
   } = useIndexResourceState(treeRows, {
     resourceIDResolver: (row) => row.item.id,
   });
+
+  const selectedCategoryIds = categories
+    .filter((category) => selectedResources.includes(category.id))
+    .map((category) => category.id);
+  const deleteCount = deleteTarget?.ids.length ?? 0;
+  const hasUnselectedChildren = deleteTarget !== null && categories.some((category) =>
+    category.parentCategoryId && deleteTarget.ids.includes(category.parentCategoryId)
+      && !deleteTarget.ids.includes(category.id));
 
   const resetForm = () => {
     setFormState(EMPTY_FORM);
@@ -425,6 +441,7 @@ export default function AdminProductCategoriesPage() {
   };
 
   const onSave = async () => {
+    if (mutationBusy) return;
     if (!formState.title.trim() || !formState.slug.trim()) {
       setError("Le titre et le slug sont obligatoires.");
       return;
@@ -432,6 +449,7 @@ export default function AdminProductCategoriesPage() {
 
     setSaving(true);
     setError(null);
+    setNotice(null);
 
     const payload = {
       title: formState.title.trim(),
@@ -448,6 +466,7 @@ export default function AdminProductCategoriesPage() {
         await createCategory(payload);
       }
       closeModal();
+      setLoading(true);
       await loadCategories();
     } catch (saveError) {
       setError(
@@ -461,6 +480,7 @@ export default function AdminProductCategoriesPage() {
   };
 
   const onDelete = async (item: Category) => {
+    if (mutationBusy || loading) return;
     const itemType = item.parentCategoryId ? "sous-categorie" : "categorie";
     const confirmed = window.confirm(
       `Supprimer la ${itemType} "${item.title}" ? Cette action est irreversible.`
@@ -470,8 +490,11 @@ export default function AdminProductCategoriesPage() {
     }
 
     setError(null);
+    setNotice(null);
+    setDeletingId(item.id);
     try {
       await deleteCategory(item.id);
+      setLoading(true);
       await loadCategories();
     } catch (deleteError) {
       setError(
@@ -479,6 +502,43 @@ export default function AdminProductCategoriesPage() {
           ? deleteError.message
           : "Impossible de supprimer la categorie."
       );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (!deleteTarget || deleteCount === 0 || mutationBusy || loading) return;
+    const target = deleteTarget;
+    setBulkDeleting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await deleteSelectedCategories(target.ids);
+      const deletedIds = new Set(target.ids);
+      setCategories((current) => current
+        .filter((category) => !deletedIds.has(category.id))
+        .map((category) => category.parentCategoryId && deletedIds.has(category.parentCategoryId)
+          ? { ...category, parentCategoryId: null, parentCategory: null }
+          : category));
+      setSearch("");
+      setViewMode("all");
+      setParentFilter("");
+      setExpandedIds(new Set());
+      clearSelection();
+      setDeleteTarget(null);
+      setNotice(`${result.count} catégorie${result.count > 1 ? "s" : ""} supprimée${result.count > 1 ? "s" : ""}.`);
+      setLoading(true);
+      await loadCategories();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Impossible de supprimer les catégories.",
+      );
+      setDeleteTarget(null);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -496,10 +556,19 @@ export default function AdminProductCategoriesPage() {
               </Text>
             </BlockStack>
             <InlineStack gap="200">
-              <Button onClick={openCreateMainModal} variant="primary">
+              <Button
+                tone="critical"
+                icon={DeleteIcon}
+                onClick={() => { if (selectedCategoryIds.length > 0) setDeleteTarget({ ids: [...selectedCategoryIds] }); }}
+                disabled={loading || mutationBusy || selectedCategoryIds.length === 0}
+                loading={bulkDeleting}
+              >
+                Supprimer la sélection
+              </Button>
+              <Button onClick={openCreateMainModal} variant="primary" disabled={mutationBusy || loading}>
                 Ajouter categorie
               </Button>
-              <Button onClick={() => openCreateSubModal()}>
+              <Button onClick={() => openCreateSubModal()} disabled={mutationBusy || loading}>
                 Ajouter sous-categorie
               </Button>
             </InlineStack>
@@ -514,6 +583,7 @@ export default function AdminProductCategoriesPage() {
       </Card>
 
       {error ? <Banner tone="critical" title={error} /> : null}
+      {notice ? <Banner tone="success" title={notice} onDismiss={() => setNotice(null)} /> : null}
 
       <Card>
         <BlockStack gap="300">
@@ -662,6 +732,7 @@ export default function AdminProductCategoriesPage() {
                           <Button
                             icon={ProductAddIcon}
                             accessibilityLabel={`Ajouter un produit dans ${item.title}`}
+                            disabled={mutationBusy || loading}
                             url={`/admin_ben/products/add_product?categoryId=${encodeURIComponent(item.id)}`}
                           />
                         </Tooltip>
@@ -669,6 +740,7 @@ export default function AdminProductCategoriesPage() {
                           <Button
                             icon={PlusCircleIcon}
                             accessibilityLabel="Ajouter une sous-categorie"
+                            disabled={mutationBusy || loading}
                             onClick={() => openCreateSubModal(item.id)}
                           />
                         </Tooltip>
@@ -676,6 +748,7 @@ export default function AdminProductCategoriesPage() {
                           <Button
                             icon={EditIcon}
                             accessibilityLabel="Modifier"
+                            disabled={mutationBusy || loading}
                             onClick={() => openEditModal(item)}
                           />
                         </Tooltip>
@@ -684,6 +757,7 @@ export default function AdminProductCategoriesPage() {
                             icon={DeleteIcon}
                             tone="critical"
                             accessibilityLabel="Supprimer"
+                            disabled={mutationBusy || loading}
                             onClick={() => onDelete(item)}
                           />
                         </Tooltip>
@@ -695,6 +769,35 @@ export default function AdminProductCategoriesPage() {
           </IndexTable>
         </BlockStack>
       </Card>
+
+      <Modal
+        open={deleteTarget !== null}
+        title={`Supprimer ${deleteCount} catégorie${deleteCount > 1 ? "s" : ""} sélectionnée${deleteCount > 1 ? "s" : ""} ?`}
+        onClose={() => { if (!bulkDeleting) setDeleteTarget(null); }}
+        primaryAction={{
+          content: "Supprimer la sélection",
+          destructive: true,
+          loading: bulkDeleting,
+          onAction: onBulkDelete,
+        }}
+        secondaryActions={[{
+          content: "Annuler",
+          disabled: bulkDeleting,
+          onAction: () => setDeleteTarget(null),
+        }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p">
+              Seules les catégories sélectionnées seront supprimées définitivement. Les catégories non sélectionnées seront conservées. Cette action est irréversible.
+            </Text>
+            {hasUnselectedChildren ? <Text as="p">Les sous-catégories non sélectionnées dont le parent est supprimé deviendront des catégories racines.</Text> : null}
+            <Text as="p">
+              Les produits seront conservés. Seuls leurs liens vers les catégories supprimées et leurs catégories principales concernées seront retirés.
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
 
       <Modal
         open={isModalOpen}
@@ -782,7 +885,7 @@ export default function AdminProductCategoriesPage() {
                     size="slim"
                     onClick={() => setFormState((prev) => ({ ...prev, image: "" }))}
                   >
-                    Retirer l'image
+                    Retirer l&apos;image
                   </Button>
                 </InlineStack>
               ) : null}
