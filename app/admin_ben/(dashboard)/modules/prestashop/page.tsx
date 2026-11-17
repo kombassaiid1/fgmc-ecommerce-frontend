@@ -1,15 +1,18 @@
 "use client";
 
-import { Badge, BlockStack, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Text } from '@shopify/polaris';
 import PrestashopConfigForm from '../prestashop-config-form';
 
 export default function PrestashopModulePage() {
   return (
     <BlockStack gap="500">
       <div className="border-b border-[#dce4ea] pb-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <Text as="h1" variant="heading2xl">PrestaShop</Text>
-          <Badge tone="info">Import boutique → FGMC</Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Text as="h1" variant="heading2xl">PrestaShop</Text>
+            <Badge tone="info">Import boutique → FGMC</Badge>
+          </div>
+          <Button url="/frontend-api/admin/prestashop-integration/module-package" download="fgmcshipping.zip">Installer le module PrestaShop 1.0.1</Button>
         </div>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#667085]">
           Connectez votre boutique PrestaShop, testez l’accès Webservice, puis importez un produit avec ses catégories, sa marque, ses attributs et ses images.

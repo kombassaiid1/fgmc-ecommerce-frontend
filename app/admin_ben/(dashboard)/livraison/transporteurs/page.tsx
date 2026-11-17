@@ -89,6 +89,7 @@ export default function CarriersPage() {
   const filtered = list
     .filter(
       (carrier) =>
+        (!filters.id?.trim() || carrier.prestashopId.includes(filters.id.trim())) &&
         (!name || carrier.name.toLocaleLowerCase("fr").includes(name)) &&
         (!delay || (carrier.transitTime ?? "").toLocaleLowerCase("fr").includes(delay)) &&
         (!filters.active || (filters.active === "on") === carrier.active) &&
@@ -96,6 +97,7 @@ export default function CarriersPage() {
     )
     .sort((a, b) => {
       const direction = sort.dir === "asc" ? 1 : -1;
+      if (sort.key === "id") return ((Number(a.prestashopId) || Infinity) - (Number(b.prestashopId) || Infinity) || 0) * direction;
       if (sort.key === "name") return a.name.localeCompare(b.name, "fr") * direction;
       if (sort.key === "delay") return (a.transitTime ?? "").localeCompare(b.transitTime ?? "", "fr") * direction;
       if (sort.key === "active") return (Number(a.active) - Number(b.active)) * direction;
@@ -122,6 +124,7 @@ export default function CarriersPage() {
   );
 
   const columns: Array<ListColumn<Carrier>> = [
+    { key: "id", header: "ID", width: "90px", sortable: true, filter: { kind: "text", width: 80 }, cell: (row) => (row.prestashopId ? <Text as="span" variant="bodyMd" numeric>{row.prestashopId}</Text> : <Text as="span" variant="bodySm" tone="subdued">—</Text>) },
     { key: "name", header: "Nom", sortable: true, filter: { kind: "text" }, cell: (row) => <Text as="span" variant="bodyMd" fontWeight="semibold">{row.name}</Text> },
     { key: "logo", header: "Logo", width: "90px", align: "center", cell: (row) => <Thumbnail source={row.logoUrl ? getImageUrl(row.logoUrl) : DeliveryIcon} alt="" size="small" /> },
     { key: "delay", header: "Délai", sortable: true, filter: { kind: "text" }, cell: (row) => (row.transitTime ? <Text as="span" variant="bodyMd">{row.transitTime}</Text> : <Text as="span" variant="bodySm" tone="subdued">Non renseigné</Text>) },

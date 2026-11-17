@@ -44,6 +44,8 @@ export type ProductListItem = {
 };
 
 export type ProductDetails = ProductListItem & {
+  /** Id of the PrestaShop product this one was imported from, when it was imported. */
+  prestashopId?: string | null;
   description: string;
   shortDescription: string;
   tag: string;

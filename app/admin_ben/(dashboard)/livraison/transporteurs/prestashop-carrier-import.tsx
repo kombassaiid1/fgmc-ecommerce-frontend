@@ -13,6 +13,11 @@ type Summary = {
   withoutPrices: string[];
   missingZones: string[];
   overlappingRangesDropped: number;
+  taxUnmatched?: string[];
+  withTax?: number;
+  /** Existing carriers that will be linked to their PrestaShop twin (needed to copy product carriers). */
+  toLink?: number;
+  linked?: number;
 };
 
 const URL = "/frontend-api/admin/prestashop-integration/carriers";
@@ -92,14 +97,14 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
         primaryAction={
           done
             ? { content: "Terminer", onAction: close }
-            : { content: summary ? `Importer ${summary.create.length} transporteur(s)` : "Importer", loading: importing, disabled: loading || Boolean(error) || !summary || summary.create.length === 0, onAction: () => void runImport() }
+            : { content: summary ? (summary.create.length ? `Importer ${summary.create.length} transporteur(s)` : "Lier les transporteurs") : "Importer", loading: importing, disabled: loading || Boolean(error) || !summary || summary.create.length + (summary.toLink ?? 0) === 0, onAction: () => void runImport() }
         }
         secondaryActions={done ? [] : [{ content: "Annuler", onAction: close, disabled: importing }]}>
         <Modal.Section>
           <BlockStack gap="400">
             {done ? (
               <Banner tone="success" title="Import terminé">
-                <p>{done.create.length} transporteur(s) importé(s), {done.logosImported ?? 0} logo(s) récupéré(s). Vérifiez leurs tarifs, puis activez-les quand vous êtes prêt.</p>
+                <p>{done.create.length} transporteur(s) importé(s), {done.logosImported ?? 0} logo(s) récupéré(s), {done.linked ?? 0} transporteur(s) existant(s) lié(s) à PrestaShop. Vérifiez leurs tarifs, puis activez-les quand vous êtes prêt.</p>
               </Banner>
             ) : error ? (
               <Banner tone="critical" title="Impossible de lire PrestaShop" action={{ content: "Configurer PrestaShop", url: "/admin_ben/modules/prestashop" }} secondaryAction={{ content: "Réessayer", onAction: () => setAttempt((n) => n + 1) }}>
@@ -118,6 +123,12 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
                   {summary.skippedDeleted ? <>, <strong>{summary.skippedDeleted}</strong> supprimés dans PrestaShop sont ignorés</> : null}.
                 </Text>
 
+                {summary.toLink ? (
+                  <Banner tone="info" title={`${summary.toLink} transporteur(s) déjà présents seront liés à PrestaShop`}>
+                    <p>Ils ne sont pas modifiés. Ce lien permet de reprendre les transporteurs autorisés de chaque produit lors d’un réimport.</p>
+                  </Banner>
+                ) : null}
+
                 {summary.create.length ? (
                   <Box borderWidth="025" borderColor="border" borderRadius="200" overflowX="scroll">
                     <DataTable columnContentTypes={["text", "text", "numeric", "numeric", "text"]} headings={["Transporteur", "Facturation", "Tranches", "Zones", "Statut"]} rows={rows} />
@@ -131,6 +142,11 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
                     <p>Les tarifs de ces zones ne seront pas importés : {summary.missingZones.join(", ")}. Importez d’abord les zones depuis PrestaShop, puis relancez cet import.</p>
                   </Banner>
                 ) : null}
+                {summary.taxUnmatched?.length ? (
+                  <Banner tone="warning" title="Taxes à créer" action={{ content: "Gérer les taxes", url: "/admin_ben/international/taxes" }}>
+                    <p>Aucune taxe avec le même taux n’existe ici pour : {summary.taxUnmatched.join(", ")}. Ces transporteurs seront importés sans taxe ; créez la taxe puis choisissez-la dans leur fiche.</p>
+                  </Banner>
+                ) : null}
                 {summary.withoutPrices.length ? (
                   <Banner tone="warning" title="Transporteurs sans tarif">
                     <p>{summary.withoutPrices.join(", ")} seront importés sans tarif : complétez-les dans l’éditeur avant de les activer.</p>
@@ -141,8 +157,8 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
                 ) : null}
 
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Sont repris : le nom, le délai, le lien de suivi, la facturation (poids ou prix), les tranches et le prix de chaque tranche par zone, les frais de manutention, le comportement hors tranche et le poids maximum. Les logos sont téléchargés depuis PrestaShop vers la médiathèque.</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">L’import ne supprime ni ne modifie rien. La clé Webservice de PrestaShop doit avoir la permission de lecture sur « carriers », « price_ranges », « weight_ranges », « deliveries » et « zones ».</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Sont repris : le nom, le délai, le lien de suivi, la facturation (poids ou prix), les tranches et le prix de chaque tranche par zone, les frais de manutention, la taxe (retrouvée par son taux), le comportement hors tranche et le poids maximum. Les logos sont téléchargés depuis PrestaShop vers la médiathèque.</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">L’import ne supprime ni ne modifie rien. La clé Webservice de PrestaShop doit avoir la permission de lecture sur « carriers », « price_ranges », « weight_ranges », « deliveries » et « zones » (et « tax_rules » et « taxes » pour reprendre la taxe).</Text>
                 </BlockStack>
               </>
             )}

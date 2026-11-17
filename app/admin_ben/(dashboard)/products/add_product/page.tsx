@@ -24,6 +24,7 @@ import {
   DeleteIcon,
   EditIcon,
   QuestionCircleIcon,
+  RefreshIcon,
   SearchIcon,
   XIcon,
 } from "@shopify/polaris-icons";
@@ -44,6 +45,9 @@ import { getBrands, type Brand } from "@/lib/api/brands";
 import { getAttributes, type Attribute } from "@/lib/api/attributes";
 import { getTaxes, type Tax } from "@/lib/api/taxes";
 import { getAdminSettings } from "@/lib/api/settings";
+import { TabBar } from "../../tab-bar";
+import { shippingAdmin, type ProductShippingInput } from "@/lib/api/shipping-admin";
+import { EMPTY_PRODUCT_SHIPPING, ProductShippingTab } from "./product-shipping-tab";
 import { createProduct, getProductForAdmin, updateProduct, type ProductAttachment, type SpecificPriceRule } from "@/lib/api/products";
 
 type ProductFormState = {
@@ -184,6 +188,13 @@ export default function AdminProductsPage() {
   const [loadingRefs, setLoadingRefs] = useState(true);
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [shipping, setShipping] = useState<ProductShippingInput>(EMPTY_PRODUCT_SHIPPING);
+  const [shippingLoading, setShippingLoading] = useState(Boolean(productId));
+  const [shippingReady, setShippingReady] = useState(!productId);
+  const [prestashopId, setPrestashopId] = useState<string | null>(null);
+  const [reimportOpen, setReimportOpen] = useState(false);
+  const [reimporting, setReimporting] = useState(false);
+  const [reimportError, setReimportError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
@@ -297,6 +308,27 @@ export default function AdminProductsPage() {
   }, [productId]);
 
   useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    shippingAdmin
+      .productShipping(productId)
+      .then((loaded) => {
+        if (cancelled) return;
+        setShipping(loaded);
+        setShippingReady(true);
+      })
+      .catch(() => {
+        // Without the settings permission the tab stays at its defaults and is not saved over the real values.
+      })
+      .finally(() => {
+        if (!cancelled) setShippingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  useEffect(() => {
     if (!productId) {
       return;
     }
@@ -306,6 +338,7 @@ export default function AdminProductsPage() {
       setError(null);
       try {
         const product = await getProductForAdmin(productId);
+        setPrestashopId(product.prestashopId ?? null);
         const basePrice = Number(product.price ?? "0");
         const basePriceSafe = Number.isFinite(basePrice) ? basePrice : 0;
         const termMap: Record<string, string[]> = {};
@@ -887,6 +920,42 @@ export default function AdminProductsPage() {
     });
   };
 
+  /** Saves the Livraison tab after the product itself. A failure here must not hide that the product was saved. */
+  const saveShipping = async (id: string) => {
+    if (!shippingReady) return true; // The stored values could not be read: never overwrite them with defaults.
+    try {
+      await shippingAdmin.saveProductShipping(id, shipping);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /** Imports the product again from PrestaShop: its data is replaced by what PrestaShop has now. */
+  const reimport = async () => {
+    if (!productId) return;
+    setReimporting(true);
+    setReimportError(null);
+    try {
+      const response = await fetch(`/frontend-api/admin/prestashop-integration/products/${encodeURIComponent(productId)}/reimport`, { method: "POST", cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(" ") : data.message || "Réimport impossible.");
+      window.location.reload();
+    } catch (e) {
+      setReimportError(e instanceof Error ? e.message : "Réimport impossible.");
+      setReimporting(false);
+    }
+  };
+
+  // The storefront address of the saved product: /category/slug.html, or /slug.html without a category.
+  // It works for drafts too, and shows what is saved, not unsaved changes on this page.
+  const previewHref = (() => {
+    const productSlug = formState.slug.trim();
+    if (!productId || !productSlug) return null;
+    const categorySlug = mainCategoryId ? categoriesById.get(mainCategoryId)?.slug : null;
+    return categorySlug ? `/${categorySlug}/${productSlug}.html` : `/${productSlug}.html`;
+  })();
+
   const onSave = async () => {
     setError(null);
     setSuccess(null);
@@ -964,12 +1033,15 @@ export default function AdminProductsPage() {
     try {
       if (productId) {
         await updateProduct(productId, payload);
-        setSuccess("Produit mis a jour avec succes.");
+        const shippingSaved = await saveShipping(productId);
+        setSuccess(shippingSaved ? "Produit mis a jour avec succes." : "Produit mis a jour, mais la livraison n'a pas pu etre enregistree.");
         return;
       }
 
-      await createProduct(payload);
-      setSuccess("Produit cree avec succes.");
+      const created = (await createProduct(payload)) as { id?: string } | undefined;
+      const shippingSaved = created?.id ? await saveShipping(created.id) : true;
+      setSuccess(shippingSaved ? "Produit cree avec succes." : "Produit cree, mais la livraison n'a pas pu etre enregistree : ouvrez-le pour la renseigner.");
+      setShipping(EMPTY_PRODUCT_SHIPPING);
       const nextCategoryIds =
         categoryIdParam && categoriesById.has(categoryIdParam)
           ? [categoryIdParam]
@@ -1042,15 +1114,46 @@ export default function AdminProductsPage() {
         </InlineStack>
       </Card>
 
+      {productId && prestashopId ? (
+        <Card>
+          <InlineStack align="space-between" blockAlign="center" gap="300">
+            <BlockStack gap="050">
+              <Text as="span" variant="bodyMd" fontWeight="semibold">Produit importé de PrestaShop (n° {prestashopId})</Text>
+              <Text as="span" variant="bodySm" tone="subdued">Réimportez-le pour récupérer ce que PrestaShop contient maintenant, par exemple la livraison.</Text>
+            </BlockStack>
+            <Button icon={RefreshIcon} onClick={() => { setReimportError(null); setReimportOpen(true); }}>Réimporter depuis PrestaShop</Button>
+          </InlineStack>
+        </Card>
+      ) : null}
+
+      <Modal
+        open={reimportOpen}
+        onClose={() => (reimporting ? undefined : setReimportOpen(false))}
+        title="Réimporter ce produit depuis PrestaShop ?"
+        primaryAction={{ content: "Réimporter", loading: reimporting, onAction: () => void reimport() }}
+        secondaryActions={[{ content: "Annuler", disabled: reimporting, onAction: () => setReimportOpen(false) }]}>
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd">
+              Le nom, la description, le prix, le stock, les images, les catégories, les caractéristiques, les combinaisons et la livraison (dimensions, poids, frais supplémentaires, délai, transporteurs autorisés) seront remplacés par ceux de PrestaShop. Le statut en ligne ou brouillon est conservé.
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">Les modifications non enregistrées de cette page seront perdues. Les transporteurs autorisés sont repris si le module FGMC est installé sur PrestaShop (et si les transporteurs sont liés à PrestaShop) ; sinon, ceux que vous cochez ici sont conservés.</Text>
+            {reimportError ? <Banner tone="critical" title="Réimport impossible"><p>{reimportError}</p></Banner> : null}
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
+
       {error ? <Banner tone="critical" title={error} /> : null}
       {success ? <Banner tone="success" title={success} /> : null}
 
       <Card>
         <BlockStack gap="300">
-          <Tabs
-            tabs={tabs}
+          <TabBar
+            tabs={tabs.map((tab) => ({ id: tab.id, label: tab.content }))}
             selected={selectedTabIndex}
             onSelect={setSelectedTabIndex}
+            label="Sections du produit"
+            panelId="product-panel"
           />
           {(() => {
             const selectedTabId = tabs[selectedTabIndex]?.id ?? "basic";
@@ -1505,15 +1608,7 @@ export default function AdminProductsPage() {
           ) : null}
 
           {selectedTabId === "shipping" ? (
-            <BlockStack gap="200">
-              <Text as="h3" variant="headingMd">
-                Livraison
-              </Text>
-              <Text as="p" tone="subdued">
-                Le module livraison sera branche ici (poids, dimensions, classes
-                de livraison...).
-              </Text>
-            </BlockStack>
+            <ProductShippingTab value={shipping} onChange={setShipping} loading={shippingLoading} />
           ) : null}
 
           {selectedTabId === "pricing" ? (
@@ -2457,7 +2552,7 @@ export default function AdminProductsPage() {
         <InlineStack align="space-between" blockAlign="center">
           <InlineStack gap="400" blockAlign="center">
             <Button variant="plain" icon={XIcon} accessibilityLabel="Supprimer" />
-            <Button variant="primary">Preview</Button>
+            <Button variant="primary" disabled={!previewHref} onClick={() => { if (previewHref) window.open(previewHref, "_blank", "noopener,noreferrer"); }}>Preview</Button>
             <button
               type="button"
               onClick={() => setIsOnline((prev) => !prev)}

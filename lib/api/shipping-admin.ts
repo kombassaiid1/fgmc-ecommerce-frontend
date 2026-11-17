@@ -37,9 +37,27 @@ export type Carrier = {
   outOfRange: OutOfRange;
   minWeightKg: number;
   maxWeightKg: number;
+  /** Id of the tax applied to the shipping price, empty for none. */
+  taxId: string;
+  /** Id of the PrestaShop carrier it was imported from, empty when it was created here. */
+  prestashopId: string;
   ranges: CarrierRange[];
 };
-export type CarrierInput = Omit<Carrier, "id" | "position">;
+export type CarrierInput = Omit<Carrier, "id" | "position" | "prestashopId">;
+
+/** Shipping settings of one product (the Livraison tab of the product page). */
+export type ProductShippingInput = {
+  widthCm: number;
+  heightCm: number;
+  depthCm: number;
+  weightKg: number;
+  deliveryMode: "NONE" | "DEFAULT" | "CUSTOM";
+  deliveryInStock: string;
+  deliveryOutOfStock: string;
+  extraFee: number;
+  /** Empty means every carrier is available. */
+  carrierIds: string[];
+};
 
 export type Preferences = {
   handlingFee: number;
@@ -100,6 +118,8 @@ export const shippingAdmin = {
 
   productWeights: (search: string, page: number) => request<ProductWeightPage>(`/product-weights?search=${encodeURIComponent(search)}&page=${page}`),
   setProductWeight: (productId: string, weightKg: number) => request<{ productId: string; weightKg: number }>(`/product-weights/${productId}`, { method: "PUT", body: json({ weightKg }) }),
+  productShipping: (productId: string) => request<ProductShippingInput>(`/product-shipping/${productId}`),
+  saveProductShipping: (productId: string, input: ProductShippingInput) => request<ProductShippingInput>(`/product-shipping/${productId}`, { method: "PUT", body: json(input) }),
   clearProductWeight: (productId: string) => request<{ productId: string; weightKg: null }>(`/product-weights/${productId}`, { method: "DELETE" }),
 };
 
@@ -118,5 +138,6 @@ export const EMPTY_CARRIER: CarrierInput = {
   outOfRange: "HIGHEST",
   minWeightKg: 0,
   maxWeightKg: 0,
+  taxId: "",
   ranges: [],
 };

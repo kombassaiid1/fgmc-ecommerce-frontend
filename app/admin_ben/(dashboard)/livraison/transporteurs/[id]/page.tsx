@@ -22,6 +22,7 @@ import {
 } from "@shopify/polaris";
 import { CheckIcon, DeleteIcon, DeliveryIcon, XIcon } from "@shopify/polaris-icons";
 import { toast } from "sonner";
+import { getTaxes, type Tax } from "@/lib/api/taxes";
 import { shippingAdmin, type Billing, type CarrierInput, type OutOfRange, type Zone } from "@/lib/api/shipping-admin";
 import { getImageUrl } from "@/lib/api";
 import { LogoField } from "../../logo-field";
@@ -42,11 +43,12 @@ type Draft = {
   outOfRange: OutOfRange;
   minWeightKg: string;
   maxWeightKg: string;
+  taxId: string;
 };
 
 const EMPTY: Draft = {
   name: "", transitTime: "", speedGrade: 5, logoUrl: "", trackingUrl: "", active: true, isPickup: false,
-  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0",
+  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0", taxId: "",
 };
 
 const GRADES = Array.from({ length: 10 }, (_, grade) => ({
@@ -111,6 +113,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [zones, setZones] = useState<Zone[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [ranges, setRanges] = useState<UiRange[]>([]);
   const [enabled, setEnabled] = useState<string[]>([]);
@@ -123,15 +126,17 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
     (async () => {
       try {
         const zoneList = await shippingAdmin.zones();
+        const taxList = await getTaxes({ limit: 100 }).then((result) => result.data).catch(() => [] as Tax[]);
         const carrier = creating ? null : await shippingAdmin.carrier(id);
         if (cancelled) return;
         setZones(zoneList);
+        setTaxes(taxList);
         if (carrier) {
           setDraft({
             name: carrier.name, transitTime: carrier.transitTime, speedGrade: carrier.speedGrade, logoUrl: carrier.logoUrl,
             trackingUrl: carrier.trackingUrl, active: carrier.active, isPickup: carrier.isPickup, freeShipping: carrier.freeShipping,
             billing: carrier.billing, addHandling: carrier.addHandling, outOfRange: carrier.outOfRange,
-            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg),
+            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg), taxId: carrier.taxId,
           });
           setEnabled([...new Set(carrier.ranges.flatMap((range) => range.rates.map((rate) => rate.zoneId)))]);
           if (!carrier.freeShipping) {
@@ -210,7 +215,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
       input: {
         name: draft.name.trim(), transitTime: draft.transitTime.trim(), speedGrade: draft.speedGrade, logoUrl: draft.logoUrl.trim(),
         trackingUrl: draft.trackingUrl.trim(), active: draft.active, isPickup: draft.isPickup, freeShipping: draft.freeShipping,
-        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, ranges: result,
+        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, taxId: draft.taxId, ranges: result,
       },
     };
   })();
@@ -265,6 +270,12 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
   );
 
   const showRanges = !draft.freeShipping;
+  const taxField = field(
+    "Taxe",
+    <Select label="Taxe" labelHidden options={[{ label: "Aucune taxe", value: "" }, ...taxes.map((tax) => ({ label: `${tax.name} (${tax.rate} %)`, value: tax.id }))]} value={draft.taxId} onChange={(v) => set("taxId", v)} />,
+    taxes.length === 0 ? "Aucune taxe n’existe encore : créez-les dans International, Taxes." : "Taxe appliquée au prix de livraison.",
+  );
+  const chosenTax = taxes.find((tax) => tax.id === draft.taxId);
   const allOn = zones.length > 0 && enabled.length === zones.length;
 
   return (
@@ -324,9 +335,10 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
                     {showRanges ? (
                       <>
                         {field("Facturation", <ChoiceList title="Facturation" titleHidden choices={[{ label: "Selon le montant total", value: "PRICE" }, { label: "Selon le poids total", value: "WEIGHT" }]} selected={[draft.billing]} onChange={(v) => set("billing", (v[0] as Billing) ?? "WEIGHT")} />)}
+                        {taxField}
                         {field("Au-delà de la dernière tranche", <Select label="Au-delà de la dernière tranche" labelHidden options={[{ label: "Appliquer le prix de la dernière tranche", value: "HIGHEST" }, { label: "Ne pas proposer ce transporteur", value: "DISABLE" }]} value={draft.outOfRange} onChange={(v) => set("outOfRange", v as OutOfRange)} />)}
                       </>
-                    ) : null}
+                    ) : taxField}
 
                     <Divider />
 
@@ -446,6 +458,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
 
                     <BlockStack gap="200">
                       {[
+                        ["Taxe", chosenTax ? `${chosenTax.name} (${chosenTax.rate} %)` : "Aucune taxe"],
                         ["Tarif", draft.freeShipping ? "Gratuit" : draft.billing === "WEIGHT" ? "Selon le poids total" : "Selon le montant total"],
                         ...(draft.freeShipping ? [] : [["Tranches", `${ranges.length}`], ["Hors tranche", draft.outOfRange === "HIGHEST" ? "Prix de la dernière tranche" : "Transporteur masqué"]]),
                         ["Limite de poids", Number(parseNumber(draft.maxWeightKg)) > 0 || Number(parseNumber(draft.minWeightKg)) > 0 ? `${parseNumber(draft.minWeightKg) || 0} à ${Number(parseNumber(draft.maxWeightKg)) > 0 ? `${parseNumber(draft.maxWeightKg)} kg` : "sans maximum"}` : "Aucune"],
