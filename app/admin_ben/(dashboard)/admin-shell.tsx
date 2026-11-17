@@ -16,6 +16,8 @@ import {
 import {
   AppsIcon,
   ColorIcon,
+  DeliveryIcon,
+  GlobeIcon,
   HomeIcon,
   ImageIcon,
   MenuHorizontalIcon,
@@ -100,6 +102,29 @@ const NAV_ITEMS = [
     ],
   },
   { label: "Commandes", url: "/admin_ben/orders", icon: OrderIcon, permission: "orders.view" },
+  {
+    label: "Livraison",
+    url: "/admin_ben/livraison",
+    icon: DeliveryIcon,
+    permission: "settings.view",
+    subNavigationItems: [
+      { label: "Transporteurs", url: "/admin_ben/livraison/transporteurs" },
+      { label: "Préférences", url: "/admin_ben/livraison/preferences" },
+      { label: "Poids des produits", url: "/admin_ben/livraison/poids" },
+    ],
+  },
+  {
+    label: "International",
+    url: "/admin_ben/international",
+    icon: GlobeIcon,
+    permission: "settings.view",
+    subNavigationItems: [
+      { label: "Localisation", url: "/admin_ben/international/localisation" },
+      { label: "Zones géographiques", url: "/admin_ben/international/zones" },
+      { label: "Taxes", url: "/admin_ben/international/taxes" },
+      { label: "Traductions", url: "/admin_ben/international/traductions" },
+    ],
+  },
   { label: "Modules", url: "/admin_ben/modules", icon: AppsIcon, permission: "modules.view" },
   { label: "Avis clients", url: "/admin_ben/reviews", icon: StarIcon, permission: "reviews.view" },
   { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon, permission: "clients.view" },
@@ -110,7 +135,6 @@ const NAV_ITEMS = [
     icon: SettingsIcon,
     permission: "settings.view",
     subNavigationItems: [
-      { label: "Taxes", url: "/admin_ben/settings/taxes" },
       { label: "Couleurs des statuts", url: "/admin_ben/settings/order-status-colors" },
       { label: "Paramètres produit", url: "/admin_ben/settings/products" },
     ],

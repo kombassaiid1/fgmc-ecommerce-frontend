@@ -296,7 +296,7 @@ export default function PrestashopConfigForm() {
       <Card>
         <form onSubmit={save} className="space-y-5">
           <div className="flex items-start justify-between gap-4">
-            <div><h2 className="text-base font-semibold text-[#24364b]">Connexion à la boutique</h2><p className="mt-1 text-sm text-[#667085]">Le Webservice PrestaShop doit être activé avec les droits de lecture sur les produits, catégories, fabricants, caractéristiques, déclinaisons, taxes et images.</p></div>
+            <div><h2 className="text-base font-semibold text-[#24364b]">Connexion à la boutique</h2><p className="mt-1 text-sm text-[#667085]">Le Webservice PrestaShop doit être activé avec les droits de lecture sur les produits, catégories, fabricants, caractéristiques, déclinaisons, taxes, images, ainsi que zones, pays et états (import des zones géographiques).</p></div>
             {config.configured && <Badge tone="success">Configuré</Badge>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">

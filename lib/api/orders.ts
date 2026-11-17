@@ -30,6 +30,8 @@ export type OrderTotalsPayload = {
   deliveryFee?: number;
   couponCode?: string;
   paymentMethod?: "En_ligne" | "COD";
+  /** Carrier chosen at checkout. The server recomputes and checks its price. */
+  shipping?: { carrierId: string; countryCode: string };
 };
 
 export type GuestOrderPayload = OrderTotalsPayload & {

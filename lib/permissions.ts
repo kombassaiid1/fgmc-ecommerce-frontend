@@ -28,6 +28,8 @@ const ROUTE_PERMISSIONS: Array<[prefix: string, permission: string]> = [
   ["/admin_ben/apparence", "appearance.view"],
   ["/admin_ben/page-builder", "appearance.view"],
   ["/admin_ben/modules", "modules.view"],
+  ["/admin_ben/livraison", "settings.view"],
+  ["/admin_ben/international", "settings.view"],
   ["/admin_ben/settings", "settings.view"],
   ["/admin_ben/agent", "agent.view"],
   ["/admin_ben/users", "users.view"],

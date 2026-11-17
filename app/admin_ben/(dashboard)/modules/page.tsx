@@ -7,9 +7,9 @@ import { Badge, Button, Icon, Text } from "@shopify/polaris";
 import { AppsIcon, SearchIcon } from "@shopify/polaris-icons";
 import "./modules-page.css";
 
-type ModuleId = "prestashop" | "dolibarr" | "stripe";
+type ModuleId = "prestashop" | "dolibarr" | "stripe" | "gls";
 type ModuleFilter = "all" | "configured" | "needs-setup";
-type ModuleCategory = "all" | "erp" | "catalog" | "payment";
+type ModuleCategory = "all" | "erp" | "catalog" | "payment" | "shipping";
 
 type ModuleEntry = {
   id: ModuleId;
@@ -20,7 +20,7 @@ type ModuleEntry = {
   image: string;
   configHref: string;
   configLabel: string;
-  accent: "blue" | "orange" | "indigo";
+  accent: "blue" | "orange" | "indigo" | "gls";
   download?: { href: string; label: string };
 };
 
@@ -61,6 +61,18 @@ const modules: ModuleEntry[] = [
     configLabel: "Configurer Stripe",
     accent: "indigo",
   },
+  {
+    id: "gls",
+    name: "GLS France",
+    category: "shipping",
+    categoryLabel: "Livraison",
+    image: "/modules/gls-shipping.svg",
+    description:
+      "Créez les étiquettes GLS depuis vos commandes et suivez vos colis. Essais et production séparés.",
+    configHref: "/admin_ben/modules/gls",
+    configLabel: "Configurer GLS",
+    accent: "gls",
+  },
 ];
 
 const filterTabs: Array<{ id: ModuleFilter; label: string }> = [
@@ -74,6 +86,7 @@ export default function AdminModulesPage() {
     prestashop: null,
     dolibarr: null,
     stripe: null,
+    gls: null,
   });
   const [filter, setFilter] = useState<ModuleFilter>("all");
   const [category, setCategory] = useState<ModuleCategory>("all");
@@ -84,6 +97,7 @@ export default function AdminModulesPage() {
       ["prestashop", "/frontend-api/admin/prestashop-integration"],
       ["dolibarr", "/frontend-api/admin/dolibarr-integration"],
       ["stripe", "/frontend-api/admin/stripe-integration"],
+      ["gls", "/frontend-api/admin/gls-integration"],
     ];
     endpoints.forEach(async ([id, endpoint]) => {
       try {
@@ -149,6 +163,7 @@ export default function AdminModulesPage() {
             <option value="erp">ERP & synchronisation</option>
             <option value="catalog">Import de catalogue</option>
             <option value="payment">Paiement</option>
+            <option value="shipping">Livraison</option>
           </select>
         </label>
       </div>

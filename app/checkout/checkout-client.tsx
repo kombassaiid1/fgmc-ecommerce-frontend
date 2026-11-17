@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getImageUrl } from "@/lib/api";
+import { getShippingQuote, type ShippingQuote } from "@/lib/api/shipping";
 import {
   createAuthenticatedOrder,
   createClientAddress,
@@ -151,6 +152,14 @@ const countryOptions = countries
   }))
   .filter((country) => country.code && country.name)
   .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+
+/** Matches a country name (or code) from the form to the ISO code shipping zones use. */
+function countryCodeFromName(value: string | undefined | null) {
+  const text = (value ?? "").trim().toLowerCase();
+  if (!text) return "";
+  if (/^[a-z]{2}$/.test(text)) return text.toUpperCase();
+  return countryOptions.find((country) => country.name.toLowerCase() === text)?.code ?? "";
+}
 
 const ADDRESS_STORAGE_EVENT = "fgmc-account-addresses-change";
 
@@ -490,6 +499,53 @@ export function CheckoutClient() {
     deliveryAddresses[0] ??
     null;
 
+  // Delivery options and prices come from the server, for this country and this cart.
+  const shippingCountryCode = useMemo(
+    () => countryCodeFromName(selectedAddress?.country ?? visibleForm.country),
+    [selectedAddress?.country, visibleForm.country],
+  );
+  const quoteSubtotal = useMemo(
+    () => roundMoney(items.reduce((sum, item) => sum + roundMoney(itemTotals(item).lineTtc), 0)),
+    [items],
+  );
+  const quoteKey = useMemo(
+    () => `${shippingCountryCode}|${quoteSubtotal}|${items.map((item) => `${item.productId}:${item.qty}`).join(",")}`,
+    [items, quoteSubtotal, shippingCountryCode],
+  );
+  const [quoteState, setQuoteState] = useState<{ key: string; quote: ShippingQuote | null } | null>(null);
+  const [chosenCarrierId, setChosenCarrierId] = useState("");
+
+  useEffect(() => {
+    if (!shippingCountryCode || items.length === 0) return;
+    let cancelled = false;
+    getShippingQuote({
+      countryCode: shippingCountryCode,
+      subtotal: quoteSubtotal,
+      items: items.map((item) => ({ productId: item.productId, quantity: item.qty })),
+    })
+      .then((quote) => {
+        if (!cancelled) setQuoteState({ key: quoteKey, quote });
+      })
+      .catch(() => {
+        // Quote unavailable: checkout falls back to the flat rate instead of blocking the order.
+        if (!cancelled) setQuoteState({ key: quoteKey, quote: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, quoteKey, quoteSubtotal, shippingCountryCode]);
+
+  const quote = quoteState?.quote ?? null;
+  const quoteLoading = Boolean(shippingCountryCode) && items.length > 0 && quoteState?.key !== quoteKey;
+  /** Once a carrier exists, prices come from the server rather than the flat rate. */
+  const carrierMode = Boolean(quote?.configured);
+  const chosenOption = carrierMode
+    ? (quote?.options.find((option) => option.carrierId === chosenCarrierId) ??
+      quote?.options.find((option) => option.carrierId === quote.defaultCarrierId) ??
+      quote?.options[0] ??
+      null)
+    : null;
+
   const totals = useMemo(() => {
     const productsTtc = items.reduce(
       (sum, item) => sum + itemTotals(item).lineTtc,
@@ -500,9 +556,13 @@ export function CheckoutClient() {
       0,
     );
     const shipping =
-      items.length > 0 && visibleForm.deliveryMethod === "standard"
-        ? SHIPPING_PRICE
-        : 0;
+      items.length === 0
+        ? 0
+        : carrierMode
+          ? (chosenOption?.total ?? 0)
+          : visibleForm.deliveryMethod === "standard"
+            ? SHIPPING_PRICE
+            : 0;
 
     return {
       productsHt,
@@ -510,7 +570,7 @@ export function CheckoutClient() {
       shipping,
       subtotalTtc: items.length > 0 ? productsTtc + shipping : 0,
     };
-  }, [items, visibleForm.deliveryMethod]);
+  }, [items, visibleForm.deliveryMethod, carrierMode, chosenOption?.total]);
 
   function updateField<K extends keyof CheckoutForm>(
     key: K,
@@ -691,6 +751,14 @@ export function CheckoutClient() {
     const currentForm = selectedAddress
       ? checkoutFormWithAddress(visibleForm, selectedAddress)
       : visibleForm;
+    if (carrierMode && (quoteLoading || !chosenOption)) {
+      setSubmitError(
+        quoteLoading
+          ? "Le calcul des frais de livraison est en cours. Réessayez dans un instant."
+          : "Aucun mode de livraison n'est disponible pour cette commande. Vérifiez votre adresse.",
+      );
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -699,6 +767,9 @@ export function CheckoutClient() {
       const payload = {
         ...buildOrderTotalsPayload(items, totals),
         paymentMethod: payOnline ? ("En_ligne" as const) : ("COD" as const),
+        ...(carrierMode && chosenOption
+          ? { shipping: { carrierId: chosenOption.carrierId, countryCode: shippingCountryCode } }
+          : {}),
       };
       const order = session?.token
         ? await createAuthenticatedCheckoutOrder(
@@ -1059,18 +1130,56 @@ export function CheckoutClient() {
             icon={Truck}
             title="Livraison"
             description="Comment souhaitez-vous recevoir vos articles ?">
-            <TicketChoices
-              legend="Mode de livraison"
-              name="checkout-delivery"
-              value={visibleForm.deliveryMethod}
-              onChange={(value) =>
-                updateField("deliveryMethod", value as CheckoutForm["deliveryMethod"])
-              }
-              options={[
-                { value: "standard", label: "Livraison standard", hint: "À l'adresse indiquée", icon: Truck, aside: formatEuro(SHIPPING_PRICE) },
-                { value: "pickup", label: "Retrait magasin", hint: "Vous venez récupérer la commande", icon: Store, aside: "Gratuit" },
-              ]}
-            />
+            {carrierMode && quote ? (
+              !quote.countryServed ? (
+                <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive">
+                  Nous ne livrons pas encore dans ce pays. Choisissez une autre adresse de livraison, ou contactez-nous.
+                </p>
+              ) : quote.options.length === 0 ? (
+                <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive">
+                  Aucun mode de livraison n&apos;est disponible pour cette commande. Contactez-nous pour organiser l&apos;envoi.
+                </p>
+              ) : (
+                <>
+                  <TicketChoices
+                    legend="Mode de livraison"
+                    name="checkout-carrier"
+                    value={chosenOption?.carrierId ?? ""}
+                    onChange={setChosenCarrierId}
+                    options={quote.options.map((option) => ({
+                      value: option.carrierId,
+                      label: option.name,
+                      hint: [option.transitTime, option.isPickup ? "Retrait sur place" : null, option.handlingFee > 0 ? "frais de manutention inclus" : null]
+                        .filter(Boolean)
+                        .join(" · ") || "À l'adresse indiquée",
+                      icon: option.isPickup ? Store : Truck,
+                      image: option.logoUrl ? getImageUrl(option.logoUrl) : undefined,
+                      aside: option.free ? "Gratuit" : formatEuro(option.total),
+                    }))}
+                  />
+                  {quote.freeShippingRemaining ? (
+                    <p className="mb-2! text-sm! text-muted-foreground">
+                      Plus que <strong className="text-foreground">{formatEuro(quote.freeShippingRemaining)}</strong> d&apos;achats pour la livraison gratuite.
+                    </p>
+                  ) : null}
+                </>
+              )
+            ) : quoteLoading && quoteState === null ? (
+              <p className="text-sm text-muted-foreground" aria-live="polite">Calcul des frais de livraison…</p>
+            ) : (
+              <TicketChoices
+                legend="Mode de livraison"
+                name="checkout-delivery"
+                value={visibleForm.deliveryMethod}
+                onChange={(value) =>
+                  updateField("deliveryMethod", value as CheckoutForm["deliveryMethod"])
+                }
+                options={[
+                  { value: "standard", label: "Livraison standard", hint: "À l'adresse indiquée", icon: Truck, aside: formatEuro(SHIPPING_PRICE) },
+                  { value: "pickup", label: "Retrait magasin", hint: "Vous venez récupérer la commande", icon: Store, aside: "Gratuit" },
+                ]}
+              />
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="checkout-notes">Instructions pour la livraison</Label>
@@ -1197,9 +1306,11 @@ export function CheckoutClient() {
               />
               <SummaryRow
                 label={
-                  visibleForm.deliveryMethod === "pickup"
-                  ? "Retrait magasin"
-                    : "Livraison"
+                  carrierMode
+                    ? (chosenOption?.name ?? "Livraison")
+                    : visibleForm.deliveryMethod === "pickup"
+                      ? "Retrait magasin"
+                      : "Livraison"
                 }
                 value={formatEuro(totals.shipping)}
               />
@@ -1227,7 +1338,7 @@ export function CheckoutClient() {
 
               <Button
                 type="submit"
-                disabled={isSubmitting || isRedirecting}
+                disabled={isSubmitting || isRedirecting || (carrierMode && (quoteLoading || !chosenOption))}
                 className="h-14 w-full bg-destructive text-base font-bold tracking-wide hover:bg-destructive/90 focus-visible:ring-destructive/40">
                 {isSubmitting ? (
                   <>
@@ -1370,6 +1481,8 @@ type TicketOption = {
   label: string;
   hint: string;
   icon: typeof Truck;
+  /** Logo shown in place of the icon. */
+  image?: string;
   aside?: string;
   badge?: string;
 };
@@ -1432,7 +1545,12 @@ function TicketChoices({
                     ? "border-primary-foreground/40 bg-primary text-primary-foreground"
                     : "border-border bg-muted text-muted-foreground",
                 )}>
-                <Icon className="size-7" strokeWidth={1.75} />
+                {option.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={option.image} alt="" className="max-h-10 max-w-12 object-contain" />
+                ) : (
+                  <Icon className="size-7" strokeWidth={1.75} />
+                )}
               </span>
               <span className="flex min-w-0 flex-col justify-center gap-1 px-4 py-3">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

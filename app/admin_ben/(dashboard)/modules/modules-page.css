@@ -153,6 +153,7 @@
 .modules-icon-blue { background: linear-gradient(145deg, #d9f0ff, #80d5ed 60%, #48b8ca); color: #124e78; }
 .modules-icon-orange { background: linear-gradient(145deg, #ffe09d, #ffb7a9 56%, #f47dc7); color: #87420f; }
 .modules-icon-indigo { background: #635bff; color: #fff; }
+.modules-icon-gls { background: #0b2f9f; color: #ffd100; }
 .modules-icon-empty { background: #eaf2fb; color: #155a9f; }
 
 .modules-directory-content { min-width: 0; flex: 1; }

@@ -7,6 +7,7 @@ import { getOrder, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail
 import { getAdminSettings } from "@/lib/api/settings";
 import { mergeOrderStatusColors, ORDER_STATUS_OPTIONS } from "@/lib/order-statuses";
 import { toast } from "sonner";
+import { GlsShippingCard } from "./gls-shipping-card";
 
 const PAYMENT_STATUS_OPTIONS = [
   { label: "En attente", value: "En_attente" },
@@ -181,6 +182,8 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
               ) : order.dolibarrInvoice ? <p className="text-xs text-[#667085]">Lien public non disponible. Vérifiez que le PDF a été généré après l’activation du partage externe.</p> : null}
             </div>
           </Card>
+
+          <GlsShippingCard order={order} />
 
           <Card padding="0">
             <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Produits ({getProducts(order).length})</Text></div>
