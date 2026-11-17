@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { BlockStack, Box, Divider, Tabs, Text } from "@shopify/polaris";
+import { BlockStack, Box, Text } from "@shopify/polaris";
+import { TabBar } from "../tab-bar";
 
 const TABS = [
-  { id: "transporteurs", content: "Transporteurs", href: "/admin_ben/livraison/transporteurs", accessibilityLabel: "Transporteurs", panelID: "livraison-panel" },
-  { id: "preferences", content: "Préférences", href: "/admin_ben/livraison/preferences", accessibilityLabel: "Préférences", panelID: "livraison-panel" },
-  { id: "poids", content: "Poids des produits", href: "/admin_ben/livraison/poids", accessibilityLabel: "Poids des produits", panelID: "livraison-panel" },
+  { id: "transporteurs", label: "Transporteurs", href: "/admin_ben/livraison/transporteurs" },
+  { id: "preferences", label: "Préférences", href: "/admin_ben/livraison/preferences" },
+  { id: "poids", label: "Poids des produits", href: "/admin_ben/livraison/poids" },
 ];
 
 export default function LivraisonLayout({ children }: { children: React.ReactNode }) {
@@ -24,9 +25,8 @@ export default function LivraisonLayout({ children }: { children: React.ReactNod
           </Text>
         </Box>
       </BlockStack>
-      <Tabs tabs={TABS} selected={selected} onSelect={(index) => router.push(TABS[index].href)} />
-      <Divider />
-      <div id="livraison-panel" role="tabpanel">{children}</div>
+      <TabBar tabs={TABS} selected={selected} onSelect={(index) => router.push(TABS[index].href)} label="Livraison" panelId="livraison-panel" />
+      <div id="livraison-panel" role="tabpanel" aria-labelledby={`livraison-panel-tab-${TABS[selected].id}`}>{children}</div>
     </BlockStack>
   );
 }
