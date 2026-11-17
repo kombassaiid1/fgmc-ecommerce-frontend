@@ -6,6 +6,7 @@ import type { KeyboardEvent } from "react";
 import countries from "world-countries";
 import {
   AlertCircle,
+  Banknote,
   Building2,
   Check,
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
   CreditCard,
   Fingerprint,
   Home,
+  Landmark,
   LockKeyhole,
   Loader2,
   Mail,
@@ -24,6 +26,7 @@ import {
   Save,
   Search,
   ShoppingCart,
+  Store,
   Trash2,
   Truck,
   User,
@@ -53,6 +56,11 @@ import {
 } from "@/lib/api/orders";
 import { loginClient, signupClient } from "@/lib/api/clients";
 import {
+  createStripeCheckoutSession,
+  getStripePublicConfig,
+  type StripePublicConfig,
+} from "@/lib/api/stripe";
+import {
   getClientSession,
   saveClientSession,
   subscribeToClientSession,
@@ -76,7 +84,7 @@ type CheckoutForm = {
   postalCode: string;
   country: string;
   deliveryMethod: "standard" | "pickup";
-  paymentMethod: "cash" | "bank";
+  paymentMethod: "cash" | "bank" | "card";
   notes: string;
 };
 
@@ -400,6 +408,21 @@ export function CheckoutClient() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [accountPassword, setAccountPassword] = useState("");
   const [accountCreationNotice, setAccountCreationNotice] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [stripeConfig, setStripeConfig] = useState<StripePublicConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getStripePublicConfig()
+      .then((config) => {
+        if (!cancelled) setStripeConfig(config);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleForm = hasTouchedForm ? form : buildInitialForm(session);
   const addressStorageKey = getAddressStorageKey(session);
@@ -672,7 +695,11 @@ export function CheckoutClient() {
     setSubmitError(null);
 
     try {
-      const payload = buildOrderTotalsPayload(items, totals);
+      const payOnline = currentForm.paymentMethod === "card" && Boolean(stripeConfig?.enabled);
+      const payload = {
+        ...buildOrderTotalsPayload(items, totals),
+        paymentMethod: payOnline ? ("En_ligne" as const) : ("COD" as const),
+      };
       const order = session?.token
         ? await createAuthenticatedCheckoutOrder(
             session.token,
@@ -726,6 +753,22 @@ export function CheckoutClient() {
         }
       }
 
+      if (payOnline) {
+        try {
+          const { url } = await createStripeCheckoutSession(order.id);
+          setIsRedirecting(true);
+          clearCart();
+          window.location.assign(url);
+          return;
+        } catch (error) {
+          setPaymentNotice(
+            `Votre commande est enregistrée, mais le paiement en ligne n'a pas pu démarrer (${
+              error instanceof Error ? error.message : "erreur inconnue"
+            }). Nous vous contacterons pour finaliser le règlement.`,
+          );
+        }
+      }
+
       setCompletedOrderId(order.id);
       clearCart();
     } catch (error) {
@@ -755,6 +798,11 @@ export function CheckoutClient() {
           <p className="mt-4 rounded-md bg-muted px-4 py-2 text-sm font-semibold text-foreground">
             Reference: {completedOrderId}
           </p>
+          {paymentNotice ? (
+            <p role="alert" className="mt-4 max-w-md text-sm leading-6 text-destructive">
+              {paymentNotice}
+            </p>
+          ) : null}
           {accountCreationNotice ? (
             <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
               {accountCreationNotice}
@@ -797,21 +845,18 @@ export function CheckoutClient() {
         <section className="min-w-0 space-y-6">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-normal text-destructive">
-                Paiement securise
-              </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-normal sm:text-4xl">
+              <h1 className="text-4xl! font-bold! leading-none tracking-tight sm:text-5xl!">
                 Finaliser la commande
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Verifiez vos coordonnees, choisissez le mode de livraison et
-                confirmez votre demande.
+              <p className="mt-3! max-w-xl text-base! leading-6 text-muted-foreground">
+                Trois étapes : vos coordonnées, l&apos;adresse, puis la livraison
+                et le paiement.
               </p>
             </div>
             <Link
               href="/cart"
-              className="inline-flex min-h-11 items-center rounded-md border border-border bg-background px-4 text-sm font-semibold hover:border-primary hover:text-primary">
-              Retour au panier
+              className="inline-flex min-h-11 items-center rounded-md px-1 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Modifier le panier
             </Link>
           </div>
 
@@ -900,10 +945,12 @@ export function CheckoutClient() {
             </div>
           )}
 
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
           <CheckoutPanel
+            step={1}
             icon={User}
-            title="Informations client"
-            description="Ces details seront utilises pour vous contacter au sujet de la commande.">
+            title="Vos coordonnées"
+            description="Nous les utilisons pour vous joindre au sujet de la commande.">
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 id="checkout-first-name"
@@ -973,9 +1020,10 @@ export function CheckoutClient() {
           </CheckoutPanel>
 
           <CheckoutPanel
+            step={2}
             icon={MapPin}
             title="Adresse de livraison"
-            description="Indiquez l'adresse ou vous souhaitez recevoir la commande.">
+            description="Où devons-nous livrer votre commande ?">
             {addressEditorMode ? null : deliveryAddresses.length > 0 ? (
               <SavedAddressPicker
                 addresses={deliveryAddresses}
@@ -1007,79 +1055,87 @@ export function CheckoutClient() {
           </CheckoutPanel>
 
           <CheckoutPanel
+            step={3}
             icon={Truck}
-            title="Livraison et paiement"
-            description="Choisissez comment recevoir et regler votre commande.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="checkout-delivery">Mode de livraison</Label>
-                <Select
-                  value={visibleForm.deliveryMethod}
-                  onValueChange={(value) =>
-                    updateField(
-                      "deliveryMethod",
-                      value as CheckoutForm["deliveryMethod"],
-                    )
-                  }>
-                  <SelectTrigger id="checkout-delivery" className="h-12 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">
-                      Livraison standard
-                    </SelectItem>
-                    <SelectItem value="pickup">Retrait magasin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="checkout-payment">Mode de paiement</Label>
-                <Select
-                  value={visibleForm.paymentMethod}
-                  onValueChange={(value) =>
-                    updateField(
-                      "paymentMethod",
-                      value as CheckoutForm["paymentMethod"],
-                    )
-                  }>
-                  <SelectTrigger id="checkout-payment" className="h-12 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Paiement a la livraison</SelectItem>
-                    <SelectItem value="bank">Virement bancaire</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            title="Livraison"
+            description="Comment souhaitez-vous recevoir vos articles ?">
+            <TicketChoices
+              legend="Mode de livraison"
+              name="checkout-delivery"
+              value={visibleForm.deliveryMethod}
+              onChange={(value) =>
+                updateField("deliveryMethod", value as CheckoutForm["deliveryMethod"])
+              }
+              options={[
+                { value: "standard", label: "Livraison standard", hint: "À l'adresse indiquée", icon: Truck, aside: formatEuro(SHIPPING_PRICE) },
+                { value: "pickup", label: "Retrait magasin", hint: "Vous venez récupérer la commande", icon: Store, aside: "Gratuit" },
+              ]}
+            />
 
             <div className="space-y-2">
-              <Label htmlFor="checkout-notes">Instructions speciales</Label>
+              <Label htmlFor="checkout-notes">Instructions pour la livraison</Label>
               <textarea
                 id="checkout-notes"
                 value={visibleForm.notes}
                 onChange={(event) => updateField("notes", event.target.value)}
-                rows={4}
-                className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                rows={3}
+                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               />
             </div>
           </CheckoutPanel>
+
+          <CheckoutPanel
+            step={4}
+            icon={CreditCard}
+            title="Paiement"
+            description="Réglez en ligne maintenant ou à la réception.">
+            <TicketChoices
+              legend="Mode de paiement"
+              name="checkout-payment"
+              value={visibleForm.paymentMethod}
+              onChange={(value) =>
+                updateField("paymentMethod", value as CheckoutForm["paymentMethod"])
+              }
+              options={[
+                ...(stripeConfig?.enabled
+                  ? [{
+                      value: "card",
+                      label: "Carte bancaire",
+                      hint: "Paiement sécurisé par Stripe",
+                      icon: CreditCard,
+                      badge: stripeConfig.mode === "sandbox" ? "Mode test" : undefined,
+                    }]
+                  : []),
+                { value: "cash", label: "À la livraison", hint: "Vous réglez à la réception", icon: Banknote },
+                { value: "bank", label: "Virement bancaire", hint: "Par virement à la commande", icon: Landmark },
+              ]}
+            />
+            {visibleForm.paymentMethod === "card" && stripeConfig?.enabled ? (
+              <p className="rounded-lg border border-dashed border-border bg-muted/50 px-4 py-3 text-sm! leading-6 text-muted-foreground">
+                {stripeConfig.mode === "sandbox" ? (
+                  <>
+                    <strong className="font-semibold text-foreground">Mode test : aucun débit réel.</strong>{" "}
+                    Utilisez la carte 4242 4242 4242 4242, une date d&apos;expiration future et un CVC au choix.
+                  </>
+                ) : (
+                  "Vous serez redirigé vers la page de paiement sécurisée Stripe pour saisir votre carte."
+                )}
+              </p>
+            ) : null}
+          </CheckoutPanel>
+          </div>
         </section>
 
         <aside className="lg:sticky lg:top-28 lg:self-start">
-          <div className="rounded-lg border border-border bg-background shadow-sm">
-            <div className="border-b border-border p-5">
+          <div className="rounded-t-xl border border-b-0 border-border bg-background">
+            <div className="border-b border-dashed border-border p-5">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-muted-foreground">
-                    Resume
-                  </p>
-                  <h2 className="text-xl font-bold">Votre commande</h2>
-                </div>
-                <div className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
-                  <PackageCheck className="size-5" />
-                </div>
+                <h2 className="text-2xl! font-bold!">Votre commande</h2>
+                <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <PackageCheck className="size-4" aria-hidden="true" />
+                  {items.reduce((sum, item) => sum + item.qty, 0)} article
+                  {items.reduce((sum, item) => sum + item.qty, 0) > 1 ? "s" : ""}
+                </span>
               </div>
             </div>
 
@@ -1111,7 +1167,7 @@ export function CheckoutClient() {
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-semibold">
+                      <p className="line-clamp-2 text-sm! font-semibold!">
                         {item.title}
                       </p>
                       {item.variantId ? (
@@ -1123,7 +1179,7 @@ export function CheckoutClient() {
                         <span className="text-xs text-muted-foreground">
                           {formatEuro(totalsForItem.unitHt)} HT
                         </span>
-                        <span className="text-sm font-bold text-destructive">
+                        <span className="text-sm font-bold tabular-nums">
                           {formatEuro(totalsForItem.lineTtc)}
                         </span>
                       </div>
@@ -1133,7 +1189,7 @@ export function CheckoutClient() {
               })}
             </div>
 
-            <div className="space-y-3 border-t border-border p-5 text-sm">
+            <div className="space-y-3 border-t border-dashed border-border p-5 text-sm">
               <SummaryRow label="Produits HT" value={formatEuro(totals.productsHt)} />
               <SummaryRow
                 label="Produits TTC"
@@ -1149,10 +1205,8 @@ export function CheckoutClient() {
               />
               <div className="border-t border-border pt-4">
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="font-bold uppercase tracking-normal text-muted-foreground">
-                    Sous-total TTC
-                  </span>
-                  <span className="text-2xl font-bold text-foreground">
+                  <span className="text-lg font-semibold">Total TTC</span>
+                  <span className="text-4xl font-bold leading-none tabular-nums text-foreground">
                     {formatEuro(totals.subtotalTtc)}
                   </span>
                 </div>
@@ -1166,35 +1220,46 @@ export function CheckoutClient() {
                   <span>{submitError}</span>
                 </div>
               ) : (
-                <div className="flex items-start gap-3 rounded-md border border-border bg-muted px-4 py-3 text-xs text-muted-foreground">
-                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    Le total est toujours affiche en TTC, avec le detail HT pour
-                    controle.
-                  </span>
-                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Le total est affiché TTC, avec le détail HT pour contrôle.
+                </p>
               )}
 
               <Button
                 type="submit"
-                disabled={isSubmitting}
-                className="h-12 w-full bg-destructive text-sm font-bold uppercase tracking-normal hover:bg-destructive/90">
+                disabled={isSubmitting || isRedirecting}
+                className="h-14 w-full bg-destructive text-base font-bold tracking-wide hover:bg-destructive/90 focus-visible:ring-destructive/40">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Confirmation...
+                    {isRedirecting ? "Redirection vers Stripe..." : "Confirmation..."}
                   </>
                 ) : (
-                  "Confirmer la commande"
+                  visibleForm.paymentMethod === "card" && stripeConfig?.enabled ? (
+                    <>
+                      <LockKeyhole className="size-4" aria-hidden="true" />
+                      Payer {formatEuro(totals.subtotalTtc)}
+                    </>
+                  ) : (
+                    "Confirmer la commande"
+                  )
                 )}
               </Button>
 
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <CreditCard className="size-4" />
-                <span>Commande et donnees client protegees</span>
+                <CreditCard className="size-4" aria-hidden="true" />
+                <span>Commande et données client protégées</span>
               </div>
             </div>
           </div>
+          <div
+            aria-hidden="true"
+            className="h-2 w-full"
+            style={{
+              background:
+                "radial-gradient(circle at 8px 0, var(--muted) 5px, var(--background) 5.5px) 0 0 / 16px 8px repeat-x",
+            }}
+          />
         </aside>
       </form>
     </main>
@@ -1269,31 +1334,125 @@ function roundMoney(value: number) {
 }
 
 function CheckoutPanel({
-  icon: Icon,
+  step,
   title,
   description,
   children,
 }: {
-  icon: typeof User;
+  step: number;
+  icon?: typeof User;
   title: string;
   description: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-background p-5 shadow-sm sm:p-6">
-      <div className="mb-5 flex items-start gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-          <Icon className="size-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
-        </div>
+    <section
+      aria-labelledby={`checkout-step-${step}`}
+      className="grid gap-5 p-5 sm:p-7 md:grid-cols-[3rem_minmax(0,1fr)]">
+      <span
+        aria-hidden="true"
+        className="text-5xl font-bold leading-none text-primary/25 tabular-nums">
+        {step}
+      </span>
+      <div className="min-w-0">
+        <h2 id={`checkout-step-${step}`} className="text-2xl! font-bold! leading-tight">
+          {title}
+        </h2>
+        <p className="mt-1! text-sm! leading-6 text-muted-foreground">{description}</p>
+        <div className="mt-5 space-y-4">{children}</div>
       </div>
-      <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+type TicketOption = {
+  value: string;
+  label: string;
+  hint: string;
+  icon: typeof Truck;
+  aside?: string;
+  badge?: string;
+};
+
+/**
+ * Selectable "tickets": a stub with an icon, a perforation, then the details.
+ * The chosen ticket fills its stub and wears a "Choisi" tag. A native radio
+ * stays in the DOM (visually hidden) for keyboard and screen-reader users.
+ */
+function TicketChoices({
+  legend,
+  name,
+  value,
+  onChange,
+  options,
+}: {
+  legend: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: TicketOption[];
+}) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-3 text-sm font-medium">{legend}</legend>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {options.map((option) => {
+          const selected = option.value === value;
+          const id = `${name}-${option.value}`;
+          const Icon = option.icon;
+          return (
+            <label
+              key={option.value}
+              htmlFor={id}
+              className={cn(
+                "relative grid min-h-[5.5rem] cursor-pointer grid-cols-[4.5rem_minmax(0,1fr)] rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary motion-reduce:transition-none",
+                selected
+                  ? "border-primary shadow-md ring-1 ring-primary"
+                  : "border-border hover:border-primary/50",
+              )}>
+              <input
+                id={id}
+                type="radio"
+                name={name}
+                value={option.value}
+                checked={selected}
+                onChange={() => onChange(option.value)}
+                className="sr-only"
+              />
+              {selected ? (
+                <span className="absolute -top-2.5 right-3 rounded-sm bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                  Choisi
+                </span>
+              ) : null}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "grid place-items-center rounded-l-[11px] border-r border-dashed transition-colors duration-200 motion-reduce:transition-none",
+                  selected
+                    ? "border-primary-foreground/40 bg-primary text-primary-foreground"
+                    : "border-border bg-muted text-muted-foreground",
+                )}>
+                <Icon className="size-7" strokeWidth={1.75} />
+              </span>
+              <span className="flex min-w-0 flex-col justify-center gap-1 px-4 py-3">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-base font-semibold leading-tight">{option.label}</span>
+                  {option.badge ? (
+                    <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">
+                      {option.badge}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="text-xs leading-5 text-muted-foreground">{option.hint}</span>
+                {option.aside ? (
+                  <span className="text-lg font-bold leading-none tabular-nums">{option.aside}</span>
+                ) : null}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 

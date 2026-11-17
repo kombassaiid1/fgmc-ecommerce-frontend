@@ -64,3 +64,17 @@ body {
 .Polaris-Icon {
   margin: 0 !important;
 }
+
+/* Payment receipt: the PAYE stamp lands once. */
+.stamp-in {
+  transform: rotate(-10deg);
+  animation: stamp-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s both;
+}
+@keyframes stamp-in {
+  0% { opacity: 0; transform: rotate(-10deg) scale(1.8); }
+  60% { opacity: 1; transform: rotate(-10deg) scale(0.94); }
+  100% { opacity: 1; transform: rotate(-10deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stamp-in { animation: none; }
+}

@@ -29,6 +29,7 @@ export type OrderTotalsPayload = {
   priceTTC?: number;
   deliveryFee?: number;
   couponCode?: string;
+  paymentMethod?: "En_ligne" | "COD";
 };
 
 export type GuestOrderPayload = OrderTotalsPayload & {

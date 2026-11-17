@@ -7,9 +7,9 @@ import { Badge, Button, Icon, Text } from "@shopify/polaris";
 import { AppsIcon, SearchIcon } from "@shopify/polaris-icons";
 import "./modules-page.css";
 
-type ModuleId = "prestashop" | "dolibarr";
+type ModuleId = "prestashop" | "dolibarr" | "stripe";
 type ModuleFilter = "all" | "configured" | "needs-setup";
-type ModuleCategory = "all" | "erp" | "catalog";
+type ModuleCategory = "all" | "erp" | "catalog" | "payment";
 
 type ModuleEntry = {
   id: ModuleId;
@@ -20,7 +20,7 @@ type ModuleEntry = {
   image: string;
   configHref: string;
   configLabel: string;
-  accent: "blue" | "orange";
+  accent: "blue" | "orange" | "indigo";
   download?: { href: string; label: string };
 };
 
@@ -49,6 +49,18 @@ const modules: ModuleEntry[] = [
     configLabel: "Configurer la synchronisation",
     accent: "blue",
   },
+  {
+    id: "stripe",
+    name: "Stripe",
+    category: "payment",
+    categoryLabel: "Paiement",
+    image: "/modules/stripe-payments.svg",
+    description:
+      "Acceptez les paiements par carte. Gardez vos clés sandbox et live, et choisissez l’environnement actif.",
+    configHref: "/admin_ben/modules/stripe",
+    configLabel: "Configurer Stripe",
+    accent: "indigo",
+  },
 ];
 
 const filterTabs: Array<{ id: ModuleFilter; label: string }> = [
@@ -61,6 +73,7 @@ export default function AdminModulesPage() {
   const [configured, setConfigured] = useState<Record<ModuleId, boolean | null>>({
     prestashop: null,
     dolibarr: null,
+    stripe: null,
   });
   const [filter, setFilter] = useState<ModuleFilter>("all");
   const [category, setCategory] = useState<ModuleCategory>("all");
@@ -70,6 +83,7 @@ export default function AdminModulesPage() {
     const endpoints: Array<[ModuleId, string]> = [
       ["prestashop", "/frontend-api/admin/prestashop-integration"],
       ["dolibarr", "/frontend-api/admin/dolibarr-integration"],
+      ["stripe", "/frontend-api/admin/stripe-integration"],
     ];
     endpoints.forEach(async ([id, endpoint]) => {
       try {
@@ -134,6 +148,7 @@ export default function AdminModulesPage() {
             <option value="all">Toutes les catégories</option>
             <option value="erp">ERP & synchronisation</option>
             <option value="catalog">Import de catalogue</option>
+            <option value="payment">Paiement</option>
           </select>
         </label>
       </div>
