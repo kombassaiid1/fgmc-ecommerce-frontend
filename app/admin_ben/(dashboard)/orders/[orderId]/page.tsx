@@ -31,6 +31,14 @@ function getProducts(order: OrderDetail): StoredOrderProduct[] {
 
 const GLS_LABELS: Record<string, string> = { HOME: "GLS En entreprise", RELAY: "GLS En Relais", FLEX: "GLS À domicile", EXPRESS: "GLS Express" };
 
+/** A date as PrestaShop shows it in the status history: 2026-11-18 15:22:22. */
+function historyDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const two = (number: number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
+}
+
 function Detail({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div>
@@ -86,6 +94,8 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
     void loadOrder();
   }, [loadOrder]);
 
+  const refreshPreview = () => getOrderPreview(orderId).then((data) => setPreview({ id: orderId, data })).catch(() => undefined);
+
   const saveStatus = async (kind: "etat" | "paymentStatus") => {
     if (!order) return;
     setSaving(true);
@@ -94,6 +104,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
       else await updateOrderPaymentStatus(order.id, nextPaymentStatus);
       toast.success(kind === "etat" ? "Statut de commande mis à jour." : "Statut de paiement mis à jour.");
       await loadOrder();
+      if (kind === "etat") await refreshPreview();
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : "Impossible de mettre à jour la commande.");
     } finally {
@@ -237,7 +248,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
           <Card padding="0">
             <div role="tablist" aria-label="Détails de la commande" className="flex flex-wrap items-center gap-1 border-b border-[#dce4ea] px-3 pt-2 text-sm">
               {([
-                ["status", "◷ Statut", 1],
+                ["status", "◷ Statut", currentPreview ? currentPreview.history.length : 1],
                 ["documents", "▰ Documents", order.dolibarrInvoice ? 1 : 0],
                 ["carriers", "▰ Transporteurs", currentPreview ? (currentPreview.shipping ? 1 : 0) : null],
                 ["returns", "↻ Retours", 0],
@@ -249,16 +260,24 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
             </div>
 
             {tab === "status" ? (
-              <>
-                <div className="m-3 border-y border-[#cbd7df] px-1 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-3 py-1 text-xs">
-                    <span className="rounded px-1.5 py-0.5 font-semibold" style={{ backgroundColor: statusColors[order.etat]?.backgroundColor, color: statusColors[order.etat]?.textColor }}>{order.etat}</span>
-                    <span className="text-[#667085]">{formatDate(order.updatedAt)}</span>
-                    <button type="button" disabled className="text-[#22a8c8] disabled:cursor-not-allowed">Renvoyer l’e-mail</button>
-                  </div>
+              <div className="p-3">
+                <ul aria-label="Historique des statuts" className="border-y border-[#cbd7df]">
+                  {(currentPreview?.history ?? [{ etat: order.etat, by: null, at: order.updatedAt }]).map((entry, index) => (
+                    <li key={`${entry.at}-${index}`} className="grid grid-cols-1 items-center gap-1 border-b border-[#e3e8ec] px-2 py-2 text-sm last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                      <span><span className="inline-block rounded px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: statusColors[entry.etat]?.backgroundColor ?? "#e5e7eb", color: statusColors[entry.etat]?.textColor ?? "#1f2937" }}>{entry.etat}</span></span>
+                      <span className="text-[#344054] sm:text-center">{entry.by ?? ""}</span>
+                      <span className="tabular-nums text-[#344054] sm:text-right">{historyDate(entry.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                  <select aria-label="Nouveau statut de la commande" value={nextStatus} onChange={(event) => setNextStatus(event.target.value)} className="h-9 min-w-64 rounded border border-[#cbd6de] bg-white px-2 text-sm">
+                    {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    {!statusOptions.some((option) => option.value === nextStatus) ? <option value={nextStatus} hidden>{nextStatus}</option> : null}
+                  </select>
+                  <Button variant="primary" disabled={saving || nextStatus === order.etat} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
                 </div>
-                <div className="px-3 pb-3 text-xs text-[#667085]">Statut actuel : {order.etat} · Paiement : {order.paymentStatus}</div>
-              </>
+              </div>
             ) : null}
 
             {tab === "documents" ? (

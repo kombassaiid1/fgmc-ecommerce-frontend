@@ -222,12 +222,17 @@ export async function getOrder(id: string): Promise<OrderDetail> {
   });
 }
 
+/** Changes an order's status as the logged-in admin (through the admin route), so the history records who did it. */
 export async function updateOrderStatus(id: string, etat: string): Promise<OrderListItem> {
-  return apiRequest<OrderListItem>({
-    path: `/orders/${encodeURIComponent(id)}/etat`,
+  const response = await fetch(`/frontend-api/admin/orders/${encodeURIComponent(id)}/etat`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ etat }),
+    cache: "no-store",
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Impossible de mettre à jour le statut.");
+  return data as OrderListItem;
 }
 
 export async function updateOrderPaymentStatus(id: string, paymentStatus: string): Promise<OrderListItem> {
@@ -279,6 +284,8 @@ export type OrderPreview = {
   shipping: { carrierName: string; zoneName: string | null; countryCode: string; weightKg: number; fee: number; handlingFee: number; createdAt: string } | null;
   /** The GLS choice: delivery type, relay point and mobile number. */
   delivery: { glsType: string; parcelShopId: string | null; relay: { name?: string; street?: string; zip?: string; city?: string } | null; customerMobile: string | null } | null;
+  /** Every status the order has had, newest first. */
+  history: Array<{ etat: string; by: string | null; at: string }>;
   trackingNumbers: string[];
   /** Stripe payment session, when the order was paid online. */
   transactionId: string | null;
