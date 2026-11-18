@@ -458,7 +458,7 @@ function OrderCard({ order }: { order: OrderListItem }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-bold text-[#101828]">
-              Commande {shortOrderId(order.id)}
+              Commande {order.reference ?? shortOrderId(order.id)}
             </h2>
             <StatusBadge value={order.etat} type="order" />
             <StatusBadge value={order.paymentStatus} type="payment" />

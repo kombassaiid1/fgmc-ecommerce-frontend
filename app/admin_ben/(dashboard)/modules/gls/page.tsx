@@ -6,6 +6,7 @@ import { TabBar } from "../../tab-bar";
 import { CarriersTab } from "./carriers-tab";
 import GlsConfigForm from "./gls-config-form";
 import { LogsTab } from "./logs-tab";
+import { OrdersTab } from "./orders-tab";
 import { PresentationTab } from "./presentation-tab";
 import { SettingsTab } from "./settings-tab";
 import { SupportTab } from "./support-tab";
@@ -15,6 +16,7 @@ const TABS = [
   { id: "presentation", label: "Présentation" },
   { id: "carriers", label: "Transporteurs" },
   { id: "account", label: "Compte GLS" },
+  { id: "orders", label: "Commandes" },
   { id: "settings", label: "Réglages" },
   { id: "support", label: "Support" },
   { id: "logs", label: "Journal" },
@@ -41,6 +43,7 @@ export default function GlsModulePage() {
           {current === "presentation" ? <PresentationTab /> : null}
           {current === "carriers" ? <CarriersTab /> : null}
           {current === "account" ? <GlsConfigForm /> : null}
+          {current === "orders" ? <OrdersTab /> : null}
           {current === "settings" ? <SettingsTab /> : null}
           {current === "support" ? <SupportTab /> : null}
           {current === "logs" ? <LogsTab /> : null}

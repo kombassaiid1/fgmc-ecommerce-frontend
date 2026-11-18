@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getImageUrl } from "@/lib/api";
+import { PAYMENT_LABELS } from "@/lib/payment-label";
 import { getShippingQuote, type GlsRelay, type ShippingQuote } from "@/lib/api/shipping";
 import { GlsDelivery } from "./gls-delivery";
 import {
@@ -401,6 +402,7 @@ export function CheckoutClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedOrderId, setCompletedOrderId] = useState<string | null>(null);
+  const [completedReference, setCompletedReference] = useState<string | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [addressEditorMode, setAddressEditorMode] = useState<
     "create" | "edit" | null
@@ -782,6 +784,7 @@ export function CheckoutClient() {
       const payload = {
         ...buildOrderTotalsPayload(items, totals),
         paymentMethod: payOnline ? ("En_ligne" as const) : ("COD" as const),
+        paymentType: payOnline ? PAYMENT_LABELS.card : currentForm.paymentMethod === "bank" ? PAYMENT_LABELS.bank : PAYMENT_LABELS.cash,
         ...(carrierMode && chosenOption
           ? {
               shipping: {
@@ -864,6 +867,7 @@ export function CheckoutClient() {
       }
 
       setCompletedOrderId(order.id);
+      setCompletedReference(order.reference ?? null);
       clearCart();
     } catch (error) {
       setSubmitError(
@@ -890,7 +894,7 @@ export function CheckoutClient() {
             Votre commande a ete enregistree avec succes.
           </p>
           <p className="mt-4 rounded-md bg-muted px-4 py-2 text-sm font-semibold text-foreground">
-            Reference: {completedOrderId}
+            Référence : {completedReference ?? completedOrderId}
           </p>
           {paymentNotice ? (
             <p role="alert" className="mt-4 max-w-md text-sm leading-6 text-destructive">

@@ -9,6 +9,7 @@ import { shippingAdmin, type Carrier, type Zone } from "@/lib/api/shipping-admin
 import { getImageUrl } from "@/lib/api";
 import { AdminList, type ListColumn } from "../../international/admin-list";
 import { PrestashopCarrierImport } from "./prestashop-carrier-import";
+import { PrestashopProductCarriersImport } from "./prestashop-product-carriers-import";
 
 export default function CarriersPage() {
   const router = useRouter();
@@ -172,6 +173,7 @@ export default function CarriersPage() {
         </Box>
         <InlineStack gap="200" wrap={false}>
           <PrestashopCarrierImport onImported={reload} />
+          <PrestashopProductCarriersImport />
           <Button variant="primary" url="/admin_ben/livraison/transporteurs/nouveau">Ajouter un transporteur</Button>
         </InlineStack>
       </InlineStack>

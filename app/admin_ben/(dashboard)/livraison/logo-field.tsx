@@ -6,15 +6,15 @@ import { ImageIcon } from "@shopify/polaris-icons";
 import { MediaPickerDialog } from "@/components/admin/media-picker-dialog";
 import { getImageUrl } from "@/lib/api";
 
-/** Logo chosen from the media library (images only; new files can be uploaded from the dialog). */
-export function LogoField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+/** An image chosen from the media library (images only; new files can be uploaded from the dialog). Says "logo" unless told otherwise. */
+export function LogoField({ value, onChange, noun = "Logo du transporteur", change = "Changer le logo", remove = "Retirer le logo", hint = "Facultatif. Affiché au paiement à côté du nom du transporteur.", showLabel = true }: { value: string; onChange: (url: string) => void; noun?: string; change?: string; remove?: string; hint?: string; showLabel?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
     <BlockStack gap="200">
-      <Text as="span" variant="bodyMd">Logo</Text>
+      {showLabel ? <Text as="span" variant="bodyMd">Logo</Text> : null}
       <InlineStack gap="300" blockAlign="center" wrap={false}>
-        <UnstyledButton onClick={() => setOpen(true)} accessibilityLabel="Choisir le logo dans la médiathèque">
+        <UnstyledButton onClick={() => setOpen(true)} accessibilityLabel={`Choisir : ${noun}`}>
           <div
             style={{
               width: 112,
@@ -29,18 +29,18 @@ export function LogoField({ value, onChange }: { value: string; onChange: (url: 
             }}>
             {value ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={getImageUrl(value)} alt="Logo du transporteur" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              <img src={getImageUrl(value)} alt={noun} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
             ) : (
               <Icon source={ImageIcon} tone="subdued" />
             )}
           </div>
         </UnstyledButton>
         <BlockStack gap="100" inlineAlign="start">
-          <Button onClick={() => setOpen(true)}>{value ? "Changer le logo" : "Choisir dans la médiathèque"}</Button>
-          {value ? <Button variant="tertiary" tone="critical" onClick={() => onChange("")}>Retirer le logo</Button> : null}
+          <Button onClick={() => setOpen(true)}>{value ? change : "Choisir dans la médiathèque"}</Button>
+          {value ? <Button variant="tertiary" tone="critical" onClick={() => onChange("")}>{remove}</Button> : null}
         </BlockStack>
       </InlineStack>
-      <Text as="span" variant="bodySm" tone="subdued">Facultatif. Affiché au paiement à côté du nom du transporteur.</Text>
+      <Text as="span" variant="bodySm" tone="subdued">{hint}</Text>
 
       <MediaPickerDialog
         open={open}

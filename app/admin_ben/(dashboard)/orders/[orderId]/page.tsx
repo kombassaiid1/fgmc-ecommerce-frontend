@@ -3,9 +3,8 @@
 import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Banner, BlockStack, Button, Card, Spinner, Text } from "@shopify/polaris";
-import { getOrder, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type StoredOrderProduct } from "@/lib/api/orders";
-import { getAdminSettings } from "@/lib/api/settings";
-import { mergeOrderStatusColors, ORDER_STATUS_OPTIONS } from "@/lib/order-statuses";
+import { getOrder, getOrderPreview, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview, type StoredOrderProduct } from "@/lib/api/orders";
+import { useOrderStates } from "@/lib/use-order-states";
 import { toast } from "sonner";
 import { GlsShippingCard } from "./gls-shipping-card";
 
@@ -30,6 +29,8 @@ function getProducts(order: OrderDetail): StoredOrderProduct[] {
   return Array.isArray(order.products) ? order.products as StoredOrderProduct[] : [];
 }
 
+const GLS_LABELS: Record<string, string> = { HOME: "GLS En entreprise", RELAY: "GLS En Relais", FLEX: "GLS À domicile", EXPRESS: "GLS Express" };
+
 function Detail({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div>
@@ -43,12 +44,14 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   const { orderId } = use(params);
   const router = useRouter();
   const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [statusColors, setStatusColors] = useState(mergeOrderStatusColors());
+  const { options: statusOptions, colors: statusColors } = useOrderStates();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [nextStatus, setNextStatus] = useState("");
   const [nextPaymentStatus, setNextPaymentStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"status" | "documents" | "carriers" | "returns">("status");
+  const [preview, setPreview] = useState<{ id: string; data?: OrderPreview } | null>(null);
 
   const loadOrder = useCallback(async () => {
     setLoading(true);
@@ -66,8 +69,21 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   }, [orderId]);
 
   useEffect(() => {
+    let cancelled = false;
+    getOrderPreview(orderId)
+      .then((data) => {
+        if (!cancelled) setPreview({ id: orderId, data });
+      })
+      .catch(() => {
+        if (!cancelled) setPreview({ id: orderId });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  useEffect(() => {
     void loadOrder();
-    void getAdminSettings().then((settings) => setStatusColors(mergeOrderStatusColors(settings.orderStatusColors))).catch(() => {});
   }, [loadOrder]);
 
   const saveStatus = async (kind: "etat" | "paymentStatus") => {
@@ -84,6 +100,8 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
       setSaving(false);
     }
   };
+
+  const currentPreview = preview?.id === orderId ? (preview.data ?? null) : null;
 
   if (loading) return <div className="flex justify-center py-16"><Spinner accessibilityLabel="Chargement de la commande" size="large" /></div>;
   if (error || !order) return <BlockStack gap="400"><Button onClick={() => router.push("/admin_ben/orders")}>← Retour aux commandes</Button><Banner tone="critical" title={error ?? "Commande introuvable."} /></BlockStack>;
@@ -109,7 +127,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#dce4ea] pb-3">
         <div>
           <button type="button" onClick={() => router.push("/admin_ben/orders")} className="mb-1 text-sm text-[#64748b] hover:text-[#168ca8]">Commandes</button>
-          <h1 className="text-xl font-semibold text-[#344054]">#{order.id.slice(-8)} <span className="text-[#344054]">{order.id.slice(0, 10).toUpperCase()}</span> <span className="font-normal text-[#667085]">de {customerName}</span> <span className="mx-1 rounded bg-[#344054] px-2 py-1 text-sm font-semibold text-white">{formatMoney(order.total)}</span> <span className="text-base font-normal text-[#667085]">{formatDate(order.createdAt)}</span></h1>
+          <h1 className="text-xl font-semibold text-[#344054]">#{order.id.slice(-8)} <span className="text-[#344054]">{order.reference ?? order.id.slice(0, 10).toUpperCase()}</span> <span className="font-normal text-[#667085]">de {customerName}</span> <span className="mx-1 rounded bg-[#344054] px-2 py-1 text-sm font-semibold text-white">{formatMoney(order.total)}</span> <span className="text-base font-normal text-[#667085]">{formatDate(order.createdAt)}</span></h1>
         </div>
         <Button onClick={() => router.push("/admin_ben/orders")}>Retour</Button>
       </div>
@@ -120,8 +138,8 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
         </select>
         <Button disabled={saving} onClick={() => void saveStatus("paymentStatus")}>Mettre à jour</Button>
         <select aria-label="Statut de la commande" value={nextStatus} onChange={(event) => setNextStatus(event.target.value)} style={{ backgroundColor: statusColors[nextStatus]?.backgroundColor, color: statusColors[nextStatus]?.textColor }} className="h-9 min-w-56 rounded border border-black/10 px-3 text-sm font-semibold">
-          {ORDER_STATUS_OPTIONS.filter((option) => option.value).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          {!ORDER_STATUS_OPTIONS.some((option) => option.value === nextStatus) ? <option value={nextStatus}>{nextStatus}</option> : null}
+          {statusOptions.map((option) => <option key={option.value} value={option.value} style={{ backgroundColor: option.backgroundColor, color: option.textColor }}>{option.label}</option>)}
+          {!statusOptions.some((option) => option.value === nextStatus) ? <option value={nextStatus} hidden>{nextStatus}</option> : null}
         </select>
         <Button disabled={saving} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
         {order.dolibarrInvoice?.invoiceUrl ? (
@@ -183,8 +201,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
             </div>
           </Card>
 
-          <GlsShippingCard order={order} />
-
           <Card padding="0">
             <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Produits ({getProducts(order).length})</Text></div>
             <div className="overflow-x-auto px-3">
@@ -219,21 +235,85 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
           </Card>
 
           <Card padding="0">
-            <div className="flex flex-wrap items-center gap-1 border-b border-[#dce4ea] px-3 pt-2 text-sm">
-              <span className="border-t-2 border-[#22b6d1] bg-white px-3 py-3 font-medium text-[#344054]">◷ Statut (1)</span>
-              <span className="px-3 py-3 text-[#7b8b97]">▰ Documents (0)</span>
-              <span className="px-3 py-3 text-[#7b8b97]">▰ Transporteurs (0)</span>
-              <span className="px-3 py-3 text-[#7b8b97]">↻ Retours (0)</span>
+            <div role="tablist" aria-label="Détails de la commande" className="flex flex-wrap items-center gap-1 border-b border-[#dce4ea] px-3 pt-2 text-sm">
+              {([
+                ["status", "◷ Statut", 1],
+                ["documents", "▰ Documents", order.dolibarrInvoice ? 1 : 0],
+                ["carriers", "▰ Transporteurs", currentPreview ? (currentPreview.shipping ? 1 : 0) : null],
+                ["returns", "↻ Retours", 0],
+              ] as const).map(([id, label, count]) => (
+                <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`px-3 py-3 ${tab === id ? "border-t-2 border-[#22b6d1] bg-white font-medium text-[#344054]" : "text-[#7b8b97] hover:text-[#344054]"}`}>
+                  {label} ({count ?? "…"})
+                </button>
+              ))}
             </div>
-            <div className="m-3 border-y border-[#cbd7df] px-1 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-3 py-1 text-xs">
-                <span className="rounded px-1.5 py-0.5 font-semibold" style={{ backgroundColor: statusColors[order.etat]?.backgroundColor, color: statusColors[order.etat]?.textColor }}>{order.etat}</span>
-                <span className="text-[#667085]">{formatDate(order.updatedAt)}</span>
-                <button type="button" disabled className="text-[#22a8c8] disabled:cursor-not-allowed">Renvoyer l’e-mail</button>
+
+            {tab === "status" ? (
+              <>
+                <div className="m-3 border-y border-[#cbd7df] px-1 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3 py-1 text-xs">
+                    <span className="rounded px-1.5 py-0.5 font-semibold" style={{ backgroundColor: statusColors[order.etat]?.backgroundColor, color: statusColors[order.etat]?.textColor }}>{order.etat}</span>
+                    <span className="text-[#667085]">{formatDate(order.updatedAt)}</span>
+                    <button type="button" disabled className="text-[#22a8c8] disabled:cursor-not-allowed">Renvoyer l’e-mail</button>
+                  </div>
+                </div>
+                <div className="px-3 pb-3 text-xs text-[#667085]">Statut actuel : {order.etat} · Paiement : {order.paymentStatus}</div>
+              </>
+            ) : null}
+
+            {tab === "documents" ? (
+              <div className="p-4 text-sm text-[#344054]">
+                {order.dolibarrInvoice ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span>Facture {order.dolibarrInvoice.reference}{order.dolibarrInvoice.date ? ` · ${formatDate(order.dolibarrInvoice.date)}` : ""}</span>
+                    {order.dolibarrInvoice.invoiceUrl ? <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Ouvrir le PDF</a> : null}
+                  </div>
+                ) : <p className="text-[#667085]">Aucun document pour cette commande.</p>}
               </div>
-            </div>
-            <div className="px-3 pb-3 text-xs text-[#667085]">Statut actuel : {order.etat} · Paiement : {order.paymentStatus}</div>
+            ) : null}
+
+            {tab === "carriers" ? (
+              <div className="p-4 text-sm text-[#344054]">
+                {!currentPreview ? <p className="text-[#667085]">Chargement…</p> : !currentPreview.shipping ? (
+                  <p className="text-[#667085]">Le client n’a pas choisi de transporteur pour cette commande.</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+                        <thead>
+                          <tr className="border-b-2 border-[#22b6d1] font-semibold">
+                            <th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Transporteur choisi</th><th className="py-2 pr-3">Zone</th><th className="py-2 pr-3 text-right">Poids</th><th className="py-2 pr-3 text-right">Frais de port <span className="text-[10px] font-normal">HT</span></th><th className="py-2">Numéro de suivi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-[#e3e8ec]">
+                            <td className="whitespace-nowrap py-2 pr-3">{formatDate(currentPreview.shipping.createdAt)}</td>
+                            <td className="py-2 pr-3 font-semibold">{currentPreview.shipping.carrierName}</td>
+                            <td className="py-2 pr-3">{currentPreview.shipping.zoneName ?? "—"} ({currentPreview.shipping.countryCode})</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right">{currentPreview.shipping.weightKg} kg</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right">{formatMoney(currentPreview.shipping.fee + currentPreview.shipping.handlingFee)}</td>
+                            <td className="py-2">{currentPreview.trackingNumbers.length ? currentPreview.trackingNumbers.join(", ") : "—"}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-[#667085]">Payé par le client pour la livraison : <strong className="text-[#344054]">{formatMoney(order.deliveryFee ?? 0)}</strong> TTC{currentPreview.shipping.handlingFee ? ` (dont ${formatMoney(currentPreview.shipping.handlingFee)} HT de frais de manutention)` : ""}.</p>
+                    {currentPreview.delivery ? (
+                      <div className="rounded border border-[#dce4ea] bg-[#f7fafc] p-3 text-[13px]">
+                        <div><strong>Livraison GLS :</strong> {GLS_LABELS[currentPreview.delivery.glsType] ?? currentPreview.delivery.glsType}</div>
+                        {currentPreview.delivery.relay?.name ? <div><strong>Point relais choisi :</strong> {currentPreview.delivery.relay.name}, {currentPreview.delivery.relay.street}, {currentPreview.delivery.relay.zip} {currentPreview.delivery.relay.city}{currentPreview.delivery.parcelShopId ? ` (${currentPreview.delivery.parcelShopId})` : ""}</div> : null}
+                        {currentPreview.delivery.customerMobile ? <div><strong>Mobile du client :</strong> {currentPreview.delivery.customerMobile}</div> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {tab === "returns" ? <div className="p-4 text-sm text-[#667085]">Aucun retour pour cette commande.</div> : null}
           </Card>
+
+          <GlsShippingCard order={order} />
         </BlockStack>
       </div>
     </BlockStack>

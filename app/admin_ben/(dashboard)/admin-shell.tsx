@@ -130,12 +130,13 @@ const NAV_ITEMS = [
   { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon, permission: "clients.view" },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon, permission: "users.view" },
   {
-    label: "Parametres",
+    label: "Paramètres de la boutique",
     url: "/admin_ben/settings",
     icon: SettingsIcon,
     permission: "settings.view",
     subNavigationItems: [
-      { label: "Couleurs des statuts", url: "/admin_ben/settings/order-status-colors" },
+      { label: "Commandes", url: "/admin_ben/settings/orders" },
+      { label: "États de commandes", url: "/admin_ben/settings/order-states" },
       { label: "Paramètres produit", url: "/admin_ben/settings/products" },
     ],
   },

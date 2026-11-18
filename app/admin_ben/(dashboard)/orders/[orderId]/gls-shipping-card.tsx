@@ -5,12 +5,15 @@ import Link from "next/link";
 import { Badge, Button, Card, Text } from "@shopify/polaris";
 import { toast } from "sonner";
 import type { OrderDetail } from "@/lib/api/orders";
+import { useOrderStates } from "@/lib/use-order-states";
 
+export type GlsType = "HOME" | "RELAY" | "FLEX" | "EXPRESS";
 type Shipment = {
   id: string;
   environment: "sandbox" | "live";
   product: "PARCEL" | "EXPRESS";
-  glsType?: GlsType | null;
+  /** RETURN marks a return label (customer to shop). */
+  glsType?: GlsType | "RETURN" | null;
   trackIds: string[];
   weightKg: number;
   parcelCount: number;
@@ -22,11 +25,35 @@ type Shipment = {
 };
 type TrackingEvent = { date: string; time: string; description: string; place: string };
 type GlsConfig = { mode: "sandbox" | "live"; configured: boolean };
-type Form = { name: string; street: string; zip: string; city: string; countryCode: string; email: string; phone: string; mobile: string };
-type GlsType = "HOME" | "RELAY" | "FLEX" | "EXPRESS";
-type Delivery = { glsType: GlsType; parcelShopId: string | null; relay: { name: string; street: string; zip: string; city: string } | null; customerMobile: string | null };
+export type Form = { name: string; street: string; zip: string; city: string; countryCode: string; email: string; phone: string; mobile: string };
+export type Delivery = { glsType: GlsType; parcelShopId: string | null; relay: { name: string; street: string; zip: string; city: string } | null; customerMobile: string | null };
+/** What the Réglages tab turns on for orders. */
+type ModuleSettings = { returnService: { enabled: boolean }; deliveryNote: boolean };
 
-const API = "/frontend-api/admin/gls-integration";
+export const GLS_API = "/frontend-api/admin/gls-integration";
+export const GLS_TYPE_NAMES: Record<GlsType, string> = { HOME: "En entreprise", RELAY: "En Relais GLS", FLEX: "À domicile", EXPRESS: "Express" };
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
+
+/** Opens a printable delivery note: who it goes to, and what is in the parcel. */
+function printDeliveryNote(order: OrderDetail, form: Form) {
+  const products = Array.isArray(order.products) ? (order.products as Array<{ title?: string; quantity?: number }>) : [];
+  const rows = products.map((product) => `<tr><td>${escapeHtml(product.title ?? "Article")}</td><td class="n">${Math.max(0, Number(product.quantity) || 0)}</td></tr>`).join("");
+  const win = window.open("", "_blank");
+  if (!win) {
+    toast.error("Autorisez les fenêtres pop-up pour imprimer le bon de livraison.");
+    return;
+  }
+  win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Bon de livraison</title><style>
+    body{font:14px/1.5 system-ui,sans-serif;color:#14213d;margin:32px}h1{font-size:22px;margin:0 0 4px}p{margin:2px 0}
+    table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border-bottom:1px solid #c6cfda;padding:8px 6px;text-align:left}th.n,td.n{text-align:right;width:90px}
+    .meta{margin-top:16px;display:grid;gap:2px}</style></head><body>
+    <h1>Bon de livraison</h1><p>Commande ${escapeHtml(order.reference ?? `…${order.id.slice(-8)}`)} · ${escapeHtml(new Date(order.createdAt).toLocaleDateString("fr-FR"))}</p>
+    <div class="meta"><strong>${escapeHtml(form.name)}</strong><span>${escapeHtml(form.street)}</span><span>${escapeHtml(`${form.zip} ${form.city}`.trim())}</span><span>${escapeHtml(form.countryCode)}</span></div>
+    <table><thead><tr><th>Article</th><th class="n">Quantité</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Aucun article</td></tr>'}</tbody></table>
+    <script>window.onload=function(){window.print()}<\/script></body></html>`);
+  win.document.close();
+}
 
 const COUNTRY_CODES: Record<string, string> = {
   france: "FR", belgique: "BE", allemagne: "DE", espagne: "ES", italie: "IT", "pays-bas": "NL", luxembourg: "LU",
@@ -40,7 +67,7 @@ function countryCodeOf(value: string | null | undefined) {
 }
 
 /** Prefills the consignee from the order. The admin always reviews it before creating a label. */
-function prefill(order: OrderDetail): Form {
+export function prefill(order: OrderDetail): Form {
   const client = order.Client;
   const address = order.Address;
   if (address) {
@@ -69,8 +96,8 @@ function prefill(order: OrderDetail): Form {
   };
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API}${path}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+export async function glsFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${GLS_API}${path}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(" ") : data.message || "Action impossible.");
   return data as T;
@@ -82,26 +109,39 @@ function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-const inputClass = "h-9 w-full rounded border border-[#cbd6de] bg-white px-3 text-sm text-[#344054] focus-visible:outline-2 focus-visible:outline-[#168ca8]";
+export const inputClass = "h-9 w-full rounded border border-[#cbd6de] bg-white px-3 text-sm text-[#344054] focus-visible:outline-2 focus-visible:outline-[#168ca8]";
 
+/** The GLS card of an order: label status and tracking. Printing a label happens on its own page. */
 export function GlsShippingCard({ order }: { order: OrderDetail }) {
+  const [newStatus, setNewStatus] = useState("Expédié");
+  const { options: statusOptions } = useOrderStates();
   const [config, setConfig] = useState<GlsConfig | null>(null);
   const [shipments, setShipments] = useState<Shipment[] | null>(null);
-  const [form, setForm] = useState<Form>(() => prefill(order));
-  const [weights, setWeights] = useState<string[]>(["1"]);
-  const [glsType, setGlsType] = useState<GlsType>("HOME");
+  const [form] = useState<Form>(() => prefill(order));
   const [delivery, setDelivery] = useState<Delivery | null>(null);
-  const [parcelShopId, setParcelShopId] = useState("");
   const [busy, setBusy] = useState("");
   const [events, setEvents] = useState<Record<string, TrackingEvent[]>>({});
   const [loadError, setLoadError] = useState("");
+  const [moduleSettings, setModuleSettings] = useState<ModuleSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    glsFetch<ModuleSettings>("/settings")
+      .then((loaded) => {
+        if (!cancelled) setModuleSettings(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchAll = useCallback(
-    () => Promise.all([call<GlsConfig>(""), call<Shipment[]>(`/orders/${order.id}/shipments`)]),
+    () => Promise.all([glsFetch<GlsConfig>(""), glsFetch<Shipment[]>(`/orders/${order.id}/shipments`)]),
     [order.id],
   );
 
-  /** Reloads after an action (cancel, create, tracking). */
+  /** Reloads after an action (cancel, return label, tracking). */
   const load = useCallback(async () => {
     try {
       const [settings, list] = await fetchAll();
@@ -129,16 +169,12 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
     };
   }, [fetchAll]);
 
-  // What the customer chose at checkout (delivery type, relay point, mobile) fills the form; the admin can still change it.
+  // What the customer chose at checkout (delivery type, relay point).
   useEffect(() => {
     let cancelled = false;
-    call<Delivery | null>(`/orders/${order.id}/delivery`)
+    glsFetch<Delivery | null>(`/orders/${order.id}/delivery`)
       .then((chosen) => {
-        if (cancelled || !chosen) return;
-        setDelivery(chosen);
-        setGlsType(chosen.glsType);
-        setParcelShopId(chosen.parcelShopId ?? "");
-        if (chosen.customerMobile) setForm((old) => ({ ...old, mobile: chosen.customerMobile ?? "" }));
+        if (!cancelled && chosen) setDelivery(chosen);
       })
       .catch(() => undefined);
     return () => {
@@ -146,10 +182,9 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
     };
   }, [order.id]);
 
-  const active = shipments?.find((shipment) => !shipment.cancelledAt) ?? null;
-  const parsedWeights = weights.map((weight) => Number(weight.replace(",", ".")));
-  const weightsValid = parsedWeights.every((weight) => Number.isFinite(weight) && weight >= 0.1 && weight <= 40);
-  const formValid = form.name.trim() && form.street.trim() && form.zip.trim() && form.city.trim() && /^[A-Za-z]{2}$/.test(form.countryCode) && weightsValid && (glsType !== "RELAY" || parcelShopId.trim());
+  const active = shipments?.find((shipment) => !shipment.cancelledAt && shipment.glsType !== "RETURN") ?? null;
+  const returnActive = shipments?.some((shipment) => !shipment.cancelledAt && shipment.glsType === "RETURN") ?? false;
+  const formValid = form.name.trim() && form.street.trim() && form.zip.trim() && form.city.trim() && /^[A-Za-z]{2}$/.test(form.countryCode);
 
   async function run<T>(key: string, action: () => Promise<T>, success: string) {
     setBusy(key);
@@ -166,11 +201,12 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
     }
   }
 
-  const create = () =>
+  /** A return label: the parcel goes from the customer back to the shop's return address. */
+  const createReturn = () =>
     run(
-      "create",
+      "return",
       () =>
-        call(`/orders/${order.id}/shipments`, {
+        glsFetch(`/orders/${order.id}/shipments`, {
           method: "POST",
           body: JSON.stringify({
             consignee: {
@@ -181,24 +217,23 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
               countryCode: form.countryCode.trim().toUpperCase(),
               ...(form.email.trim() ? { email: form.email.trim() } : {}),
               ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
-              ...(form.mobile.trim() ? { mobile: form.mobile.trim() } : {}),
             },
-            weights: parsedWeights,
-            glsType,
-            ...(glsType === "RELAY" ? { parcelShopId: parcelShopId.trim() } : {}),
+            weights: [1],
+            glsType: "HOME",
+            returnLabel: true,
           }),
         }),
-      "Expédition GLS créée.",
+      "Étiquette retour créée.",
     );
 
   async function refresh(shipment: Shipment) {
-    const result = await run("track-" + shipment.id, () => call<{ events: TrackingEvent[] }>(`/shipments/${shipment.id}/tracking`, { method: "POST" }), "Suivi actualisé.");
+    const result = await run("track-" + shipment.id, () => glsFetch<{ events: TrackingEvent[] }>(`/shipments/${shipment.id}/tracking`, { method: "POST" }), "Suivi actualisé.");
     if (result) setEvents((old) => ({ ...old, [shipment.id]: result.events }));
   }
 
   async function cancel(shipment: Shipment) {
     if (!window.confirm("Annuler cette expédition GLS ? Le colis ne sera plus pris en charge.")) return;
-    await run("cancel-" + shipment.id, () => call(`/shipments/${shipment.id}/cancel`, { method: "POST" }), "Expédition GLS annulée.");
+    await run("cancel-" + shipment.id, () => glsFetch(`/shipments/${shipment.id}/cancel`, { method: "POST" }), "Expédition GLS annulée.");
   }
 
   const statusBadge = (shipment: Shipment) =>
@@ -208,13 +243,25 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
     <Card padding="0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dce4ea] px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Text as="h2" variant="headingMd">Expédition GLS</Text>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7c8c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 3h15v13H1z" /><path d="M16 8h4l3 3v5h-7z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
+          <Text as="h2" variant="headingMd">Transporteur GLS</Text>
           {config?.configured ? <Badge tone={config.mode === "live" ? "success" : "attention"}>{config.mode === "live" ? "Production" : "Mode test"}</Badge> : null}
         </div>
         <Link href="/admin_ben/modules/gls" className="text-xs text-[#22a8c8] hover:underline">Réglages GLS</Link>
       </div>
 
       <div className="space-y-4 p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/gls/gls-logo.jpg" alt="GLS" width={220} height={110} className="mx-auto h-auto w-[220px]" />
+        <p className="rounded border-l-4 border-[#25b9d7] bg-[#e8f7fb] px-4 py-3 text-sm text-[#344054]">
+          Vous pouvez imprimer une étiquette GLS même si aucun transporteur GLS n’est associé à cette commande. Des informations complémentaires seront demandées avant la création de l’étiquette.
+        </p>
+        {delivery?.glsType ? (
+          <p className="text-xs text-[#667085]">
+            Livraison choisie par le client : <strong>{GLS_TYPE_NAMES[delivery.glsType]}</strong>
+            {delivery.relay ? <> — {delivery.relay.name}, {delivery.relay.zip} {delivery.relay.city}</> : null}
+          </p>
+        ) : null}
         {loadError ? <p role="alert" className="text-sm text-[#b42318]">{loadError}</p> : null}
         {!loadError && (!config || !shipments) ? <p className="text-sm text-[#667085]">Chargement…</p> : null}
 
@@ -224,13 +271,24 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
           </p>
         ) : null}
 
+        {config?.configured && shipments && !active ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="gls-new-status" className="text-sm text-[#344054]">Changer l’état de la commande en</label>
+            <select id="gls-new-status" className={`${inputClass} !w-64`} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+              <option value="">Ne pas changer l’état</option>
+              {statusOptions.map((option) => <option key={option.value} value={option.value} style={{ backgroundColor: option.backgroundColor, color: option.textColor }}>{option.label}</option>)}
+            </select>
+            <Button variant="primary" url={`/admin_ben/orders/${order.id}/gls-label?status=${encodeURIComponent(newStatus)}`}>Imprimer l’étiquette</Button>
+          </div>
+        ) : null}
+
         {shipments?.map((shipment) => (
           <div key={shipment.id} className={`rounded border border-[#dce4ea] p-3 ${shipment.cancelledAt ? "bg-[#f7f7f7] opacity-80" : "bg-white"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(shipment)}
                 {shipment.environment === "sandbox" ? <Badge tone="attention">Test</Badge> : null}
-                <span className="text-xs text-[#667085]">{({ HOME: "Chez vous", RELAY: "Relais", FLEX: "Chez vous +", EXPRESS: "Avant 13h" } as Record<string, string>)[shipment.glsType ?? ""] ?? (shipment.product === "EXPRESS" ? "Express" : "Colis")} · {shipment.parcelCount} colis · {shipment.weightKg} kg · {formatDate(shipment.createdAt)}</span>
+                <span className="text-xs text-[#667085]">{({ HOME: "Chez vous", RELAY: "Relais", FLEX: "Chez vous +", EXPRESS: "Avant 13h", RETURN: "Étiquette retour" } as Record<string, string>)[shipment.glsType ?? ""] ?? (shipment.product === "EXPRESS" ? "Express" : "Colis")} · {shipment.parcelCount} colis · {shipment.weightKg} kg · {formatDate(shipment.createdAt)}</span>
               </div>
               {!shipment.cancelledAt ? (
                 <div className="flex flex-wrap gap-2">
@@ -246,7 +304,7 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
                   <span className="font-mono text-[#344054]">{trackId}</span>
                   {!shipment.cancelledAt ? (
                     <span className="flex gap-3 text-xs">
-                      <a href={`${API}/shipments/${shipment.id}/label?index=${index}`} target="_blank" rel="noopener noreferrer" className="font-medium text-[#22a8c8] hover:underline">Étiquette PDF</a>
+                      <a href={`${GLS_API}/shipments/${shipment.id}/label?index=${index}`} target="_blank" rel="noopener noreferrer" className="font-medium text-[#22a8c8] hover:underline">Étiquette PDF</a>
                       <a href="https://gls-group.com/FR/fr/suivi-colis" target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Suivi sur gls-group.com</a>
                     </span>
                   ) : null}
@@ -265,55 +323,18 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
           </div>
         ))}
 
-        {config?.configured && shipments && !active ? (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-[#344054]">Nouvelle expédition</p>
-            <p className="text-xs text-[#667085]">Vérifiez l’adresse du destinataire : elle est reprise de la commande et sera imprimée sur l’étiquette.</p>
-            {delivery?.glsType === "RELAY" && delivery.relay ? (
-              <p className="rounded border border-[#dce4ea] bg-[#f7fafc] px-3 py-2 text-xs text-[#344054]">
-                Point relais choisi par le client : <strong>{delivery.relay.name}</strong>, {delivery.relay.street}, {delivery.relay.zip} {delivery.relay.city}
-              </p>
-            ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-[#667085]">Destinataire (40 caractères max.)<input className={`${inputClass} mt-1`} value={form.name} maxLength={40} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Adresse (40 caractères max.)<input className={`${inputClass} mt-1`} value={form.street} maxLength={40} onChange={(e) => setForm({ ...form, street: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Code postal<input className={`${inputClass} mt-1`} value={form.zip} maxLength={10} onChange={(e) => setForm({ ...form, zip: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Ville<input className={`${inputClass} mt-1`} value={form.city} maxLength={40} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Pays (code à 2 lettres)<input className={`${inputClass} mt-1 uppercase`} value={form.countryCode} maxLength={2} placeholder="FR" onChange={(e) => setForm({ ...form, countryCode: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Téléphone<input className={`${inputClass} mt-1`} value={form.phone} maxLength={35} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085]">Mobile (SMS du livreur)<input className={`${inputClass} mt-1`} value={form.mobile} maxLength={35} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></label>
-              <label className="text-xs font-semibold text-[#667085] sm:col-span-2">E-mail (pour l’avis de passage)<input className={`${inputClass} mt-1`} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-            </div>
+        {config?.configured && shipments && moduleSettings?.returnService.enabled && !returnActive ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[#dce4ea] bg-[#f7fafc] px-3 py-2">
+            <p className="text-xs text-[#344054]">
+              <strong>Étiquette retour</strong> : le colis repart de {form.name || "le client"}{form.zip ? `, ${form.zip} ${form.city}` : ""} vers l’adresse de retour de la boutique (Réglages GLS).
+            </p>
+            <Button size="slim" onClick={() => void createReturn()} loading={busy === "return"} disabled={!formValid || Boolean(busy)}>Créer l’étiquette retour</Button>
+          </div>
+        ) : null}
 
-            <div>
-              <p className="text-xs font-semibold text-[#667085]">Poids de chaque colis (kg)</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                {weights.map((weight, index) => (
-                  <input key={index} aria-label={`Poids du colis ${index + 1}`} inputMode="decimal" className={`${inputClass} !w-24`} value={weight} onChange={(e) => setWeights(weights.map((w, i) => (i === index ? e.target.value : w)))} />
-                ))}
-                {weights.length < 10 ? <Button size="slim" onClick={() => setWeights([...weights, "1"])}>Ajouter un colis</Button> : null}
-                {weights.length > 1 ? <Button size="slim" onClick={() => setWeights(weights.slice(0, -1))}>Retirer</Button> : null}
-              </div>
-              {!weightsValid ? <p className="mt-1 text-xs text-[#b42318]">Chaque poids doit être compris entre 0,1 et 40 kg.</p> : null}
-            </div>
-
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs font-semibold text-[#667085]">Type de livraison GLS
-                <select className={`${inputClass} mt-1 min-w-52`} value={glsType} onChange={(e) => setGlsType(e.target.value as GlsType)}>
-                  <option value="HOME">GLS Chez vous</option>
-                  <option value="RELAY">GLS Relais (point relais)</option>
-                  <option value="FLEX">GLS Chez vous +</option>
-                  <option value="EXPRESS">GLS Avant 13h (express)</option>
-                </select>
-              </label>
-              {glsType === "RELAY" ? (
-                <label className="text-xs font-semibold text-[#667085]">Identifiant du point relais
-                  <input className={`${inputClass} mt-1 w-48`} value={parcelShopId} maxLength={40} onChange={(e) => setParcelShopId(e.target.value)} />
-                </label>
-              ) : null}
-              <Button variant="primary" onClick={() => void create()} loading={busy === "create"} disabled={!formValid || Boolean(busy)}>Créer l’expédition GLS</Button>
-            </div>
-            {config.mode === "live" ? <p className="text-xs text-[#667085]">Environnement de production : GLS facture l’étiquette dès sa création.</p> : null}
+        {moduleSettings?.deliveryNote ? (
+          <div>
+            <Button size="slim" onClick={() => printDeliveryNote(order, form)}>Imprimer le bon de livraison</Button>
           </div>
         ) : null}
       </div>

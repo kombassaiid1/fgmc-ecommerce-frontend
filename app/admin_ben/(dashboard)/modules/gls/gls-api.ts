@@ -24,6 +24,16 @@ export type GlsSettings = {
   relayTypes: Array<"SHOP" | "LOCKER" | "KEEPER">;
   relayXlOnly: boolean;
   supplements: GlsSupplements;
+  /** Order state set for each GLS tracking state; empty leaves the order alone. */
+  trackingStates: { inTransit: string; inWarehouse: string; inDelivery: string; delivered: string };
+  /** Secret in the address a cron job calls. */
+  trackingKey: string;
+  /** WinExpé export and import options. */
+  exchange: { prefixEnabled: boolean; prefix: string; useReference: boolean; stateAfterExport: string; stateAfterImport: string };
+  /** Where returned parcels go; when enabled an order can get a return label. */
+  returnService: { enabled: boolean; name: string; name2: string; street: string; zip: string; city: string; country: string };
+  /** Offer a printable delivery note on each order. */
+  deliveryNote: boolean;
   alternativeShipper: { enabled: boolean; name: string; name2: string; street: string; zip: string; city: string; country: string; email: string; contact: string; phone: string; mobile: string };
 };
 

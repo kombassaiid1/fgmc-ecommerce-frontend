@@ -30,6 +30,8 @@ export type OrderTotalsPayload = {
   deliveryFee?: number;
   couponCode?: string;
   paymentMethod?: "En_ligne" | "COD";
+  /** How the customer chose to pay, shown in the admin order list. */
+  paymentType?: "Paiement par carte bancaire" | "Paiement à la livraison" | "Virement bancaire";
   /** Carrier chosen at checkout. The server recomputes and checks its price. */
   shipping?: { carrierId: string; countryCode: string };
 };
@@ -89,6 +91,8 @@ export async function deleteClientAddress(token: string, id: string): Promise<vo
 
 export type CreatedOrder = {
   id: string;
+  /** The order number shown to the customer. */
+  reference?: string | null;
   total: number;
   createdAt?: string;
 };
@@ -118,6 +122,8 @@ export type StoredOrderProduct = {
 
 export type OrderListItem = {
   id: string;
+  /** The order number the shop shows (null on orders made before references existed). */
+  reference?: string | null;
   products: StoredOrderProduct[] | unknown;
   Client?: OrderClient | null;
   Address?: OrderAddress | null;
@@ -264,4 +270,25 @@ export async function createAuthenticatedOrder(
     headers: authHeaders(token),
     body: JSON.stringify(payload),
   });
+}
+
+/** What the order list shows when a row is opened. */
+export type OrderPreview = {
+  carrierName: string | null;
+  /** What the customer chose at checkout: the carrier and what it costs (null when no carrier was chosen). */
+  shipping: { carrierName: string; zoneName: string | null; countryCode: string; weightKg: number; fee: number; handlingFee: number; createdAt: string } | null;
+  /** The GLS choice: delivery type, relay point and mobile number. */
+  delivery: { glsType: string; parcelShopId: string | null; relay: { name?: string; street?: string; zip?: string; city?: string } | null; customerMobile: string | null } | null;
+  trackingNumbers: string[];
+  /** Stripe payment session, when the order was paid online. */
+  transactionId: string | null;
+  /** By product id: its reference and tax rate in percent. */
+  products: Record<string, { reference: string | null; taxRate: number }>;
+};
+
+export async function getOrderPreview(id: string): Promise<OrderPreview> {
+  const response = await fetch(`/frontend-api/admin/orders/${encodeURIComponent(id)}/preview`, { cache: "no-store" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(" ") : data.message || "Impossible de charger les détails.");
+  return data as OrderPreview;
 }

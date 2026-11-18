@@ -13,10 +13,19 @@ const settingsSections = [
     iconColor: "#2456a6",
   },
   {
-    title: "Statuts de commande",
-    description: "Personnalisez les couleurs de fond et de texte affichées pour chaque statut.",
-    href: "/admin_ben/settings/order-status-colors",
-    action: "Configurer les couleurs",
+    title: "Commandes",
+    description: "Choisissez le format de la référence des commandes, par exemple C26111249 (préfixe, année, mois et numéro).",
+    href: "/admin_ben/settings/orders",
+    action: "Régler les commandes",
+    icon: "#",
+    tone: "#fff4e5",
+    iconColor: "#a05a00",
+  },
+  {
+    title: "États de commandes",
+    description: "Créez et réglez les états des commandes : nom, couleur, icône et options, ou importez-les depuis PrestaShop.",
+    href: "/admin_ben/settings/order-states",
+    action: "Gérer les états",
     icon: "Aa",
     tone: "#f2edff",
     iconColor: "#7044a6",
@@ -36,7 +45,7 @@ export default function AdminSettingsPage() {
   return (
     <BlockStack gap="500">
       <div className="flex flex-col gap-2 border-b border-[#dce4ea] pb-5">
-        <Text as="h1" variant="heading2xl">Paramètres</Text>
+        <Text as="h1" variant="heading2xl">Paramètres de la boutique</Text>
         <Text as="p" tone="subdued">Gérez les réglages de votre boutique depuis un seul endroit.</Text>
       </div>
 

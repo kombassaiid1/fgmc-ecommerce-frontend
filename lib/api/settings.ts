@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api/http-client";
-import type { OrderStatusColors } from "@/lib/order-statuses";
+/** Colors the old "Couleurs des statuts" page saved. Statuses now hold their own color (États de commandes). */
+type OrderStatusColors = Record<string, { backgroundColor: string; textColor: string }>;
 
 export type ProductSettings = {
   defaultStockQuantity: number;

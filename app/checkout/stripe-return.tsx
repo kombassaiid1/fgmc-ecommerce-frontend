@@ -50,7 +50,6 @@ export function StripeReturn(props: Props) {
   }, [kind, orderId, sessionId]);
 
   useEffect(() => {
-    if (status !== "paid") return;
     let cancelled = false;
     getOrder(orderId)
       .then((data) => {
@@ -60,7 +59,7 @@ export function StripeReturn(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [status, orderId]);
+  }, [orderId]);
 
   async function retryPayment() {
     setIsRetrying(true);
@@ -103,7 +102,7 @@ export function StripeReturn(props: Props) {
           <h1 className="mt-5! text-3xl! font-bold!" role="status">{current.title}</h1>
           <p className="mt-2! max-w-sm text-sm! leading-6 text-muted-foreground">{current.text}</p>
           <p className="mt-5! rounded-md bg-muted px-4 py-2 text-sm! font-semibold!">
-            Commande n° {orderId.slice(-8)}
+            Commande n° {order?.reference ?? orderId.slice(-8)}
           </p>
           {message ? (
             <p role="alert" className="mt-4! max-w-sm text-sm! text-destructive">{message}</p>
@@ -167,7 +166,7 @@ function PaidReceipt({
             <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm">
               <div>
                 <dt className="text-muted-foreground">Commande</dt>
-                <dd className="font-semibold tabular-nums">n° {orderId.slice(-8)}</dd>
+                <dd className="font-semibold tabular-nums">n° {order?.reference ?? orderId.slice(-8)}</dd>
               </div>
               {date ? (
                 <div>

@@ -159,6 +159,31 @@
 .gls-supplements .gls-savebar { position: static; margin-top: 8px; background: none; }
 
 /* ------------------------------------------------------------------ */
+/* Réglages                                                             */
+/* ------------------------------------------------------------------ */
+
+.gls-settings { display: grid; gap: 36px; }
+.gls-settings .gls-section { display: grid; gap: 18px; }
+.gls-settings .gls-section > * + * { margin-top: 0; }
+.gls-settings .gls-section-title { padding-bottom: 10px; border-bottom: 1px solid var(--gls-line); }
+.gls-checklist { display: grid; gap: 8px; }
+.gls-checklist label { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.gls-checklist input { width: 16px; height: 16px; accent-color: var(--gls-blue); }
+.gls-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; max-width: 760px; }
+.gls-form-grid .gls-field input { font-family: inherit; font-size: 14px; }
+.gls-note { display: grid; gap: 12px; padding: 16px 18px; border: 1.5px solid var(--gls-line); border-radius: 10px; background: var(--gls-paper); }
+.gls-note p { max-width: 74ch; margin: 0; color: var(--gls-muted); font-size: 13px; line-height: 1.6; }
+.gls-note .gls-note-foot { font-size: 12.5px; }
+.gls-url { display: flex; flex-wrap: wrap; gap: 10px; }
+.gls-url input { flex: 1 1 360px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid #c6cfda; border-radius: 8px; background: var(--gls-surface); color: var(--gls-ink); font: 12.5px ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.gls-link { padding: 0; border: 0; background: none; color: var(--gls-blue); font: inherit; text-decoration: underline; cursor: pointer; }
+.gls-states { display: grid; gap: 10px; max-width: 640px; }
+.gls-states-head, .gls-states-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: center; }
+.gls-states-head { color: var(--gls-muted); font-size: 12px; font-weight: 700; }
+.gls-states-row label { font-size: 14px; font-weight: 600; }
+.gls-states-row select { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid #c6cfda; border-radius: 8px; background: var(--gls-surface); color: var(--gls-ink); font: inherit; font-size: 14px; }
+
+/* ------------------------------------------------------------------ */
 /* Checks                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -195,6 +220,8 @@
 
 @media (max-width: 720px) {
   .gls-choices, .gls-field-row, .gls-area-grid { grid-template-columns: minmax(0, 1fr); }
+  .gls-form-grid, .gls-states-head, .gls-states-row { grid-template-columns: minmax(0, 1fr); }
+  .gls-states-head { display: none; }
   .gls-service { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .gls-service-logo { width: 72px; }
   .gls-label-body { padding: 16px 16px 0; }
