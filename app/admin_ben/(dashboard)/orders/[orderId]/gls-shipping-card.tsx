@@ -305,7 +305,7 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
                   {!shipment.cancelledAt ? (
                     <span className="flex gap-3 text-xs">
                       <a href={`${GLS_API}/shipments/${shipment.id}/label?index=${index}`} target="_blank" rel="noopener noreferrer" className="font-medium text-[#22a8c8] hover:underline">Étiquette PDF</a>
-                      <a href="https://gls-group.com/FR/fr/suivi-colis" target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Suivi sur gls-group.com</a>
+                      <a href={`https://gls-group.eu/FR/fr/suivi-colis?match=${shipment.trackIds.map(encodeURIComponent).join(",")}`} target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Suivi sur gls-group.eu</a>
                     </span>
                   ) : null}
                 </li>

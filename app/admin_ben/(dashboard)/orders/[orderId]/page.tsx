@@ -311,7 +311,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
                             <td className="py-2 pr-3">{currentPreview.shipping.zoneName ?? "—"} ({currentPreview.shipping.countryCode})</td>
                             <td className="whitespace-nowrap py-2 pr-3 text-right">{currentPreview.shipping.weightKg} kg</td>
                             <td className="whitespace-nowrap py-2 pr-3 text-right">{formatMoney(currentPreview.shipping.fee + currentPreview.shipping.handlingFee)}</td>
-                            <td className="py-2">{currentPreview.trackingNumbers.length ? currentPreview.trackingNumbers.join(", ") : "—"}</td>
+                            <td className="py-2">
+                              {currentPreview.trackingNumbers.length ? (
+                                currentPreview.trackingLink ? <a href={currentPreview.trackingLink} target="_blank" rel="noopener noreferrer" className="text-[#168ca8] underline hover:text-[#0e6f87]">{currentPreview.trackingNumbers.join(",")}</a> : currentPreview.trackingNumbers.join(", ")
+                              ) : "—"}
+                            </td>
                           </tr>
                         </tbody>
                       </table>

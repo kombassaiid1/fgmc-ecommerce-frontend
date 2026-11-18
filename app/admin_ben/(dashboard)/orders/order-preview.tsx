@@ -57,7 +57,10 @@ export function OrderPreviewPanel({ order, onOpen }: { order: OrderListItem; onO
           <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-0.5 size-6 shrink-0 text-[#3a4a5c]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 3h15v13H1z" /><path d="M16 8h4l3 3v5h-7z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
           <div className="text-[13px] leading-5 text-[#344054]">
             <div><strong>Transporteur :</strong> {current ? preview?.carrierName ?? "—" : "…"}</div>
-            <div><strong>Numéro de suivi :</strong> {current ? (preview?.trackingNumbers.length ? preview.trackingNumbers.join(", ") : "-") : "…"}</div>
+            <div>
+              <strong>Numéro de suivi :</strong>{" "}
+              {!current ? "…" : !preview?.trackingNumbers.length ? "-" : preview.trackingLink ? <a href={preview.trackingLink} target="_blank" rel="noopener noreferrer" className="text-[#168ca8] underline">{preview.trackingNumbers.join(",")}</a> : preview.trackingNumbers.join(", ")}
+            </div>
             <div className="mt-1"><strong>Détails de livraison :</strong></div>
             <Lines lines={customerLines(order, false)} />
           </div>

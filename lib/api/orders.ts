@@ -287,6 +287,8 @@ export type OrderPreview = {
   /** Every status the order has had, newest first. */
   history: Array<{ etat: string; by: string | null; at: string }>;
   trackingNumbers: string[];
+  /** The carrier's page to follow the parcel(s), numbers included (null before a label exists). */
+  trackingLink: string | null;
   /** Stripe payment session, when the order was paid online. */
   transactionId: string | null;
   /** By product id: its reference and tax rate in percent. */
