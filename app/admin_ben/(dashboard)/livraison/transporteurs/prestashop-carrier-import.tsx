@@ -18,6 +18,12 @@ type Summary = {
   /** Existing carriers that will be linked to their PrestaShop twin (needed to copy product carriers). */
   toLink?: number;
   linked?: number;
+  /** True when the FGMC PrestaShop module (1.1.0) answered, so each carrier's zones are PrestaShop's own. */
+  glsTypes?: Array<{ name: string; glsType: string }>;
+  zonesKnown?: boolean;
+  zoneSync?: Array<{ name: string; removed: number; added: number }>;
+  unmatchedZones?: string[];
+  zonesUpdated?: number;
 };
 
 const URL = "/frontend-api/admin/prestashop-integration/carriers";
@@ -97,14 +103,14 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
         primaryAction={
           done
             ? { content: "Terminer", onAction: close }
-            : { content: summary ? (summary.create.length ? `Importer ${summary.create.length} transporteur(s)` : "Lier les transporteurs") : "Importer", loading: importing, disabled: loading || Boolean(error) || !summary || summary.create.length + (summary.toLink ?? 0) === 0, onAction: () => void runImport() }
+            : { content: summary ? (summary.create.length ? `Importer ${summary.create.length} transporteur(s)` : "Mettre à jour les transporteurs") : "Importer", loading: importing, disabled: loading || Boolean(error) || !summary || summary.create.length + (summary.toLink ?? 0) + (summary.zoneSync?.length ?? 0) + (summary.glsTypes?.length ?? 0) === 0, onAction: () => void runImport() }
         }
         secondaryActions={done ? [] : [{ content: "Annuler", onAction: close, disabled: importing }]}>
         <Modal.Section>
           <BlockStack gap="400">
             {done ? (
               <Banner tone="success" title="Import terminé">
-                <p>{done.create.length} transporteur(s) importé(s), {done.logosImported ?? 0} logo(s) récupéré(s), {done.linked ?? 0} transporteur(s) existant(s) lié(s) à PrestaShop. Vérifiez leurs tarifs, puis activez-les quand vous êtes prêt.</p>
+                <p>{done.create.length} transporteur(s) importé(s), {done.logosImported ?? 0} logo(s) récupéré(s), {done.linked ?? 0} transporteur(s) existant(s) lié(s) à PrestaShop, zones mises à jour pour {done.zonesUpdated ?? 0} transporteur(s). Vérifiez leurs tarifs, puis activez-les quand vous êtes prêt.</p>
               </Banner>
             ) : error ? (
               <Banner tone="critical" title="Impossible de lire PrestaShop" action={{ content: "Configurer PrestaShop", url: "/admin_ben/modules/prestashop" }} secondaryAction={{ content: "Réessayer", onAction: () => setAttempt((n) => n + 1) }}>
@@ -126,6 +132,27 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
                 {summary.toLink ? (
                   <Banner tone="info" title={`${summary.toLink} transporteur(s) déjà présents seront liés à PrestaShop`}>
                     <p>Ils ne sont pas modifiés. Ce lien permet de reprendre les transporteurs autorisés de chaque produit lors d’un réimport.</p>
+                  </Banner>
+                ) : null}
+
+                {summary.zoneSync?.length ? (
+                  <Banner tone="info" title={`Zones à mettre à jour pour ${summary.zoneSync.length} transporteur(s) d’après PrestaShop`}>
+                    <p>{summary.zoneSync.map((item) => `${item.name} (${[item.removed ? `${item.removed} retirée(s)` : '', item.added ? `${item.added} ajoutée(s)` : ''].filter(Boolean).join(', ')})`).join(' · ')}. Seules les zones où PrestaShop active le transporteur sont conservées ; les tarifs ne sont pas modifiés.</p>
+                  </Banner>
+                ) : null}
+                {summary.glsTypes?.length ? (
+                  <Banner tone="info" title={`Type GLS à renseigner pour ${summary.glsTypes.length} transporteur(s)`}>
+                    <p>{summary.glsTypes.map((item) => `${item.name} : ${({ HOME: 'Chez vous', RELAY: 'Relais', FLEX: 'Chez vous +', EXPRESS: 'Avant 13h' } as Record<string, string>)[item.glsType] ?? item.glsType}`).join(' · ')}. Déduit du nom du transporteur ; vous pouvez le changer dans la fiche du transporteur.</p>
+                  </Banner>
+                ) : null}
+                {summary.unmatchedZones?.length ? (
+                  <Banner tone="warning" title="Zones PrestaShop absentes d’ici" action={{ content: "Gérer les zones", url: "/admin_ben/international/zones" }}>
+                    <p>Ces zones n’existent pas dans la boutique et sont ignorées : {summary.unmatchedZones.join(', ')}.</p>
+                  </Banner>
+                ) : null}
+                {summary.zonesKnown === false ? (
+                  <Banner tone="info" title="Zones non vérifiées">
+                    <p>Le module FGMC (version 1.1.0 ou plus) n’est pas détecté sur PrestaShop : les zones de chaque transporteur sont déduites de ses tarifs, et un transporteur gratuit n’a pas de zone. Installez le module depuis Modules, PrestaShop.</p>
                   </Banner>
                 ) : null}
 
@@ -157,7 +184,7 @@ export function PrestashopCarrierImport({ onImported }: { onImported: () => Prom
                 ) : null}
 
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Sont repris : le nom, le délai, le lien de suivi, la facturation (poids ou prix), les tranches et le prix de chaque tranche par zone, les frais de manutention, la taxe (retrouvée par son taux), le comportement hors tranche et le poids maximum. Les logos sont téléchargés depuis PrestaShop vers la médiathèque.</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Sont repris : le nom, le délai, le lien de suivi, la facturation (poids ou prix), les tranches et le prix de chaque tranche par zone, les frais de manutention, la taxe (retrouvée par son taux), le comportement hors tranche et le poids maximum. Les logos sont téléchargés depuis PrestaShop vers la médiathèque, et les zones de chaque transporteur sont celles de PrestaShop (avec le module FGMC).</Text>
                   <Text as="p" variant="bodySm" tone="subdued">L’import ne supprime ni ne modifie rien. La clé Webservice de PrestaShop doit avoir la permission de lecture sur « carriers », « price_ranges », « weight_ranges », « deliveries » et « zones » (et « tax_rules » et « taxes » pour reprendre la taxe).</Text>
                 </BlockStack>
               </>

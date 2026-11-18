@@ -7,6 +7,8 @@ export type ShippingOption = {
   speedGrade: number;
   logoUrl: string | null;
   isPickup: boolean;
+  /** The GLS delivery this carrier stands for (HOME, RELAY, FLEX, EXPRESS), or null. */
+  glsType: string | null;
   /** Delivery price, handling excluded. */
   price: number;
   handlingFee: number;
@@ -30,6 +32,8 @@ export type ShippingQuote = {
 
 export type ShippingQuoteInput = {
   countryCode: string;
+  /** Delivery postcode, used for GLS island and mountain supplements. */
+  postcode?: string;
   subtotal: number;
   items: Array<{ productId: string; quantity: number }>;
 };
@@ -40,4 +44,29 @@ export function getShippingQuote(input: ShippingQuoteInput) {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export type GlsRelay = {
+  id: string;
+  name: string;
+  street: string;
+  zip: string;
+  city: string;
+  country: string;
+  lat: number | null;
+  lng: number | null;
+  /** Straight-line distance in kilometres. */
+  distance: number | null;
+  phone: string;
+  /** Day 0 is Monday, times as HH:mm. */
+  hours: Array<{ day: number; from: string; to: string }>;
+};
+
+/** GLS pick-up points near an address, for a relay-delivery carrier. */
+export async function searchGlsRelays(input: { zip: string; city?: string; street?: string; country: string }) {
+  const query = new URLSearchParams({ zip: input.zip, country: input.country });
+  if (input.city) query.set("city", input.city);
+  if (input.street) query.set("street", input.street);
+  const result = await apiRequest<{ relays: GlsRelay[] }>({ path: `/gls/relays?${query.toString()}`, method: "GET" });
+  return result.relays;
 }

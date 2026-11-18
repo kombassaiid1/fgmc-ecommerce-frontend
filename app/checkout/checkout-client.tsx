@@ -44,7 +44,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getImageUrl } from "@/lib/api";
-import { getShippingQuote, type ShippingQuote } from "@/lib/api/shipping";
+import { getShippingQuote, type GlsRelay, type ShippingQuote } from "@/lib/api/shipping";
+import { GlsDelivery } from "./gls-delivery";
 import {
   createAuthenticatedOrder,
   createClientAddress,
@@ -508,18 +509,23 @@ export function CheckoutClient() {
     () => roundMoney(items.reduce((sum, item) => sum + roundMoney(itemTotals(item).lineTtc), 0)),
     [items],
   );
+  /** GLS adds a supplement for islands and mountain areas, which depends on the postcode. */
+  const shippingPostcode = (selectedAddress?.postalCode ?? visibleForm.postalCode ?? "").replace(/\s+/g, "").slice(0, 12);
   const quoteKey = useMemo(
-    () => `${shippingCountryCode}|${quoteSubtotal}|${items.map((item) => `${item.productId}:${item.qty}`).join(",")}`,
-    [items, quoteSubtotal, shippingCountryCode],
+    () => `${shippingCountryCode}|${shippingPostcode}|${quoteSubtotal}|${items.map((item) => `${item.productId}:${item.qty}`).join(",")}`,
+    [items, quoteSubtotal, shippingCountryCode, shippingPostcode],
   );
   const [quoteState, setQuoteState] = useState<{ key: string; quote: ShippingQuote | null } | null>(null);
   const [chosenCarrierId, setChosenCarrierId] = useState("");
+  const [glsRelay, setGlsRelay] = useState<GlsRelay | null>(null);
+  const [glsMobile, setGlsMobile] = useState("");
 
   useEffect(() => {
     if (!shippingCountryCode || items.length === 0) return;
     let cancelled = false;
     getShippingQuote({
       countryCode: shippingCountryCode,
+      postcode: shippingPostcode,
       subtotal: quoteSubtotal,
       items: items.map((item) => ({ productId: item.productId, quantity: item.qty })),
     })
@@ -533,7 +539,7 @@ export function CheckoutClient() {
     return () => {
       cancelled = true;
     };
-  }, [items, quoteKey, quoteSubtotal, shippingCountryCode]);
+  }, [items, quoteKey, quoteSubtotal, shippingCountryCode, shippingPostcode]);
 
   const quote = quoteState?.quote ?? null;
   const quoteLoading = Boolean(shippingCountryCode) && items.length > 0 && quoteState?.key !== quoteKey;
@@ -759,6 +765,15 @@ export function CheckoutClient() {
       );
       return;
     }
+    // A GLS carrier needs what only the customer can give: a relay point, and a mobile number for the text message.
+    if (carrierMode && chosenOption?.glsType === "RELAY" && !glsRelay) {
+      setSubmitError("Choisissez un point relais GLS pour cette livraison.");
+      return;
+    }
+    if (carrierMode && (chosenOption?.glsType === "RELAY" || chosenOption?.glsType === "FLEX") && !/^\+?[0-9 ().-]{6,20}$/.test(glsMobile.trim())) {
+      setSubmitError("Indiquez un numéro de mobile valide : GLS vous envoie un SMS pour cette livraison.");
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -768,7 +783,15 @@ export function CheckoutClient() {
         ...buildOrderTotalsPayload(items, totals),
         paymentMethod: payOnline ? ("En_ligne" as const) : ("COD" as const),
         ...(carrierMode && chosenOption
-          ? { shipping: { carrierId: chosenOption.carrierId, countryCode: shippingCountryCode } }
+          ? {
+              shipping: {
+                carrierId: chosenOption.carrierId,
+                countryCode: shippingCountryCode,
+                postcode: shippingPostcode,
+                ...(chosenOption.glsType === "RELAY" && glsRelay ? { relayId: glsRelay.id } : {}),
+                ...(chosenOption.glsType === "RELAY" || chosenOption.glsType === "FLEX" ? { mobile: glsMobile.trim() } : {}),
+              },
+            }
           : {}),
       };
       const order = session?.token
@@ -1145,7 +1168,10 @@ export function CheckoutClient() {
                     legend="Mode de livraison"
                     name="checkout-carrier"
                     value={chosenOption?.carrierId ?? ""}
-                    onChange={setChosenCarrierId}
+                    onChange={(value) => {
+                      setChosenCarrierId(value);
+                      setGlsRelay(null); // a relay point belongs to the carrier it was chosen for
+                    }}
                     options={quote.options.map((option) => ({
                       value: option.carrierId,
                       label: option.name,
@@ -1157,6 +1183,20 @@ export function CheckoutClient() {
                       aside: option.free ? "Gratuit" : formatEuro(option.total),
                     }))}
                   />
+                  {chosenOption?.glsType === "RELAY" || chosenOption?.glsType === "FLEX" ? (
+                    <GlsDelivery
+                      key={chosenOption.carrierId}
+                      glsType={chosenOption.glsType}
+                      country={shippingCountryCode}
+                      defaultZip={(selectedAddress?.postalCode ?? visibleForm.postalCode) || ""}
+                      defaultCity={(selectedAddress?.city ?? visibleForm.city) || ""}
+                      defaultStreet={(selectedAddress?.street ?? visibleForm.address) || ""}
+                      relay={glsRelay}
+                      onRelay={setGlsRelay}
+                      mobile={glsMobile}
+                      onMobile={setGlsMobile}
+                    />
+                  ) : null}
                   {quote.freeShippingRemaining ? (
                     <p className="mb-2! text-sm! text-muted-foreground">
                       Plus que <strong className="text-foreground">{formatEuro(quote.freeShippingRemaining)}</strong> d&apos;achats pour la livraison gratuite.

@@ -10,6 +10,7 @@ type Shipment = {
   id: string;
   environment: "sandbox" | "live";
   product: "PARCEL" | "EXPRESS";
+  glsType?: GlsType | null;
   trackIds: string[];
   weightKg: number;
   parcelCount: number;
@@ -21,7 +22,9 @@ type Shipment = {
 };
 type TrackingEvent = { date: string; time: string; description: string; place: string };
 type GlsConfig = { mode: "sandbox" | "live"; configured: boolean };
-type Form = { name: string; street: string; zip: string; city: string; countryCode: string; email: string; phone: string };
+type Form = { name: string; street: string; zip: string; city: string; countryCode: string; email: string; phone: string; mobile: string };
+type GlsType = "HOME" | "RELAY" | "FLEX" | "EXPRESS";
+type Delivery = { glsType: GlsType; parcelShopId: string | null; relay: { name: string; street: string; zip: string; city: string } | null; customerMobile: string | null };
 
 const API = "/frontend-api/admin/gls-integration";
 
@@ -49,6 +52,7 @@ function prefill(order: OrderDetail): Form {
       countryCode: countryCodeOf(address.country),
       email: client?.email ?? "",
       phone: client?.phoneNumber ?? "",
+      mobile: "",
     };
   }
   // Guest orders store one line: "street, city, postal code, country".
@@ -61,6 +65,7 @@ function prefill(order: OrderDetail): Form {
     countryCode: countryCodeOf(parts[parts.length - 1]),
     email: order.guestEmail ?? "",
     phone: order.guestPhone ?? "",
+    mobile: "",
   };
 }
 
@@ -84,7 +89,9 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
   const [shipments, setShipments] = useState<Shipment[] | null>(null);
   const [form, setForm] = useState<Form>(() => prefill(order));
   const [weights, setWeights] = useState<string[]>(["1"]);
-  const [product, setProduct] = useState<"PARCEL" | "EXPRESS">("PARCEL");
+  const [glsType, setGlsType] = useState<GlsType>("HOME");
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
+  const [parcelShopId, setParcelShopId] = useState("");
   const [busy, setBusy] = useState("");
   const [events, setEvents] = useState<Record<string, TrackingEvent[]>>({});
   const [loadError, setLoadError] = useState("");
@@ -122,10 +129,27 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
     };
   }, [fetchAll]);
 
+  // What the customer chose at checkout (delivery type, relay point, mobile) fills the form; the admin can still change it.
+  useEffect(() => {
+    let cancelled = false;
+    call<Delivery | null>(`/orders/${order.id}/delivery`)
+      .then((chosen) => {
+        if (cancelled || !chosen) return;
+        setDelivery(chosen);
+        setGlsType(chosen.glsType);
+        setParcelShopId(chosen.parcelShopId ?? "");
+        if (chosen.customerMobile) setForm((old) => ({ ...old, mobile: chosen.customerMobile ?? "" }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [order.id]);
+
   const active = shipments?.find((shipment) => !shipment.cancelledAt) ?? null;
   const parsedWeights = weights.map((weight) => Number(weight.replace(",", ".")));
   const weightsValid = parsedWeights.every((weight) => Number.isFinite(weight) && weight >= 0.1 && weight <= 40);
-  const formValid = form.name.trim() && form.street.trim() && form.zip.trim() && form.city.trim() && /^[A-Za-z]{2}$/.test(form.countryCode) && weightsValid;
+  const formValid = form.name.trim() && form.street.trim() && form.zip.trim() && form.city.trim() && /^[A-Za-z]{2}$/.test(form.countryCode) && weightsValid && (glsType !== "RELAY" || parcelShopId.trim());
 
   async function run<T>(key: string, action: () => Promise<T>, success: string) {
     setBusy(key);
@@ -157,9 +181,11 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
               countryCode: form.countryCode.trim().toUpperCase(),
               ...(form.email.trim() ? { email: form.email.trim() } : {}),
               ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
+              ...(form.mobile.trim() ? { mobile: form.mobile.trim() } : {}),
             },
             weights: parsedWeights,
-            product,
+            glsType,
+            ...(glsType === "RELAY" ? { parcelShopId: parcelShopId.trim() } : {}),
           }),
         }),
       "Expédition GLS créée.",
@@ -204,7 +230,7 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(shipment)}
                 {shipment.environment === "sandbox" ? <Badge tone="attention">Test</Badge> : null}
-                <span className="text-xs text-[#667085]">{shipment.product === "EXPRESS" ? "Express" : "Colis"} · {shipment.parcelCount} colis · {shipment.weightKg} kg · {formatDate(shipment.createdAt)}</span>
+                <span className="text-xs text-[#667085]">{({ HOME: "Chez vous", RELAY: "Relais", FLEX: "Chez vous +", EXPRESS: "Avant 13h" } as Record<string, string>)[shipment.glsType ?? ""] ?? (shipment.product === "EXPRESS" ? "Express" : "Colis")} · {shipment.parcelCount} colis · {shipment.weightKg} kg · {formatDate(shipment.createdAt)}</span>
               </div>
               {!shipment.cancelledAt ? (
                 <div className="flex flex-wrap gap-2">
@@ -243,6 +269,11 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
           <div className="space-y-3">
             <p className="text-sm font-medium text-[#344054]">Nouvelle expédition</p>
             <p className="text-xs text-[#667085]">Vérifiez l’adresse du destinataire : elle est reprise de la commande et sera imprimée sur l’étiquette.</p>
+            {delivery?.glsType === "RELAY" && delivery.relay ? (
+              <p className="rounded border border-[#dce4ea] bg-[#f7fafc] px-3 py-2 text-xs text-[#344054]">
+                Point relais choisi par le client : <strong>{delivery.relay.name}</strong>, {delivery.relay.street}, {delivery.relay.zip} {delivery.relay.city}
+              </p>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-[#667085]">Destinataire (40 caractères max.)<input className={`${inputClass} mt-1`} value={form.name} maxLength={40} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
               <label className="text-xs font-semibold text-[#667085]">Adresse (40 caractères max.)<input className={`${inputClass} mt-1`} value={form.street} maxLength={40} onChange={(e) => setForm({ ...form, street: e.target.value })} /></label>
@@ -250,6 +281,7 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
               <label className="text-xs font-semibold text-[#667085]">Ville<input className={`${inputClass} mt-1`} value={form.city} maxLength={40} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
               <label className="text-xs font-semibold text-[#667085]">Pays (code à 2 lettres)<input className={`${inputClass} mt-1 uppercase`} value={form.countryCode} maxLength={2} placeholder="FR" onChange={(e) => setForm({ ...form, countryCode: e.target.value })} /></label>
               <label className="text-xs font-semibold text-[#667085]">Téléphone<input className={`${inputClass} mt-1`} value={form.phone} maxLength={35} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+              <label className="text-xs font-semibold text-[#667085]">Mobile (SMS du livreur)<input className={`${inputClass} mt-1`} value={form.mobile} maxLength={35} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></label>
               <label className="text-xs font-semibold text-[#667085] sm:col-span-2">E-mail (pour l’avis de passage)<input className={`${inputClass} mt-1`} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
             </div>
 
@@ -266,12 +298,19 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
             </div>
 
             <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs font-semibold text-[#667085]">Service
-                <select className={`${inputClass} mt-1 min-w-44`} value={product} onChange={(e) => setProduct(e.target.value as "PARCEL" | "EXPRESS")}>
-                  <option value="PARCEL">Colis standard</option>
-                  <option value="EXPRESS">Express</option>
+              <label className="text-xs font-semibold text-[#667085]">Type de livraison GLS
+                <select className={`${inputClass} mt-1 min-w-52`} value={glsType} onChange={(e) => setGlsType(e.target.value as GlsType)}>
+                  <option value="HOME">GLS Chez vous</option>
+                  <option value="RELAY">GLS Relais (point relais)</option>
+                  <option value="FLEX">GLS Chez vous +</option>
+                  <option value="EXPRESS">GLS Avant 13h (express)</option>
                 </select>
               </label>
+              {glsType === "RELAY" ? (
+                <label className="text-xs font-semibold text-[#667085]">Identifiant du point relais
+                  <input className={`${inputClass} mt-1 w-48`} value={parcelShopId} maxLength={40} onChange={(e) => setParcelShopId(e.target.value)} />
+                </label>
+              ) : null}
               <Button variant="primary" onClick={() => void create()} loading={busy === "create"} disabled={!formValid || Boolean(busy)}>Créer l’expédition GLS</Button>
             </div>
             {config.mode === "live" ? <p className="text-xs text-[#667085]">Environnement de production : GLS facture l’étiquette dès sa création.</p> : null}

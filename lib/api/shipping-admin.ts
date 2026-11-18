@@ -39,6 +39,8 @@ export type Carrier = {
   maxWeightKg: number;
   /** Id of the tax applied to the shipping price, empty for none. */
   taxId: string;
+  /** The GLS delivery this carrier stands for (HOME, RELAY, FLEX, EXPRESS), empty when it is not a GLS carrier. */
+  glsType: string;
   /** Id of the PrestaShop carrier it was imported from, empty when it was created here. */
   prestashopId: string;
   ranges: CarrierRange[];
@@ -109,6 +111,7 @@ export const shippingAdmin = {
   carrier: (id: string) => request<Carrier>(`/carriers/${id}`),
   createCarrier: (input: CarrierInput) => request<Carrier>("/carriers", { method: "POST", body: json(input) }),
   updateCarrier: (id: string, input: CarrierInput) => request<Carrier>(`/carriers/${id}`, { method: "PUT", body: json(input) }),
+  setCarrierGlsType: (id: string, glsType: string) => request<Carrier>(`/carriers/${id}/gls-type`, { method: "PATCH", body: json({ glsType }) }),
   setCarrierActive: (id: string, active: boolean) => request<Carrier>(`/carriers/${id}/active`, { method: "PATCH", body: json({ active }) }),
   deleteCarrier: (id: string) => request<{ deleted: boolean }>(`/carriers/${id}`, { method: "DELETE" }),
   reorderCarriers: (ids: string[]) => request<Carrier[]>("/carriers/positions", { method: "PATCH", body: json({ ids }) }),
@@ -139,5 +142,6 @@ export const EMPTY_CARRIER: CarrierInput = {
   minWeightKg: 0,
   maxWeightKg: 0,
   taxId: "",
+  glsType: "",
   ranges: [],
 };

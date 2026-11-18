@@ -44,11 +44,12 @@ type Draft = {
   minWeightKg: string;
   maxWeightKg: string;
   taxId: string;
+  glsType: string;
 };
 
 const EMPTY: Draft = {
   name: "", transitTime: "", speedGrade: 5, logoUrl: "", trackingUrl: "", active: true, isPickup: false,
-  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0", taxId: "",
+  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0", taxId: "", glsType: "",
 };
 
 const GRADES = Array.from({ length: 10 }, (_, grade) => ({
@@ -136,7 +137,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
             name: carrier.name, transitTime: carrier.transitTime, speedGrade: carrier.speedGrade, logoUrl: carrier.logoUrl,
             trackingUrl: carrier.trackingUrl, active: carrier.active, isPickup: carrier.isPickup, freeShipping: carrier.freeShipping,
             billing: carrier.billing, addHandling: carrier.addHandling, outOfRange: carrier.outOfRange,
-            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg), taxId: carrier.taxId,
+            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg), taxId: carrier.taxId, glsType: carrier.glsType,
           });
           setEnabled([...new Set(carrier.ranges.flatMap((range) => range.rates.map((rate) => rate.zoneId)))]);
           if (!carrier.freeShipping) {
@@ -215,7 +216,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
       input: {
         name: draft.name.trim(), transitTime: draft.transitTime.trim(), speedGrade: draft.speedGrade, logoUrl: draft.logoUrl.trim(),
         trackingUrl: draft.trackingUrl.trim(), active: draft.active, isPickup: draft.isPickup, freeShipping: draft.freeShipping,
-        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, taxId: draft.taxId, ranges: result,
+        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, taxId: draft.taxId, glsType: draft.glsType, ranges: result,
       },
     };
   })();
@@ -323,6 +324,23 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
                     {field("Rapidité", <Select label="Rapidité" labelHidden options={GRADES} value={String(draft.speedGrade)} onChange={(v) => set("speedGrade", Number(v))} />, "De 0 à 9. Sert à comparer les transporteurs, par exemple pour mettre en avant le plus rapide.")}
                     {field("Logo", <LogoField value={draft.logoUrl} onChange={(url) => set("logoUrl", url)} />)}
                     {field("Lien de suivi", <TextField label="Lien de suivi" labelHidden autoComplete="off" value={draft.trackingUrl} placeholder="https://suivi.exemple.com/?colis=@" onChange={(v) => set("trackingUrl", v)} />, "Remplacez le numéro de suivi par le signe @. Facultatif.")}
+                    {field(
+                      "Type de livraison GLS",
+                      <Select
+                        label="Type de livraison GLS"
+                        labelHidden
+                        options={[
+                          { label: "Pas un transporteur GLS", value: "" },
+                          { label: "GLS Chez vous (à domicile ou en entreprise)", value: "HOME" },
+                          { label: "GLS Relais (point relais au choix du client)", value: "RELAY" },
+                          { label: "GLS Chez vous + (avec SMS et choix du jour)", value: "FLEX" },
+                          { label: "GLS Avant 13h (express)", value: "EXPRESS" },
+                        ]}
+                        value={draft.glsType}
+                        onChange={(v) => set("glsType", v)}
+                      />,
+                      "Pour les transporteurs GLS : le type décide de l’étiquette créée et de ce que le client doit indiquer (point relais, mobile).",
+                    )}
                     {field("Transporteur actif", yesNo(draft.active, (v) => set("active", v), "Transporteur actif"))}
                     {field("Retrait en magasin", yesNo(draft.isPickup, (v) => set("isPickup", v), "Retrait en magasin"), "Le client vient chercher sa commande : pas de livraison à son adresse.")}
                   </BlockStack>

@@ -1,19 +1,51 @@
 "use client";
 
-import { Badge, Text } from "@shopify/polaris";
+import { useState } from "react";
+import { Badge, BlockStack, Text } from "@shopify/polaris";
+import { TabBar } from "../../tab-bar";
+import { CarriersTab } from "./carriers-tab";
 import GlsConfigForm from "./gls-config-form";
+import { LogsTab } from "./logs-tab";
+import { PresentationTab } from "./presentation-tab";
+import { SettingsTab } from "./settings-tab";
+import { SupportTab } from "./support-tab";
+import "./gls-module.css";
+
+const TABS = [
+  { id: "presentation", label: "Présentation" },
+  { id: "carriers", label: "Transporteurs" },
+  { id: "account", label: "Compte GLS" },
+  { id: "settings", label: "Réglages" },
+  { id: "support", label: "Support" },
+  { id: "logs", label: "Journal" },
+];
 
 export default function GlsModulePage() {
+  const [tab, setTab] = useState(0);
+  const current = TABS[tab].id;
+
   return (
     <div className="gls-module">
-      <header className="gls-module-head">
-        <div className="gls-module-title">
-          <Text as="h1" variant="heading2xl">GLS France</Text>
-          <Badge tone="info">Expédition et suivi de colis</Badge>
+      <BlockStack gap="400">
+        <header className="gls-module-head">
+          <div className="gls-module-title">
+            <Text as="h1" variant="heading2xl">GLS France</Text>
+            <Badge tone="info">Expédition et suivi de colis</Badge>
+          </div>
+          <p>Créez les étiquettes GLS depuis chaque commande, proposez les points relais à vos clients et suivez les colis.</p>
+        </header>
+
+        <TabBar tabs={TABS} selected={tab} onSelect={setTab} label="Sections du module GLS" panelId="gls-panel" />
+
+        <div id="gls-panel" role="tabpanel" aria-labelledby={`gls-panel-tab-${current}`}>
+          {current === "presentation" ? <PresentationTab /> : null}
+          {current === "carriers" ? <CarriersTab /> : null}
+          {current === "account" ? <GlsConfigForm /> : null}
+          {current === "settings" ? <SettingsTab /> : null}
+          {current === "support" ? <SupportTab /> : null}
+          {current === "logs" ? <LogsTab /> : null}
         </div>
-        <p>Créez les étiquettes GLS depuis chaque commande et suivez les colis. Utilisez les mêmes identifiants que dans l’onglet « Compte GLS » de votre module PrestaShop.</p>
-      </header>
-      <GlsConfigForm />
+      </BlockStack>
     </div>
   );
 }
