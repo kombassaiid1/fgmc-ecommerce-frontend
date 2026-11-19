@@ -2,11 +2,12 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Banner, BlockStack, Button, Card, Spinner, Text } from "@shopify/polaris";
+import { Banner, BlockStack, Button, Card, InlineGrid, Spinner, Text } from "@shopify/polaris";
 import { getOrder, getOrderPreview, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview, type StoredOrderProduct } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 import { toast } from "sonner";
 import { GlsShippingCard } from "./gls-shipping-card";
+import { ColissimoShippingCard } from "./colissimo-shipping-card";
 
 const PAYMENT_STATUS_OPTIONS = [
   { label: "En attente", value: "En_attente" },
@@ -328,6 +329,13 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
                         {currentPreview.delivery.customerMobile ? <div><strong>Mobile du client :</strong> {currentPreview.delivery.customerMobile}</div> : null}
                       </div>
                     ) : null}
+                    {currentPreview.colissimoDelivery ? (
+                      <div className="rounded border border-[#dce4ea] bg-[#f7fafc] p-3 text-[13px]">
+                        <div><strong>Livraison Colissimo :</strong> {({ HOME: "Domicile sans signature", HOME_SIGN: "Domicile avec signature", RELAY: "Point de retrait" } as Record<string, string>)[currentPreview.colissimoDelivery.colissimoType] ?? currentPreview.colissimoDelivery.colissimoType}</div>
+                        {currentPreview.colissimoDelivery.relay?.name ? <div><strong>Point de retrait choisi :</strong> {currentPreview.colissimoDelivery.relay.name}, {currentPreview.colissimoDelivery.relay.street}, {currentPreview.colissimoDelivery.relay.zip} {currentPreview.colissimoDelivery.relay.city}{currentPreview.colissimoDelivery.pickupPointId ? ` (${currentPreview.colissimoDelivery.pickupPointId})` : ""}</div> : null}
+                        {currentPreview.colissimoDelivery.customerMobile ? <div><strong>Mobile du client :</strong> {currentPreview.colissimoDelivery.customerMobile}</div> : null}
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -336,7 +344,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
             {tab === "returns" ? <div className="p-4 text-sm text-[#667085]">Aucun retour pour cette commande.</div> : null}
           </Card>
 
-          <GlsShippingCard order={order} />
+          <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400" alignItems="start">
+            <GlsShippingCard order={order} disabledReason={currentPreview?.carrierKind === "COLISSIMO" ? "Cette commande a été passée avec un transporteur Colissimo : l’expédition GLS est désactivée." : undefined} />
+            <ColissimoShippingCard order={order} disabledReason={currentPreview?.carrierKind === "GLS" ? "Cette commande a été passée avec un transporteur GLS : l’expédition Colissimo est désactivée." : undefined} />
+          </InlineGrid>
         </BlockStack>
       </div>
     </BlockStack>

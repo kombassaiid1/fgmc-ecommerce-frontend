@@ -41,6 +41,8 @@ export type Carrier = {
   taxId: string;
   /** The GLS delivery this carrier stands for (HOME, RELAY, FLEX, EXPRESS), empty when it is not a GLS carrier. */
   glsType: string;
+  /** The Colissimo delivery this carrier stands for (HOME, HOME_SIGN, RELAY), empty when it is not a Colissimo carrier. */
+  colissimoType: string;
   /** Id of the PrestaShop carrier it was imported from, empty when it was created here. */
   prestashopId: string;
   ranges: CarrierRange[];
@@ -112,6 +114,7 @@ export const shippingAdmin = {
   createCarrier: (input: CarrierInput) => request<Carrier>("/carriers", { method: "POST", body: json(input) }),
   updateCarrier: (id: string, input: CarrierInput) => request<Carrier>(`/carriers/${id}`, { method: "PUT", body: json(input) }),
   setCarrierGlsType: (id: string, glsType: string) => request<Carrier>(`/carriers/${id}/gls-type`, { method: "PATCH", body: json({ glsType }) }),
+  setCarrierColissimoType: (id: string, colissimoType: string) => request<Carrier>(`/carriers/${id}/colissimo-type`, { method: "PATCH", body: json({ colissimoType }) }),
   setCarrierActive: (id: string, active: boolean) => request<Carrier>(`/carriers/${id}/active`, { method: "PATCH", body: json({ active }) }),
   deleteCarrier: (id: string) => request<{ deleted: boolean }>(`/carriers/${id}`, { method: "DELETE" }),
   reorderCarriers: (ids: string[]) => request<Carrier[]>("/carriers/positions", { method: "PATCH", body: json({ ids }) }),
@@ -143,5 +146,6 @@ export const EMPTY_CARRIER: CarrierInput = {
   maxWeightKg: 0,
   taxId: "",
   glsType: "",
+  colissimoType: "",
   ranges: [],
 };

@@ -45,11 +45,12 @@ type Draft = {
   maxWeightKg: string;
   taxId: string;
   glsType: string;
+  colissimoType: string;
 };
 
 const EMPTY: Draft = {
   name: "", transitTime: "", speedGrade: 5, logoUrl: "", trackingUrl: "", active: true, isPickup: false,
-  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0", taxId: "", glsType: "",
+  freeShipping: false, billing: "WEIGHT", addHandling: true, outOfRange: "HIGHEST", minWeightKg: "0", maxWeightKg: "0", taxId: "", glsType: "", colissimoType: "",
 };
 
 const GRADES = Array.from({ length: 10 }, (_, grade) => ({
@@ -137,7 +138,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
             name: carrier.name, transitTime: carrier.transitTime, speedGrade: carrier.speedGrade, logoUrl: carrier.logoUrl,
             trackingUrl: carrier.trackingUrl, active: carrier.active, isPickup: carrier.isPickup, freeShipping: carrier.freeShipping,
             billing: carrier.billing, addHandling: carrier.addHandling, outOfRange: carrier.outOfRange,
-            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg), taxId: carrier.taxId, glsType: carrier.glsType,
+            minWeightKg: String(carrier.minWeightKg), maxWeightKg: String(carrier.maxWeightKg), taxId: carrier.taxId, glsType: carrier.glsType, colissimoType: carrier.colissimoType,
           });
           setEnabled([...new Set(carrier.ranges.flatMap((range) => range.rates.map((rate) => rate.zoneId)))]);
           if (!carrier.freeShipping) {
@@ -216,7 +217,7 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
       input: {
         name: draft.name.trim(), transitTime: draft.transitTime.trim(), speedGrade: draft.speedGrade, logoUrl: draft.logoUrl.trim(),
         trackingUrl: draft.trackingUrl.trim(), active: draft.active, isPickup: draft.isPickup, freeShipping: draft.freeShipping,
-        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, taxId: draft.taxId, glsType: draft.glsType, ranges: result,
+        billing: draft.billing, addHandling: draft.addHandling, outOfRange: draft.outOfRange, minWeightKg, maxWeightKg, taxId: draft.taxId, glsType: draft.glsType, colissimoType: draft.colissimoType, ranges: result,
       },
     };
   })();
@@ -340,6 +341,22 @@ export default function CarrierEditorPage({ params }: { params: Promise<{ id: st
                         onChange={(v) => set("glsType", v)}
                       />,
                       "Pour les transporteurs GLS : le type décide de l’étiquette créée et de ce que le client doit indiquer (point relais, mobile).",
+                    )}
+                    {field(
+                      "Type de livraison Colissimo",
+                      <Select
+                        label="Type de livraison Colissimo"
+                        labelHidden
+                        options={[
+                          { label: "Pas un transporteur Colissimo", value: "" },
+                          { label: "Colissimo Domicile sans signature", value: "HOME" },
+                          { label: "Colissimo Domicile avec signature", value: "HOME_SIGN" },
+                          { label: "Colissimo Point de retrait (au choix du client)", value: "RELAY" },
+                        ]}
+                        value={draft.colissimoType}
+                        onChange={(v) => set("colissimoType", v)}
+                      />,
+                      "Pour les transporteurs Colissimo : le type décide de l’étiquette créée et de ce que le client doit indiquer (point de retrait).",
                     )}
                     {field("Transporteur actif", yesNo(draft.active, (v) => set("active", v), "Transporteur actif"))}
                     {field("Retrait en magasin", yesNo(draft.isPickup, (v) => set("isPickup", v), "Retrait en magasin"), "Le client vient chercher sa commande : pas de livraison à son adresse.")}

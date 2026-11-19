@@ -7,7 +7,7 @@ import { Badge, Button, Icon, Text } from "@shopify/polaris";
 import { AppsIcon, SearchIcon } from "@shopify/polaris-icons";
 import "./modules-page.css";
 
-type ModuleId = "prestashop" | "dolibarr" | "stripe" | "gls";
+type ModuleId = "prestashop" | "dolibarr" | "stripe" | "gls" | "colissimo";
 type ModuleFilter = "all" | "configured" | "needs-setup";
 type ModuleCategory = "all" | "erp" | "catalog" | "payment" | "shipping";
 
@@ -20,7 +20,7 @@ type ModuleEntry = {
   image: string;
   configHref: string;
   configLabel: string;
-  accent: "blue" | "orange" | "indigo" | "gls";
+  accent: "blue" | "orange" | "indigo" | "gls" | "colissimo";
   download?: { href: string; label: string };
 };
 
@@ -73,6 +73,18 @@ const modules: ModuleEntry[] = [
     configLabel: "Configurer GLS",
     accent: "gls",
   },
+  {
+    id: "colissimo",
+    name: "Colissimo",
+    category: "shipping",
+    categoryLabel: "Livraison",
+    image: "/modules/colissimo-shipping.svg",
+    description:
+      "Créez les étiquettes Colissimo depuis vos commandes, proposez les points de retrait et suivez vos colis.",
+    configHref: "/admin_ben/modules/colissimo",
+    configLabel: "Configurer Colissimo",
+    accent: "colissimo",
+  },
 ];
 
 const filterTabs: Array<{ id: ModuleFilter; label: string }> = [
@@ -87,6 +99,7 @@ export default function AdminModulesPage() {
     dolibarr: null,
     stripe: null,
     gls: null,
+    colissimo: null,
   });
   const [filter, setFilter] = useState<ModuleFilter>("all");
   const [category, setCategory] = useState<ModuleCategory>("all");
@@ -98,6 +111,7 @@ export default function AdminModulesPage() {
       ["dolibarr", "/frontend-api/admin/dolibarr-integration"],
       ["stripe", "/frontend-api/admin/stripe-integration"],
       ["gls", "/frontend-api/admin/gls-integration"],
+      ["colissimo", "/frontend-api/admin/colissimo-integration"],
     ];
     endpoints.forEach(async ([id, endpoint]) => {
       try {

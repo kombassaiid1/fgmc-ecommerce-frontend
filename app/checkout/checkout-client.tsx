@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import countries from "world-countries";
 import {
   AlertCircle,
-  Banknote,
   Building2,
   Check,
   CheckCircle2,
@@ -45,7 +44,9 @@ import {
 } from "@/components/ui/select";
 import { getImageUrl } from "@/lib/api";
 import { PAYMENT_LABELS } from "@/lib/payment-label";
-import { getShippingQuote, type GlsRelay, type ShippingQuote } from "@/lib/api/shipping";
+import { getShippingQuote, type ColissimoRelay, type GlsRelay, type ShippingQuote } from "@/lib/api/shipping";
+import { ColissimoDelivery } from "./colissimo-delivery";
+import { ColissimoDeliveryDate } from "./colissimo-delivery-date";
 import { GlsDelivery } from "./gls-delivery";
 import {
   createAuthenticatedOrder,
@@ -128,7 +129,7 @@ const DEFAULT_FORM: CheckoutForm = {
   postalCode: "",
   country: "Tunisie",
   deliveryMethod: "standard",
-  paymentMethod: "cash",
+  paymentMethod: "card",
   notes: "",
 };
 
@@ -521,6 +522,12 @@ export function CheckoutClient() {
   const [chosenCarrierId, setChosenCarrierId] = useState("");
   const [glsRelay, setGlsRelay] = useState<GlsRelay | null>(null);
   const [glsMobile, setGlsMobile] = useState("");
+  const [colissimoRelay, setColissimoRelay] = useState<ColissimoRelay | null>(null);
+  const [colissimoDoorCodes, setColissimoDoorCodes] = useState({ code1: "", code2: "" });
+  const [colissimoPhoneRequired, setColissimoPhoneRequired] = useState(false);
+  /** How many steps the customer has confirmed, in order: a confirmed step folds into a summary, the next one opens. */
+  const [doneUpTo, setDoneUpTo] = useState(0);
+  const [stepError, setStepError] = useState<{ step: number; message: string } | null>(null);
 
   useEffect(() => {
     if (!shippingCountryCode || items.length === 0) return;
@@ -752,9 +759,84 @@ export function CheckoutClient() {
     setSubmitError(null);
   }
 
+  /** Payment on delivery is no longer offered. Card is the default when online payment is on, bank transfer otherwise. */
+  const paymentChoice: CheckoutForm["paymentMethod"] =
+    visibleForm.paymentMethod === "bank" ? "bank" : stripeConfig?.enabled ? "card" : "bank";
+
+  const stepStatus = (step: number): "done" | "open" | "locked" => (step <= doneUpTo ? "done" : step === doneUpTo + 1 ? "open" : "locked");
+
+  /** What must be right before a step can be confirmed; the same rules as the order, asked one step at a time. */
+  function validateStep(step: number): string | null {
+    if (step === 1) {
+      if (!visibleForm.firstName.trim() || !visibleForm.lastName.trim()) return "Indiquez votre prénom et votre nom.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(visibleForm.email.trim())) return "Indiquez une adresse e-mail valide.";
+      if (!visibleForm.phone.trim()) return "Indiquez votre numéro de téléphone.";
+      if (!session?.token && accountPassword.length < 6) return "Choisissez un mot de passe d’au moins 6 caractères pour créer votre compte.";
+      return null;
+    }
+    if (step === 2) {
+      if (addressEditorMode) return "Enregistrez ou annulez l’adresse en cours de modification.";
+      if (deliveryAddresses.length > 0) return selectedAddress ? null : "Choisissez une adresse de livraison.";
+      if (!visibleForm.address.trim() || !visibleForm.postalCode.trim() || !visibleForm.city.trim()) return "Complétez votre adresse : rue, code postal et ville.";
+      return null;
+    }
+    if (step === 3) {
+      if (carrierMode) {
+        if (quoteLoading) return "Le calcul des frais de livraison est en cours. Réessayez dans un instant.";
+        if (!chosenOption) return "Aucun mode de livraison n’est disponible pour cette commande. Vérifiez votre adresse.";
+        if (chosenOption.glsType === "RELAY" && !glsRelay) return "Choisissez un point relais GLS pour cette livraison.";
+        if ((chosenOption.glsType === "RELAY" || chosenOption.glsType === "FLEX") && !/^\+?[0-9 ().-]{6,20}$/.test(glsMobile.trim())) return "Indiquez un numéro de mobile valide : GLS vous envoie un SMS pour cette livraison.";
+        if (chosenOption.colissimoType === "RELAY" && !colissimoRelay) return "Choisissez un point de retrait Colissimo pour cette livraison.";
+        if (chosenOption.colissimoType === "RELAY" && (glsMobile.trim() || colissimoPhoneRequired) && !/^\+?[0-9 ().-]{6,20}$/.test(glsMobile.trim())) {
+          return colissimoPhoneRequired ? "Indiquez un numéro de mobile valide : Colissimo l’utilise pour vous prévenir de l’arrivée du colis." : "Le numéro de mobile n’est pas valide : corrigez-le ou laissez le champ vide.";
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  function continueFrom(step: number) {
+    const problem = validateStep(step);
+    if (problem) {
+      setStepError({ step, message: problem });
+      return;
+    }
+    setStepError(null);
+    setDoneUpTo(step);
+  }
+
+  /** Reopens a confirmed step. The ones after it are asked again, since they can depend on it (the address decides the carriers). */
+  function editStep(step: number) {
+    setStepError(null);
+    setDoneUpTo(step - 1);
+  }
+
+  const summaryOf = (step: number) => {
+    if (step === 1) return [`${visibleForm.firstName} ${visibleForm.lastName}`.trim(), visibleForm.email].filter(Boolean).join(" · ");
+    if (step === 2) {
+      return selectedAddress
+        ? [selectedAddress.street, `${selectedAddress.postalCode} ${selectedAddress.city}`.trim()].filter(Boolean).join(", ")
+        : [visibleForm.address, `${visibleForm.postalCode} ${visibleForm.city}`.trim()].filter(Boolean).join(", ");
+    }
+    if (step === 3) {
+      if (carrierMode && chosenOption) {
+        const place = chosenOption.colissimoType === "RELAY" ? colissimoRelay?.name : chosenOption.glsType === "RELAY" ? glsRelay?.name : "";
+        return [chosenOption.name, place, chosenOption.free ? "Gratuit" : formatEuro(chosenOption.total)].filter(Boolean).join(" · ");
+      }
+      return visibleForm.deliveryMethod === "pickup" ? "Retrait magasin · Gratuit" : `Livraison standard · ${formatEuro(SHIPPING_PRICE)}`;
+    }
+    return "";
+  };
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (items.length === 0) return;
+    if (doneUpTo < 3) {
+      const first = [1, 2, 3].find((step) => step > doneUpTo) ?? 1;
+      setStepError({ step: first, message: "Validez cette étape avant de passer au paiement." });
+      return;
+    }
 
     const currentForm = selectedAddress
       ? checkoutFormWithAddress(visibleForm, selectedAddress)
@@ -776,15 +858,23 @@ export function CheckoutClient() {
       setSubmitError("Indiquez un numéro de mobile valide : GLS vous envoie un SMS pour cette livraison.");
       return;
     }
+    if (carrierMode && chosenOption?.colissimoType === "RELAY" && !colissimoRelay) {
+      setSubmitError("Choisissez un point de retrait Colissimo pour cette livraison.");
+      return;
+    }
+    if (carrierMode && chosenOption?.colissimoType === "RELAY" && (glsMobile.trim() || colissimoPhoneRequired) && !/^\+?[0-9 ().-]{6,20}$/.test(glsMobile.trim())) {
+      setSubmitError(colissimoPhoneRequired ? "Indiquez un numéro de mobile valide : Colissimo l’utilise pour vous prévenir de l’arrivée du colis." : "Le numéro de mobile n’est pas valide : corrigez-le ou laissez le champ vide.");
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
-      const payOnline = currentForm.paymentMethod === "card" && Boolean(stripeConfig?.enabled);
+      const payOnline = paymentChoice === "card" && Boolean(stripeConfig?.enabled);
       const payload = {
         ...buildOrderTotalsPayload(items, totals),
         paymentMethod: payOnline ? ("En_ligne" as const) : ("COD" as const),
-        paymentType: payOnline ? PAYMENT_LABELS.card : currentForm.paymentMethod === "bank" ? PAYMENT_LABELS.bank : PAYMENT_LABELS.cash,
+        paymentType: payOnline ? PAYMENT_LABELS.card : paymentChoice === "bank" ? PAYMENT_LABELS.bank : PAYMENT_LABELS.cash,
         ...(carrierMode && chosenOption
           ? {
               shipping: {
@@ -793,6 +883,10 @@ export function CheckoutClient() {
                 postcode: shippingPostcode,
                 ...(chosenOption.glsType === "RELAY" && glsRelay ? { relayId: glsRelay.id } : {}),
                 ...(chosenOption.glsType === "RELAY" || chosenOption.glsType === "FLEX" ? { mobile: glsMobile.trim() } : {}),
+                ...(chosenOption.colissimoType === "RELAY" && colissimoRelay ? { relayId: colissimoRelay.id, relayName: colissimoRelay.name, relayStreet: colissimoRelay.street, relayZip: colissimoRelay.zip, relayCity: colissimoRelay.city, relayCountry: colissimoRelay.country, relayType: colissimoRelay.pointType } : {}),
+                ...(chosenOption.colissimoType === "RELAY" && glsMobile.trim() ? { mobile: glsMobile.trim() } : {}),
+                ...(chosenOption.colissimoType && chosenOption.colissimoType !== "RELAY" && colissimoDoorCodes.code1.trim() ? { doorCode1: colissimoDoorCodes.code1.trim() } : {}),
+                ...(chosenOption.colissimoType && chosenOption.colissimoType !== "RELAY" && colissimoDoorCodes.code2.trim() ? { doorCode2: colissimoDoorCodes.code2.trim() } : {}),
               },
             }
           : {}),
@@ -1048,7 +1142,12 @@ export function CheckoutClient() {
             step={1}
             icon={User}
             title="Vos coordonnées"
-            description="Nous les utilisons pour vous joindre au sujet de la commande.">
+            description="Nous les utilisons pour vous joindre au sujet de la commande."
+            status={stepStatus(1)}
+            summary={summaryOf(1)}
+            error={stepError?.step === 1 ? stepError.message : null}
+            onEdit={() => editStep(1)}
+            onContinue={() => continueFrom(1)}>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 id="checkout-first-name"
@@ -1121,7 +1220,12 @@ export function CheckoutClient() {
             step={2}
             icon={MapPin}
             title="Adresse de livraison"
-            description="Où devons-nous livrer votre commande ?">
+            description="Où devons-nous livrer votre commande ?"
+            status={stepStatus(2)}
+            summary={summaryOf(2)}
+            error={stepError?.step === 2 ? stepError.message : null}
+            onEdit={() => editStep(2)}
+            onContinue={() => continueFrom(2)}>
             {addressEditorMode ? null : deliveryAddresses.length > 0 ? (
               <SavedAddressPicker
                 addresses={deliveryAddresses}
@@ -1156,7 +1260,12 @@ export function CheckoutClient() {
             step={3}
             icon={Truck}
             title="Livraison"
-            description="Comment souhaitez-vous recevoir vos articles ?">
+            description="Comment souhaitez-vous recevoir vos articles ?"
+            status={stepStatus(3)}
+            summary={summaryOf(3)}
+            error={stepError?.step === 3 ? stepError.message : null}
+            onEdit={() => editStep(3)}
+            onContinue={() => continueFrom(3)}>
             {carrierMode && quote ? (
               !quote.countryServed ? (
                 <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive">
@@ -1175,6 +1284,7 @@ export function CheckoutClient() {
                     onChange={(value) => {
                       setChosenCarrierId(value);
                       setGlsRelay(null); // a relay point belongs to the carrier it was chosen for
+                      setColissimoRelay(null);
                     }}
                     options={quote.options.map((option) => ({
                       value: option.carrierId,
@@ -1201,6 +1311,25 @@ export function CheckoutClient() {
                       onMobile={setGlsMobile}
                     />
                   ) : null}
+                  {chosenOption?.colissimoType ? (
+                    <ColissimoDelivery
+                      key={chosenOption.carrierId}
+                      type={chosenOption.colissimoType as "HOME" | "HOME_SIGN" | "RELAY"}
+                      country={shippingCountryCode}
+                      defaultZip={(selectedAddress?.postalCode ?? visibleForm.postalCode) || ""}
+                      defaultCity={(selectedAddress?.city ?? visibleForm.city) || ""}
+                      defaultStreet={(selectedAddress?.street ?? visibleForm.address) || ""}
+                      relay={colissimoRelay}
+                      onRelay={setColissimoRelay}
+                      mobile={glsMobile}
+                      onMobile={setGlsMobile}
+                      defaultMobile={(selectedAddress?.phone?.trim() || visibleForm.phone) ?? ""}
+                      doorCodes={colissimoDoorCodes}
+                      onDoorCodes={setColissimoDoorCodes}
+                      onPhoneRequired={setColissimoPhoneRequired}
+                    />
+                  ) : null}
+                  {chosenOption?.colissimoType ? <ColissimoDeliveryDate zip={(selectedAddress?.postalCode ?? visibleForm.postalCode) || ""} country={shippingCountryCode} /> : null}
                   {quote.freeShippingRemaining ? (
                     <p className="mb-2! text-sm! text-muted-foreground">
                       Plus que <strong className="text-foreground">{formatEuro(quote.freeShippingRemaining)}</strong> d&apos;achats pour la livraison gratuite.
@@ -1241,11 +1370,14 @@ export function CheckoutClient() {
             step={4}
             icon={CreditCard}
             title="Paiement"
-            description="Réglez en ligne maintenant ou à la réception.">
+            description="Réglez en ligne maintenant ou à la réception."
+            status={stepStatus(4)}
+            summary=""
+            error={stepError?.step === 4 ? stepError.message : null}>
             <TicketChoices
               legend="Mode de paiement"
               name="checkout-payment"
-              value={visibleForm.paymentMethod}
+              value={paymentChoice}
               onChange={(value) =>
                 updateField("paymentMethod", value as CheckoutForm["paymentMethod"])
               }
@@ -1259,11 +1391,10 @@ export function CheckoutClient() {
                       badge: stripeConfig.mode === "sandbox" ? "Mode test" : undefined,
                     }]
                   : []),
-                { value: "cash", label: "À la livraison", hint: "Vous réglez à la réception", icon: Banknote },
                 { value: "bank", label: "Virement bancaire", hint: "Par virement à la commande", icon: Landmark },
               ]}
             />
-            {visibleForm.paymentMethod === "card" && stripeConfig?.enabled ? (
+            {paymentChoice === "card" && stripeConfig?.enabled ? (
               <p className="rounded-lg border border-dashed border-border bg-muted/50 px-4 py-3 text-sm! leading-6 text-muted-foreground">
                 {stripeConfig.mode === "sandbox" ? (
                   <>
@@ -1390,7 +1521,7 @@ export function CheckoutClient() {
                     {isRedirecting ? "Redirection vers Stripe..." : "Confirmation..."}
                   </>
                 ) : (
-                  visibleForm.paymentMethod === "card" && stripeConfig?.enabled ? (
+                  paymentChoice === "card" && stripeConfig?.enabled ? (
                     <>
                       <LockKeyhole className="size-4" aria-hidden="true" />
                       Payer {formatEuro(totals.subtotalTtc)}
@@ -1488,18 +1619,77 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * One step of the checkout. The open step shows its fields and a "Continuer" button; a confirmed step folds into a
+ * summary row with a green check and a "Modifier" button; the steps still to come are greyed out.
+ */
 function CheckoutPanel({
   step,
   title,
   description,
+  status,
+  summary,
+  error,
+  onEdit,
+  onContinue,
   children,
 }: {
   step: number;
   icon?: typeof User;
   title: string;
   description: string;
+  status: "done" | "open" | "locked";
+  summary: string;
+  error: string | null;
+  onEdit?: () => void;
+  onContinue?: () => void;
   children: React.ReactNode;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const previous = useRef(status);
+  useEffect(() => {
+    // Moving on or going back by the customer's own action: bring the step they are now working on into view.
+    if (previous.current !== "open" && status === "open") {
+      heading.current?.focus({ preventScroll: true });
+      heading.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
+    previous.current = status;
+  }, [status]);
+
+  if (status === "done") {
+    return (
+      <section aria-labelledby={`checkout-step-${step}`} className="flex items-center gap-4 p-5 sm:px-7">
+        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-green-100 text-green-700">
+          <Check className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 id={`checkout-step-${step}`} ref={heading} tabIndex={-1} className="text-lg! font-bold! leading-tight outline-none">
+            {title}
+            <span className="sr-only"> : étape confirmée</span>
+          </h2>
+          {summary ? <p className="mt-0.5! truncate text-sm! text-muted-foreground">{summary}</p> : null}
+        </div>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-ring"
+          aria-label={`Modifier : ${title}`}>
+          <Pencil className="size-4" aria-hidden="true" />
+          Modifier
+        </button>
+      </section>
+    );
+  }
+
+  if (status === "locked") {
+    return (
+      <section aria-labelledby={`checkout-step-${step}`} className="flex items-center gap-4 p-5 opacity-60 sm:px-7">
+        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center text-2xl font-bold tabular-nums text-muted-foreground">{step}</span>
+        <h2 id={`checkout-step-${step}`} className="text-lg! font-bold! leading-tight text-muted-foreground">{title}</h2>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-labelledby={`checkout-step-${step}`}
@@ -1510,11 +1700,17 @@ function CheckoutPanel({
         {step}
       </span>
       <div className="min-w-0">
-        <h2 id={`checkout-step-${step}`} className="text-2xl! font-bold! leading-tight">
+        <h2 id={`checkout-step-${step}`} ref={heading} tabIndex={-1} className="text-2xl! font-bold! leading-tight outline-none">
           {title}
         </h2>
         <p className="mt-1! text-sm! leading-6 text-muted-foreground">{description}</p>
         <div className="mt-5 space-y-4">{children}</div>
+        {error ? <p role="alert" className="mt-4! rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm! leading-6 text-destructive">{error}</p> : null}
+        {onContinue ? (
+          <div className="mt-5">
+            <Button type="button" onClick={onContinue}>Continuer</Button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

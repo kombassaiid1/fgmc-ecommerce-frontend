@@ -280,10 +280,14 @@ export async function createAuthenticatedOrder(
 /** What the order list shows when a row is opened. */
 export type OrderPreview = {
   carrierName: string | null;
+  /** The carrier family of the order: only that carrier's shipping card is usable on the order page. */
+  carrierKind?: "GLS" | "COLISSIMO" | null;
   /** What the customer chose at checkout: the carrier and what it costs (null when no carrier was chosen). */
   shipping: { carrierName: string; zoneName: string | null; countryCode: string; weightKg: number; fee: number; handlingFee: number; createdAt: string } | null;
   /** The GLS choice: delivery type, relay point and mobile number. */
   delivery: { glsType: string; parcelShopId: string | null; relay: { name?: string; street?: string; zip?: string; city?: string } | null; customerMobile: string | null } | null;
+  /** The Colissimo choice: delivery type, pickup point and mobile number. */
+  colissimoDelivery?: { colissimoType: string; pickupPointId: string | null; relay: { name?: string; street?: string; zip?: string; city?: string } | null; customerMobile: string | null } | null;
   /** Every status the order has had, newest first. */
   history: Array<{ etat: string; by: string | null; at: string }>;
   trackingNumbers: string[];

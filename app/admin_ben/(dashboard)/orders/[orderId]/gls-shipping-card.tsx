@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Badge, Button, Card, Text } from "@shopify/polaris";
+import { Badge, Banner, BlockStack, Box, Button, InlineStack, Select, SkeletonBodyText, Text } from "@shopify/polaris";
 import { toast } from "sonner";
+import { CarrierCard, ChosenDelivery, ShipmentBlock } from "./carrier-card";
 import type { OrderDetail } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 
@@ -112,7 +112,7 @@ function formatDate(value?: string | null) {
 export const inputClass = "h-9 w-full rounded border border-[#cbd6de] bg-white px-3 text-sm text-[#344054] focus-visible:outline-2 focus-visible:outline-[#168ca8]";
 
 /** The GLS card of an order: label status and tracking. Printing a label happens on its own page. */
-export function GlsShippingCard({ order }: { order: OrderDetail }) {
+export function GlsShippingCard({ order, disabledReason }: { order: OrderDetail; disabledReason?: string }) {
   const [newStatus, setNewStatus] = useState("Expédié");
   const { options: statusOptions } = useOrderStates();
   const [config, setConfig] = useState<GlsConfig | null>(null);
@@ -239,105 +239,78 @@ export function GlsShippingCard({ order }: { order: OrderDetail }) {
   const statusBadge = (shipment: Shipment) =>
     shipment.cancelledAt ? <Badge>Annulée</Badge> : shipment.deliveredAt ? <Badge tone="success">Livrée</Badge> : <Badge tone="info">Étiquette créée</Badge>;
 
+  const statusChoices = [{ label: "Ne pas changer l’état", value: "" }, ...statusOptions.map((option) => ({ label: option.label, value: option.value }))];
+  const typeNames: Record<string, string> = { HOME: "Chez vous", RELAY: "Relais", FLEX: "Chez vous +", EXPRESS: "Avant 13h", RETURN: "Étiquette retour" };
+
   return (
-    <Card padding="0">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dce4ea] px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7c8c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 3h15v13H1z" /><path d="M16 8h4l3 3v5h-7z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
-          <Text as="h2" variant="headingMd">Transporteur GLS</Text>
-          {config?.configured ? <Badge tone={config.mode === "live" ? "success" : "attention"}>{config.mode === "live" ? "Production" : "Mode test"}</Badge> : null}
-        </div>
-        <Link href="/admin_ben/modules/gls" className="text-xs text-[#22a8c8] hover:underline">Réglages GLS</Link>
-      </div>
+    <CarrierCard
+      title="Transporteur GLS"
+      logo={{ src: "/gls/gls-logo.jpg", alt: "GLS", width: 56 }}
+      status={config?.configured ? <Badge tone={config.mode === "live" ? "success" : "attention"}>{config.mode === "live" ? "Production" : "Mode test"}</Badge> : null}
+      settingsHref="/admin_ben/modules/gls"
+      settingsLabel="Réglages GLS"
+      disabledReason={disabledReason}>
+      {delivery?.glsType ? <ChosenDelivery label={GLS_TYPE_NAMES[delivery.glsType]} detail={delivery.relay ? `${delivery.relay.name}, ${delivery.relay.zip} ${delivery.relay.city}` : undefined} /> : null}
 
-      <div className="space-y-4 p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/gls/gls-logo.jpg" alt="GLS" width={220} height={110} className="mx-auto h-auto w-[220px]" />
-        <p className="rounded border-l-4 border-[#25b9d7] bg-[#e8f7fb] px-4 py-3 text-sm text-[#344054]">
-          Vous pouvez imprimer une étiquette GLS même si aucun transporteur GLS n’est associé à cette commande. Des informations complémentaires seront demandées avant la création de l’étiquette.
-        </p>
-        {delivery?.glsType ? (
-          <p className="text-xs text-[#667085]">
-            Livraison choisie par le client : <strong>{GLS_TYPE_NAMES[delivery.glsType]}</strong>
-            {delivery.relay ? <> — {delivery.relay.name}, {delivery.relay.zip} {delivery.relay.city}</> : null}
-          </p>
-        ) : null}
-        {loadError ? <p role="alert" className="text-sm text-[#b42318]">{loadError}</p> : null}
-        {!loadError && (!config || !shipments) ? <p className="text-sm text-[#667085]">Chargement…</p> : null}
+      {loadError ? <Banner tone="critical">{loadError}</Banner> : null}
+      {!loadError && (!config || !shipments) ? <SkeletonBodyText lines={3} /> : null}
+      {config && !config.configured ? (
+        <Banner tone="warning" title="GLS n’est pas encore configuré" action={{ content: "Renseigner les identifiants GLS", url: "/admin_ben/modules/gls" }}>
+          <Text as="p" variant="bodyMd">Aucune étiquette ne peut être créée tant que l’environnement actif n’a pas ses identifiants.</Text>
+        </Banner>
+      ) : null}
 
-        {config && !config.configured ? (
-          <p className="text-sm text-[#667085]">
-            GLS n’est pas encore configuré pour l’environnement actif. <Link href="/admin_ben/modules/gls" className="text-[#22a8c8] hover:underline">Renseigner les identifiants GLS</Link>.
-          </p>
-        ) : null}
-
-        {config?.configured && shipments && !active ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <label htmlFor="gls-new-status" className="text-sm text-[#344054]">Changer l’état de la commande en</label>
-            <select id="gls-new-status" className={`${inputClass} !w-64`} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-              <option value="">Ne pas changer l’état</option>
-              {statusOptions.map((option) => <option key={option.value} value={option.value} style={{ backgroundColor: option.backgroundColor, color: option.textColor }}>{option.label}</option>)}
-            </select>
-            <Button variant="primary" url={`/admin_ben/orders/${order.id}/gls-label?status=${encodeURIComponent(newStatus)}`}>Imprimer l’étiquette</Button>
-          </div>
-        ) : null}
-
-        {shipments?.map((shipment) => (
-          <div key={shipment.id} className={`rounded border border-[#dce4ea] p-3 ${shipment.cancelledAt ? "bg-[#f7f7f7] opacity-80" : "bg-white"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {statusBadge(shipment)}
-                {shipment.environment === "sandbox" ? <Badge tone="attention">Test</Badge> : null}
-                <span className="text-xs text-[#667085]">{({ HOME: "Chez vous", RELAY: "Relais", FLEX: "Chez vous +", EXPRESS: "Avant 13h", RETURN: "Étiquette retour" } as Record<string, string>)[shipment.glsType ?? ""] ?? (shipment.product === "EXPRESS" ? "Express" : "Colis")} · {shipment.parcelCount} colis · {shipment.weightKg} kg · {formatDate(shipment.createdAt)}</span>
+      {config?.configured && shipments && !active ? (
+        <Box padding="300" background="bg-surface-secondary" borderRadius="300">
+          <BlockStack gap="200">
+            <InlineStack gap="300" blockAlign="end" wrap>
+              <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+                <Select label="Après l’impression, passer la commande à" value={newStatus} onChange={setNewStatus} options={statusChoices} />
               </div>
-              {!shipment.cancelledAt ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button size="slim" onClick={() => void refresh(shipment)} loading={busy === "track-" + shipment.id}>Actualiser le suivi</Button>
-                  <Button size="slim" tone="critical" onClick={() => void cancel(shipment)} loading={busy === "cancel-" + shipment.id}>Annuler</Button>
-                </div>
-              ) : null}
+              <Button variant="primary" url={`/admin_ben/orders/${order.id}/gls-label?status=${encodeURIComponent(newStatus)}`}>Imprimer l’étiquette</Button>
+            </InlineStack>
+            <Text as="p" variant="bodySm" tone="subdued">Une étiquette GLS peut être créée même sans transporteur GLS associé : les informations manquantes sont demandées avant la création.</Text>
+          </BlockStack>
+        </Box>
+      ) : null}
+
+      {shipments?.map((shipment) => (
+        <ShipmentBlock
+          key={shipment.id}
+          cancelled={Boolean(shipment.cancelledAt)}
+          badges={<>{statusBadge(shipment)}{shipment.environment === "sandbox" ? <Badge tone="attention">Test</Badge> : null}</>}
+          meta={`${typeNames[shipment.glsType ?? ""] ?? (shipment.product === "EXPRESS" ? "Express" : "Colis")} · ${shipment.parcelCount} colis · ${shipment.weightKg} kg · ${formatDate(shipment.createdAt)}`}
+          numbers={shipment.trackIds.map((trackId, index) => ({
+            id: trackId,
+            labelHref: `${GLS_API}/shipments/${shipment.id}/label?index=${index}`,
+            trackHref: `https://gls-group.eu/FR/fr/suivi-colis?match=${shipment.trackIds.map(encodeURIComponent).join(",")}`,
+            trackText: "Suivi GLS",
+          }))}
+          lastStatus={shipment.lastStatus}
+          lastEvent={shipment.lastStatus ? formatDate(shipment.lastEventAt) : undefined}
+          events={events[shipment.id] ? [...events[shipment.id]].reverse() : undefined}
+          onTrack={() => void refresh(shipment)}
+          trackBusy={busy === "track-" + shipment.id}
+          onCancel={() => void cancel(shipment)}
+          cancelBusy={busy === "cancel-" + shipment.id}
+        />
+      ))}
+
+      {config?.configured && shipments && moduleSettings?.returnService.enabled && !returnActive ? (
+        <Box padding="300" borderWidth="025" borderColor="border" borderRadius="300" borderStyle="dashed">
+          <InlineStack align="space-between" blockAlign="center" gap="300">
+            <div style={{ flex: "1 1 240px" }}>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">Étiquette retour</Text>
+              <Text as="p" variant="bodySm" tone="subdued">Le colis repart de {form.name || "le client"}{form.zip ? `, ${form.zip} ${form.city}` : ""} vers l’adresse de retour de la boutique.</Text>
             </div>
+            <Button onClick={() => void createReturn()} loading={busy === "return"} disabled={!formValid || Boolean(busy)}>Créer l’étiquette retour</Button>
+          </InlineStack>
+        </Box>
+      ) : null}
 
-            <ul className="mt-3 space-y-2">
-              {shipment.trackIds.map((trackId, index) => (
-                <li key={trackId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span className="font-mono text-[#344054]">{trackId}</span>
-                  {!shipment.cancelledAt ? (
-                    <span className="flex gap-3 text-xs">
-                      <a href={`${GLS_API}/shipments/${shipment.id}/label?index=${index}`} target="_blank" rel="noopener noreferrer" className="font-medium text-[#22a8c8] hover:underline">Étiquette PDF</a>
-                      <a href={`https://gls-group.eu/FR/fr/suivi-colis?match=${shipment.trackIds.map(encodeURIComponent).join(",")}`} target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Suivi sur gls-group.eu</a>
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-
-            {shipment.lastStatus ? <p className="mt-3 text-sm text-[#344054]">Dernier statut : <strong>{shipment.lastStatus}</strong> <span className="text-xs text-[#667085]">({formatDate(shipment.lastEventAt)})</span></p> : null}
-            {events[shipment.id]?.length ? (
-              <ol className="mt-3 space-y-1 border-l-2 border-[#dce4ea] pl-3 text-xs text-[#526174]">
-                {[...events[shipment.id]].reverse().map((event, index) => (
-                  <li key={`${event.date}-${event.time}-${index}`}><span className="text-[#8492a3]">{event.date} {event.time}</span> · {event.description}{event.place ? ` · ${event.place}` : ""}</li>
-                ))}
-              </ol>
-            ) : null}
-          </div>
-        ))}
-
-        {config?.configured && shipments && moduleSettings?.returnService.enabled && !returnActive ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[#dce4ea] bg-[#f7fafc] px-3 py-2">
-            <p className="text-xs text-[#344054]">
-              <strong>Étiquette retour</strong> : le colis repart de {form.name || "le client"}{form.zip ? `, ${form.zip} ${form.city}` : ""} vers l’adresse de retour de la boutique (Réglages GLS).
-            </p>
-            <Button size="slim" onClick={() => void createReturn()} loading={busy === "return"} disabled={!formValid || Boolean(busy)}>Créer l’étiquette retour</Button>
-          </div>
-        ) : null}
-
-        {moduleSettings?.deliveryNote ? (
-          <div>
-            <Button size="slim" onClick={() => printDeliveryNote(order, form)}>Imprimer le bon de livraison</Button>
-          </div>
-        ) : null}
-      </div>
-    </Card>
+      {moduleSettings?.deliveryNote ? (
+        <InlineStack><Button onClick={() => printDeliveryNote(order, form)}>Imprimer le bon de livraison</Button></InlineStack>
+      ) : null}
+    </CarrierCard>
   );
 }

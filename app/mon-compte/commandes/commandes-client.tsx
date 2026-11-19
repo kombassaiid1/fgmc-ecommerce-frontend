@@ -42,6 +42,7 @@ import {
   type ClientSession,
 } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
+import { ColissimoOrderPanel } from "./colissimo-order-panel";
 
 const PAGE_SIZE = 10;
 
@@ -540,6 +541,7 @@ function OrderCard({ order }: { order: OrderListItem }) {
           />
         </aside>
       </div>
+      <ColissimoOrderPanel orderId={order.id} />
     </article>
   );
 }

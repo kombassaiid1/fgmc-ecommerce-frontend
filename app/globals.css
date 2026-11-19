@@ -78,3 +78,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .stamp-in { animation: none; }
 }
+
+/*
+ * Colissimo pickup point widget (third-party script). Tailwind's base styles turn every img and svg into a block, which
+ * stacks the widget's small icons (opening hours, access, walking time) in a column. They go back to inline here, for the
+ * widget only. This rule is outside the Tailwind layers on purpose, so it wins over them.
+ */
+#colissimo-widget-container img,
+#colissimo-widget-container svg,
+#colissimo-widget-container canvas {
+  display: inline-block;
+  vertical-align: middle;
+  /*
+   * Tailwind sets max-width: 100% on images. Inside a box that sizes itself to its content (like the travel-time
+   * button in the widget header) that resolves to zero, and the icon disappears.
+   */
+  max-width: none;
+}
