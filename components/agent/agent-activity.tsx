@@ -58,23 +58,23 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
    const restoredStatus = c.status === "COMPLETED" ? "confirmed" : c.status === "CANCELLED" ? "cancelled" : expired ? "expired" : c.status === "PROCESSING" ? "confirming" : "pending";
    const state = states[id] ?? { status: restoredStatus, result: c.result };
    const done = state.status === "confirmed" || state.status === "cancelled"; const pending = state.status === "confirming" || state.status === "cancelling";
-   const product = record(c.product); const drafts = Array.isArray(c.productDrafts) ? c.productDrafts.map(record) : c.productDraft ? [record(c.productDraft)] : [];
+   const product = record(c.product); const products = Array.isArray(c.productDrafts) ? c.productDrafts.map(record) : c.productDraft ? [record(c.productDraft)] : [];
    const result = record(state.result); const results = Array.isArray(result.createdProducts) ? result.createdProducts.map(record) : result.id ? [result] : [];
    return <section key={id} className="space-y-3 rounded-xl border border-blue-200 bg-white p-3 text-xs text-slate-700" aria-label="Confirmation de l’opération">
-    <h4 className="font-semibold text-slate-900">{state.status === "confirmed" ? update ? "Produit modifié" : publish ? "Produit publié" : "Création confirmée" : state.status === "cancelled" ? "Opération annulée" : update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : `Confirmer ${drafts.length > 1 ? `le lot de ${drafts.length} produits` : "le brouillon"}`}</h4>
+    <h4 className="font-semibold text-slate-900">{state.status === "confirmed" ? update ? "Produit modifié" : publish ? "Produit publié" : "Produit créé" : state.status === "cancelled" ? "Opération annulée" : update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : `Confirmer ${products.length > 1 ? `la création des ${products.length} produits` : "la création du produit"}`}</h4>
     {typeof product.title === "string" && <p className="font-medium">{product.title}{typeof product.sku === "string" ? ` — ${product.sku}` : ""}</p>}
     {typeof c.message === "string" && <p>{c.message}</p>}
     {Array.isArray(c.diff) && <div className="max-h-64 overflow-auto"><table className="w-full text-left"><thead><tr><th className="p-1">Champ</th><th className="p-1">Avant</th><th className="p-1">Après</th></tr></thead><tbody>{c.diff.map((item, index) => { const diff = record(item); return <tr key={index} className="border-t"><th className="p-1 align-top">{fields[String(diff.field)] ?? String(diff.field)}</th><td className="max-w-32 break-words p-1 align-top">{text(diff.before)}</td><td className="max-w-32 break-words p-1 align-top">{text(diff.after)}</td></tr>; })}</tbody></table></div>}
-    {drafts.map((draft, index) => <details key={index} open={drafts.length === 1} className="rounded-lg bg-slate-50 p-2"><summary className="cursor-pointer font-medium">{text(draft.title)} — {text(draft.sku)}</summary>
-     <p className="mt-2">Prix HT : {text(draft.price)} € · Stock : {text(draft.qty)} · Tag : {text(draft.tag)}</p>
-     {Array.isArray(draft.images) && typeof draft.images[0] === "string" && <Image src={draft.images[0]} alt={text(draft.title)} width={160} height={120} unoptimized className="mt-2 max-h-28 w-auto rounded object-contain" />}
-     <p className="mt-2 font-medium">Description courte</p><p>{text(draft.shortDescription)}</p><p className="mt-2 font-medium">Description</p><p className="max-h-40 overflow-auto">{text(draft.description)}</p>
+    {products.map((item, index) => <details key={index} open={products.length === 1} className="rounded-lg bg-slate-50 p-2"><summary className="cursor-pointer font-medium">{text(item.title)} — {text(item.sku)}</summary>
+     <p className="mt-2">Prix HT : {text(item.price)} € · Stock : {text(item.qty)} · Tag : {text(item.tag)}</p>
+     {Array.isArray(item.images) && typeof item.images[0] === "string" && <Image src={item.images[0]} alt={text(item.title)} width={160} height={120} unoptimized className="mt-2 max-h-28 w-auto rounded object-contain" />}
+     <p className="mt-2 font-medium">Description courte</p><p>{text(item.shortDescription)}</p><p className="mt-2 font-medium">Description</p><p className="max-h-40 overflow-auto">{text(item.description)}</p>
     </details>)}
     {results.map((item, index) => <div key={index} className="rounded-lg bg-emerald-50 p-2 text-emerald-900"><p className="font-medium">{text(item.title)}</p><p>{item.outcome === "ALREADY_EXISTS" ? "Déjà présent — création ignorée" : "Opération enregistrée"} · Référence : {text(item.sku)} · Statut : {text(item.status)}</p></div>)}
     {state.error && <p role="alert" className="text-red-700">{state.error}</p>}
     {state.status === "expired" && <p className="text-amber-700">Confirmation expirée. Demandez à l’agent de reprendre les données enregistrées.</p>}
     {pending && <p className="flex items-center gap-2"><Clock3 size={14} />Opération en cours…</p>}
-    {!done && !pending && state.status !== "expired" && <div className="flex gap-2"><button type="button" disabled={busy} onClick={() => onAction(id, "confirm")} className="rounded-lg bg-[#0858b1] px-3 py-2 font-medium text-white disabled:opacity-50">{update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : "Confirmer le lot"}</button><button type="button" disabled={busy} onClick={() => onAction(id, "cancel")} className="rounded-lg border px-3 py-2 disabled:opacity-50">Annuler</button></div>}
+    {!done && !pending && state.status !== "expired" && <div className="flex gap-2"><button type="button" disabled={busy} onClick={() => onAction(id, "confirm")} className="rounded-lg bg-[#0858b1] px-3 py-2 font-medium text-white disabled:opacity-50">{update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : "Confirmer la création"}</button><button type="button" disabled={busy} onClick={() => onAction(id, "cancel")} className="rounded-lg border px-3 py-2 disabled:opacity-50">Annuler</button></div>}
    </section>;
   })}
  </div>;

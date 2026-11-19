@@ -155,7 +155,7 @@ const CONFIRMATION_ID_PATTERN =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 
 function findConfirmationId(text: string): string | null {
-  if (!/(confirmation|required|confirmer|confirme|brouillon|publier|publication)/i.test(text)) {
+  if (!/(confirmation|required|confirmer|confirme|créer|creer|création|creation|publier|publication)/i.test(text)) {
     return null;
   }
   return text.match(CONFIRMATION_ID_PATTERN)?.[0] ?? null;
@@ -892,7 +892,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     }
   }
 
-  // Fin du suivi : l'historique du serveur contient la réponse finale, les vérifications et les brouillons avec boutons.
+  // Fin du suivi : l'historique du serveur contient la réponse finale, les vérifications et les confirmations d'action.
   async function finishJob(job: ActiveAgentJob, outcome: AgentJobOutcome) {
     if (outcome.kind === "aborted") return;
     clearActiveJob(window.localStorage);
@@ -1326,7 +1326,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
               !isUpdateConfirmation && confirmationId !== null && /(publier|publication|visible publiquement)/i.test(text);
             const isBatchConfirmation =
               confirmationId !== null &&
-              /(?:deux|2|plusieurs|\d+)\s+(?:brouillons?|produits?)|brouillons?\s+(?:du lot|ensemble)/i.test(text);
+              /(?:deux|2|plusieurs|\d+)\s+produits?/i.test(text);
             const confirmation = confirmationId
               ? confirmationStates[confirmationId]
               : undefined;
@@ -1396,8 +1396,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
                         : isPublishConfirmation
                         ? "Confirmation de publication du produit"
                         : isBatchConfirmation
-                          ? "Confirmation de création groupée des brouillons produits"
-                          : "Confirmation de création du brouillon produit"
+                        ? "Confirmation de création groupée des produits"
+                        : "Confirmation de création du produit"
                     }
                     className="w-full rounded-2xl border border-blue-100 bg-white p-4 shadow-sm"
                   >
@@ -1424,8 +1424,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
                                 : isPublishConfirmation
                                 ? "Publication du produit"
                                 : isBatchConfirmation
-                                  ? "Confirmer la création des brouillons"
-                                  : "Confirmer la création du brouillon"}
+                                  ? "Confirmer la création des produits"
+                                  : "Confirmer la création du produit"}
                         </h4>
                         <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600">
                           {productSummary ||
@@ -1450,8 +1450,8 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
                                 : isPublishConfirmation
                                 ? "Publication du produit…"
                                 : isBatchConfirmation
-                                  ? "Création des brouillons…"
-                                  : "Création du brouillon…"
+                                  ? "Création des produits…"
+                                  : "Création du produit…"
                               : "Annulation…"}
                           </p>
                         )}
