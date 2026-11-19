@@ -3,11 +3,19 @@
 import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Banner, BlockStack, Button, Card, InlineGrid, Spinner, Text } from "@shopify/polaris";
-import { getOrder, getOrderPreview, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview, type StoredOrderProduct } from "@/lib/api/orders";
+import { useAdminSession } from "@/components/admin/admin-session";
+import { openClientAccount } from "@/lib/api/admin-clients";
+import { getAdminOrder, getOrderPreview, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 import { toast } from "sonner";
+import { File, History, RotateCcw, Truck } from "lucide-react";
 import { GlsShippingCard } from "./gls-shipping-card";
 import { ColissimoShippingCard } from "./colissimo-shipping-card";
+import { CustomerCard } from "./customer-card";
+import { OrderDocuments } from "./order-documents";
+import { getOrderRefunds, retryOrderRefund, type OrderRefund, type RefundContext } from "@/lib/api/order-refunds";
+import { OrderPaymentsCard } from "./order-payments-card";
+import { OrderProductsCard } from "./order-products-card";
 
 const PAYMENT_STATUS_OPTIONS = [
   { label: "En attente", value: "En_attente" },
@@ -24,10 +32,6 @@ function formatDate(value?: string) {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-function getProducts(order: OrderDetail): StoredOrderProduct[] {
-  return Array.isArray(order.products) ? order.products as StoredOrderProduct[] : [];
 }
 
 const GLS_LABELS: Record<string, string> = { HOME: "GLS En entreprise", RELAY: "GLS En Relais", FLEX: "GLS À domicile", EXPRESS: "GLS Express" };
@@ -52,21 +56,26 @@ function Detail({ label, value }: { label: string; value?: string | number | nul
 export default function AdminOrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = use(params);
   const router = useRouter();
+  const { can } = useAdminSession();
+  const canOpenClientAccount = can("clients.edit");
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const { options: statusOptions, colors: statusColors } = useOrderStates();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openingClientAccount, setOpeningClientAccount] = useState(false);
   const [nextStatus, setNextStatus] = useState("");
   const [nextPaymentStatus, setNextPaymentStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"status" | "documents" | "carriers" | "returns">("status");
+  const [refundOrderId, setRefundOrderId] = useState<string | null>(null);
+  const [refunds, setRefunds] = useState<{ orderId: string; context: RefundContext | null; error?: string } | null>(null);
   const [preview, setPreview] = useState<{ id: string; data?: OrderPreview } | null>(null);
 
   const loadOrder = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getOrder(orderId);
+      const data = await getAdminOrder(orderId);
       setOrder(data);
       setNextStatus(data.etat);
       setNextPaymentStatus(data.paymentStatus);
@@ -95,7 +104,24 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
     void loadOrder();
   }, [loadOrder]);
 
-  const refreshPreview = () => getOrderPreview(orderId).then((data) => setPreview({ id: orderId, data })).catch(() => undefined);
+  const refreshPreview = useCallback(() => getOrderPreview(orderId).then((data) => setPreview({ id: orderId, data })).catch(() => undefined), [orderId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getOrderRefunds(orderId).then((context) => {
+      if (!cancelled) setRefunds({ orderId, context });
+    }).catch((error: unknown) => {
+      if (!cancelled) setRefunds({ orderId, context: null, error: error instanceof Error ? error.message : "Impossible de charger les remboursements." });
+    });
+    return () => { cancelled = true; };
+  }, [orderId, order?.paymentStatus]);
+
+  useEffect(() => {
+    if (tab !== "documents") return;
+    const refresh = () => void refreshPreview();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [tab, refreshPreview]);
 
   const saveStatus = async (kind: "etat" | "paymentStatus") => {
     if (!order) return;
@@ -114,6 +140,23 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   };
 
   const currentPreview = preview?.id === orderId ? (preview.data ?? null) : null;
+  const onNoteSaved = can("orders.edit") ? (privateNote: string | null) => {
+    setOrder((current) => current?.id === orderId ? { ...current, privateNote } : current);
+  } : undefined;
+
+  async function loginAsClient() {
+    const clientId = order?.Client?.id;
+    if (!clientId || !canOpenClientAccount || openingClientAccount) return;
+
+    setOpeningClientAccount(true);
+    try {
+      await openClientAccount(clientId);
+    } catch (loginError) {
+      toast.error(loginError instanceof Error ? loginError.message : "Connexion au compte impossible.");
+    } finally {
+      setOpeningClientAccount(false);
+    }
+  }
 
   if (loading) return <div className="flex justify-center py-16"><Spinner accessibilityLabel="Chargement de la commande" size="large" /></div>;
   if (error || !order) return <BlockStack gap="400"><Button onClick={() => router.push("/admin_ben/orders")}>← Retour aux commandes</Button><Banner tone="critical" title={error ?? "Commande introuvable."} /></BlockStack>;
@@ -121,18 +164,58 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   const customerName = order.Client
     ? `${order.Client.Titre === "Mme" ? "Mme" : "M"} ${order.Client.firstName} ${order.Client.lastName}`.trim()
     : order.guestName || "Client invité";
-  const customerEmail = order.Client?.email ?? order.guestEmail;
-  const customerPhone = order.Client?.phoneNumber ?? order.guestPhone;
-  const address = order.Address;
-  const productsTotal = getProducts(order).reduce((sum, product) => sum + (Number(product.totalPrice) || 0), 0);
-  const shipping = Number(order.deliveryFee ?? 0);
+  const refunding = refundOrderId === orderId;
+  const refundContext = refunds?.orderId === orderId ? refunds.context : null;
+  const orderRefunds = refundContext?.refunds ?? [];
 
-  const addressLines = address
-    ? [customerName, order.Client?.company, address.street, `${address.zipCode} ${address.City}`, address.state, address.country, customerPhone].filter(Boolean)
-    : [order.guestAddress || "Aucune adresse enregistrée."];
-  const invoiceLines = address
-    ? [customerName, order.Client?.company, address.street, `${address.zipCode} ${address.City}`, address.state, address.country].filter(Boolean)
-    : ["Identique à l'adresse de livraison"];
+  function updateRefund(refund: OrderRefund) {
+    setRefunds((current) => {
+      if (!current?.context || current.orderId !== orderId) return current;
+      const previous = current.context.refunds.find((row) => row.id === refund.id);
+      const previouslyReserved = previous && previous.status !== "failed" ? previous.amountCents : 0;
+      const reserved = refund.status !== "failed" ? refund.amountCents : 0;
+      return { orderId, context: {
+        ...current.context,
+        remainingCents: Math.max(0, current.context.remainingCents + previouslyReserved - reserved),
+        refunds: [refund, ...current.context.refunds.filter((row) => row.id !== refund.id)],
+      } };
+    });
+  }
+
+  function onRefundSaved(refund: OrderRefund) {
+    updateRefund(refund);
+    setRefundOrderId(null);
+    setTab("documents");
+    requestAnimationFrame(() => document.getElementById("order-tab-documents")?.focus());
+  }
+
+  function cancelRefund() {
+    setRefundOrderId(null);
+    requestAnimationFrame(() => document.getElementById("order-partial-refund-action")?.focus());
+  }
+
+  const invoiceCard = (
+    <Card padding="0">
+      <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Facture Dolibarr</Text></div>
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4">
+        {order.dolibarrInvoice ? (
+          <div className="grid flex-1 gap-4 sm:grid-cols-3">
+            <Detail label="Référence" value={order.dolibarrInvoice.reference} />
+            <Detail label="Statut" value={order.dolibarrInvoice.status} />
+            <Detail label="Date" value={formatDate(order.dolibarrInvoice.date ?? undefined)} />
+            <Detail label="Total TTC" value={order.dolibarrInvoice.totalTtc == null ? "—" : `${formatMoney(order.dolibarrInvoice.totalTtc)}${order.dolibarrInvoice.currency && order.dolibarrInvoice.currency !== "EUR" ? ` (${order.dolibarrInvoice.currency})` : ""}`} />
+          </div>
+        ) : (
+          <p className="text-sm text-[#667085]">Aucune facture Dolibarr n’est encore liée à cette commande.</p>
+        )}
+        {order.dolibarrInvoice?.invoiceUrl ? (
+          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
+            Ouvrir le PDF
+          </a>
+        ) : order.dolibarrInvoice ? <p className="text-xs text-[#667085]">Lien public non disponible. Vérifiez que le PDF a été généré après l’activation du partage externe.</p> : null}
+      </div>
+    </Card>
+  );
 
   return (
     <BlockStack gap="300">
@@ -160,108 +243,61 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
           </a>
         ) : <Button disabled>Lien public indisponible</Button>}
         <Button onClick={() => window.print()}>▣ Imprimer la commande</Button>
-        <Button disabled>Connecter au compte client</Button>
-        <Button disabled>↔ Remboursement partiel</Button>
+        <Button
+          disabled={!order.Client || !canOpenClientAccount}
+          loading={openingClientAccount}
+          onClick={() => void loginAsClient()}
+        >
+          Connecter au compte client
+        </Button>
+        <Button
+          id="order-partial-refund-action"
+          ariaControls="order-products"
+          ariaExpanded={refunding}
+          disabled={refunding || !can("orders.edit")}
+          onClick={() => {
+            setRefundOrderId(orderId);
+            void getOrderRefunds(orderId).then((context) => setRefunds({ orderId, context })).catch((error: unknown) => {
+              setRefunds({ orderId, context: null, error: error instanceof Error ? error.message : "Impossible de charger les remboursements." });
+            });
+          }}
+        >
+          ↔ Remboursement partiel
+        </Button>
         <span className="ml-auto flex gap-2"><Button disabled accessibilityLabel="Commande précédente">←</Button><Button disabled accessibilityLabel="Commande suivante">→</Button></span>
       </div>
 
+      {refunding ? (
+        <div className="mb-8">
+          <OrderProductsCard key={order.id} order={order} preview={currentPreview} onCancelRefund={cancelRefund}
+            onRefundSaved={onRefundSaved} refundContext={refundContext} refundLoadError={refunds?.orderId === orderId ? refunds.error : undefined} />
+        </div>
+      ) : null}
+
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(350px,0.82fr)_minmax(0,1.65fr)]">
-        <Card padding="0">
-          <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Client</Text></div>
-          <div className="space-y-3 p-4">
-            <div className="flex items-center justify-between gap-3 bg-[#f7f7f7] px-4 py-3">
-              <div className="min-w-0"><p className="truncate font-semibold text-[#344054]">▣ {customerName} {order.Client ? <span className="ml-2 font-medium text-[#7c8996]">#{order.Client.id}</span> : null}</p>{!order.Client ? <p className="mt-1 text-xs text-[#667085]">Commande invitée</p> : null}</div>
-              <Button disabled>Voir les détails</Button>
-            </div>
-            <div className="grid gap-x-5 gap-y-3 px-1 py-1 sm:grid-cols-2">
-              <Detail label="E-mail :" value={customerEmail} />
-              <Detail label="Commandes validées :" value={order.Client ? order.customerOrderCount : "—"} />
-              <Detail label="Compte créé :" value={order.Client ? "Client enregistré" : "Invité"} />
-              <Detail label="Total dépensé depuis inscription :" value={order.Client ? formatMoney(order.customerTotalSpent) : "—"} />
-            </div>
-            <div className="grid gap-3 bg-[#f7f7f7] p-4 sm:grid-cols-2">
-              <div><h3 className="mb-2 text-sm font-semibold text-[#344054]">Adresse de livraison</h3><p className="whitespace-pre-line text-sm leading-5 text-[#526174]">{addressLines.join("\n")}</p></div>
-              <div className="border-t border-[#dce4ea] pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"><h3 className="mb-2 text-sm font-semibold text-[#344054]">Adresse de facturation</h3><p className="whitespace-pre-line text-sm leading-5 text-[#526174]">{invoiceLines.join("\n")}</p></div>
-            </div>
-            <div className="border border-[#e3e7eb] p-3">
-              <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold text-[#344054]">Note privée</h3><span aria-hidden="true" className="text-[#748399]">−</span></div>
-              <textarea aria-label="Note privée" disabled rows={3} className="w-full resize-y border border-[#cbd4dc] bg-white p-2 text-sm text-[#526174]" placeholder="Les notes privées pourront être ajoutées ici ultérieurement." />
-              <div className="mt-2 text-right"><Button disabled>Enregistrer</Button></div>
-            </div>
-          </div>
-        </Card>
+        <CustomerCard key={order.id} order={order} onUpdated={setOrder} onNoteSaved={onNoteSaved} />
 
         <BlockStack gap="300">
-          <Card padding="0">
-            <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Facture Dolibarr</Text></div>
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4">
-              {order.dolibarrInvoice ? (
-                <div className="grid flex-1 gap-4 sm:grid-cols-3">
-                  <Detail label="Référence" value={order.dolibarrInvoice.reference} />
-                  <Detail label="Statut" value={order.dolibarrInvoice.status} />
-                  <Detail label="Date" value={formatDate(order.dolibarrInvoice.date ?? undefined)} />
-                  <Detail label="Total TTC" value={order.dolibarrInvoice.totalTtc == null ? "—" : `${formatMoney(order.dolibarrInvoice.totalTtc)}${order.dolibarrInvoice.currency && order.dolibarrInvoice.currency !== "EUR" ? ` (${order.dolibarrInvoice.currency})` : ""}`} />
-                </div>
-              ) : (
-                <p className="text-sm text-[#667085]">Aucune facture Dolibarr n’est encore liée à cette commande.</p>
-              )}
-              {order.dolibarrInvoice?.invoiceUrl ? (
-                <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
-                  Ouvrir le PDF
-                </a>
-              ) : order.dolibarrInvoice ? <p className="text-xs text-[#667085]">Lien public non disponible. Vérifiez que le PDF a été généré après l’activation du partage externe.</p> : null}
-            </div>
-          </Card>
+          {!refunding ? invoiceCard : null}
+          {!refunding ? <OrderProductsCard key={`products-${order.id}`} order={order} preview={currentPreview} /> : null}
 
           <Card padding="0">
-            <div className="border-b border-[#dce4ea] px-4 py-3"><Text as="h2" variant="headingMd">Produits ({getProducts(order).length})</Text></div>
-            <div className="overflow-x-auto px-3">
-              <table className="w-full min-w-[760px] border-collapse text-left text-xs text-[#344054]">
-                <thead><tr className="border-b-2 border-[#22b6d1] font-semibold"><th className="py-3 pr-2">Produit</th><th className="px-2 py-3">Prix unitaire <small className="block font-normal text-[#8492a3]">TTC</small></th><th className="px-2 py-3 text-center">Quantité</th><th className="px-2 py-3 text-center">Disponible</th><th className="px-2 py-3">Total <small className="block font-normal text-[#8492a3]">TTC</small></th><th className="px-2 py-3">Facture</th><th className="px-2 py-3 text-center">Actions</th></tr></thead>
-                <tbody>
-                  {getProducts(order).map((product, index) => (
-                    <tr key={`${product.id ?? product.title ?? "product"}-${index}`} className="border-b border-[#cbd7df]">
-                      <td className="py-2 pr-2"><div className="flex min-w-64 items-center gap-3">{product.image ? <img src={product.image} alt="" className="size-11 shrink-0 object-cover" /> : <div className="flex size-11 shrink-0 items-center justify-center bg-[#f2f4f7] text-[10px] text-[#98a2b3]">IMG</div>}<div><p className="font-medium text-[#22a8c8]">{product.title || "Produit"}</p><p className="mt-1 text-[#22a8c8]">Référence : {product.slug || product.id || "—"}</p></div></div></td>
-                      <td className="whitespace-nowrap px-2">{formatMoney(product.unitPrice)}</td>
-                      <td className="px-2 text-center"><span className="inline-flex min-w-6 justify-center rounded-full bg-[#718b91] px-1.5 py-1 font-semibold text-white">{product.quantity ?? 0}</span></td>
-                      <td className="px-2 text-center">—</td>
-                      <td className="whitespace-nowrap px-2">{formatMoney(product.totalPrice)}</td>
-                      <td className="whitespace-nowrap px-2">—</td>
-                      <td className="px-2 text-center"><span className="text-[#718b91]">✎　▤</span></td>
-                    </tr>
-                  ))}
-                  {getProducts(order).length === 0 ? <tr><td colSpan={7} className="py-8 text-center text-sm text-[#667085]">Aucun produit dans cette commande.</td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs text-[#667085]">
-              <label className="flex items-center gap-2">Articles par page : <select defaultValue="8" className="h-8 rounded border border-[#cbd6de] bg-white px-2"><option>8</option></select></label>
-              <div className="flex gap-2"><Button disabled>⊕ Ajouter un produit</Button><Button disabled>▣ Ajouter une remise</Button></div>
-            </div>
-            <div className="grid gap-3 bg-[#f7f7f7] px-5 py-4 text-center sm:grid-cols-3">
-              <div><p className="text-xs text-[#7c8996]">Produits</p><p className="mt-1 font-semibold">{formatMoney(productsTotal || order.priceTTC || order.total - shipping)}</p></div>
-              <div><p className="text-xs text-[#7c8996]">Livraison</p><p className="mt-1 font-semibold">{formatMoney(shipping)}</p></div>
-              <div><p className="text-xs text-[#7c8996]">Total</p><p className="mt-1 inline-flex rounded bg-[#344054] px-2 py-1 font-semibold text-white">{formatMoney(order.priceTTC ?? order.total)}</p></div>
-            </div>
-            <p className="px-4 py-3 text-center text-[11px] text-[#8492a3]">Les prix de cette commande incluent les taxes.</p>
-          </Card>
-
-          <Card padding="0">
-            <div role="tablist" aria-label="Détails de la commande" className="flex flex-wrap items-center gap-1 border-b border-[#dce4ea] px-3 pt-2 text-sm">
+            <div role="tablist" aria-label="Détails de la commande" className="flex flex-wrap items-end gap-1 border-b border-[#dce4ea] bg-[#e9eaec] px-3 pt-2 text-sm">
               {([
-                ["status", "◷ Statut", currentPreview ? currentPreview.history.length : 1],
-                ["documents", "▰ Documents", order.dolibarrInvoice ? 1 : 0],
-                ["carriers", "▰ Transporteurs", currentPreview ? (currentPreview.shipping ? 1 : 0) : null],
-                ["returns", "↻ Retours", 0],
-              ] as const).map(([id, label, count]) => (
-                <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`px-3 py-3 ${tab === id ? "border-t-2 border-[#22b6d1] bg-white font-medium text-[#344054]" : "text-[#7b8b97] hover:text-[#344054]"}`}>
+                ["status", "État", History, currentPreview ? currentPreview.history.length : 1],
+                ["documents", "Documents", File, 1 + Number(Boolean(order.dolibarrInvoice)) + Number(Boolean(currentPreview?.shipping || currentPreview?.deliverySlip)) + orderRefunds.filter((refund) => refund.status === "succeeded").length],
+                ["carriers", "Transporteurs", Truck, currentPreview ? (currentPreview.shipping ? 1 : 0) : null],
+                ["returns", "Retours produit", RotateCcw, 0],
+              ] as const).map(([id, label, Icon, count]) => (
+                <button key={id} id={`order-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`order-panel-${id}`} onClick={() => setTab(id)} className={`-mb-px inline-flex items-center gap-1.5 rounded-t-sm border-t-2 px-3 py-3 ${tab === id ? "border-[#22b6d1] bg-white font-medium text-[#344054]" : "border-transparent text-[#536b78] hover:text-[#344054]"}`}>
+                  <Icon size={17} aria-hidden="true" />
                   {label} ({count ?? "…"})
                 </button>
               ))}
             </div>
 
             {tab === "status" ? (
-              <div className="p-3">
+              <div role="tabpanel" id="order-panel-status" aria-labelledby="order-tab-status" className="p-3">
                 <ul aria-label="Historique des statuts" className="border-y border-[#cbd7df]">
                   {(currentPreview?.history ?? [{ etat: order.etat, by: null, at: order.updatedAt }]).map((entry, index) => (
                     <li key={`${entry.at}-${index}`} className="grid grid-cols-1 items-center gap-1 border-b border-[#e3e8ec] px-2 py-2 text-sm last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -282,18 +318,23 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
             ) : null}
 
             {tab === "documents" ? (
-              <div className="p-4 text-sm text-[#344054]">
-                {order.dolibarrInvoice ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span>Facture {order.dolibarrInvoice.reference}{order.dolibarrInvoice.date ? ` · ${formatDate(order.dolibarrInvoice.date)}` : ""}</span>
-                    {order.dolibarrInvoice.invoiceUrl ? <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-[#22a8c8] hover:underline">Ouvrir le PDF</a> : null}
-                  </div>
-                ) : <p className="text-[#667085]">Aucun document pour cette commande.</p>}
-              </div>
+              <OrderDocuments
+                key={order.id}
+                order={order}
+                preview={currentPreview}
+                refunds={orderRefunds}
+                retryRefund={can("orders.edit") ? async (id) => updateRefund(await retryOrderRefund(orderId, id)) : undefined}
+                canRegenerate={can("orders.edit")}
+                onCommentSaved={can("orders.edit") ? (proForma) => {
+                  setPreview((current) => current?.id === orderId && current.data
+                    ? { id: orderId, data: { ...current.data, proForma } }
+                    : current);
+                } : undefined}
+              />
             ) : null}
 
             {tab === "carriers" ? (
-              <div className="p-4 text-sm text-[#344054]">
+              <div role="tabpanel" id="order-panel-carriers" aria-labelledby="order-tab-carriers" className="p-4 text-sm text-[#344054]">
                 {!currentPreview ? <p className="text-[#667085]">Chargement…</p> : !currentPreview.shipping ? (
                   <p className="text-[#667085]">Le client n’a pas choisi de transporteur pour cette commande.</p>
                 ) : (
@@ -341,8 +382,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
               </div>
             ) : null}
 
-            {tab === "returns" ? <div className="p-4 text-sm text-[#667085]">Aucun retour pour cette commande.</div> : null}
+            {tab === "returns" ? <div role="tabpanel" id="order-panel-returns" aria-labelledby="order-tab-returns" className="p-4 text-sm text-[#667085]">Aucun retour pour cette commande.</div> : null}
           </Card>
+
+          <OrderPaymentsCard key={order.id} order={order} canEdit={can("orders.edit")} />
+          {refunding ? invoiceCard : null}
 
           <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400" alignItems="start">
             <GlsShippingCard order={order} disabledReason={currentPreview?.carrierKind === "COLISSIMO" ? "Cette commande a été passée avec un transporteur Colissimo : l’expédition GLS est désactivée." : undefined} />

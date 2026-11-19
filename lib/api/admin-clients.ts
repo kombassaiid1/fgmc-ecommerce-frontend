@@ -123,3 +123,17 @@ export const deleteAdminClient = (id: string) =>
 /** One-time code (60 s) opening the customer's storefront session. */
 export const createClientImpersonationCode = (id: string) =>
   request<{ code: string }>(`/${id}/impersonate`, { method: "POST" });
+
+export async function openClientAccount(id: string): Promise<void> {
+  // Open the tab during the click so the browser allows it.
+  const tab = window.open("about:blank", "_blank");
+  try {
+    const { code } = await createClientImpersonationCode(id);
+    const url = `/impersonate?code=${encodeURIComponent(code)}`;
+    if (tab) tab.location.href = url;
+    else window.location.assign(url);
+  } catch (error) {
+    tab?.close();
+    throw error;
+  }
+}

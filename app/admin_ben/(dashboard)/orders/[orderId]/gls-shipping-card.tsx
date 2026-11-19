@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Banner, BlockStack, Box, Button, InlineStack, Select, SkeletonBodyText, Text } from "@shopify/polaris";
 import { toast } from "sonner";
 import { CarrierCard, ChosenDelivery, ShipmentBlock } from "./carrier-card";
-import type { OrderDetail } from "@/lib/api/orders";
+import { getDeliverySlipUrl, type OrderDetail } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 
 export type GlsType = "HOME" | "RELAY" | "FLEX" | "EXPRESS";
@@ -32,28 +32,6 @@ type ModuleSettings = { returnService: { enabled: boolean }; deliveryNote: boole
 
 export const GLS_API = "/frontend-api/admin/gls-integration";
 export const GLS_TYPE_NAMES: Record<GlsType, string> = { HOME: "En entreprise", RELAY: "En Relais GLS", FLEX: "À domicile", EXPRESS: "Express" };
-
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
-
-/** Opens a printable delivery note: who it goes to, and what is in the parcel. */
-function printDeliveryNote(order: OrderDetail, form: Form) {
-  const products = Array.isArray(order.products) ? (order.products as Array<{ title?: string; quantity?: number }>) : [];
-  const rows = products.map((product) => `<tr><td>${escapeHtml(product.title ?? "Article")}</td><td class="n">${Math.max(0, Number(product.quantity) || 0)}</td></tr>`).join("");
-  const win = window.open("", "_blank");
-  if (!win) {
-    toast.error("Autorisez les fenêtres pop-up pour imprimer le bon de livraison.");
-    return;
-  }
-  win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Bon de livraison</title><style>
-    body{font:14px/1.5 system-ui,sans-serif;color:#14213d;margin:32px}h1{font-size:22px;margin:0 0 4px}p{margin:2px 0}
-    table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border-bottom:1px solid #c6cfda;padding:8px 6px;text-align:left}th.n,td.n{text-align:right;width:90px}
-    .meta{margin-top:16px;display:grid;gap:2px}</style></head><body>
-    <h1>Bon de livraison</h1><p>Commande ${escapeHtml(order.reference ?? `…${order.id.slice(-8)}`)} · ${escapeHtml(new Date(order.createdAt).toLocaleDateString("fr-FR"))}</p>
-    <div class="meta"><strong>${escapeHtml(form.name)}</strong><span>${escapeHtml(form.street)}</span><span>${escapeHtml(`${form.zip} ${form.city}`.trim())}</span><span>${escapeHtml(form.countryCode)}</span></div>
-    <table><thead><tr><th>Article</th><th class="n">Quantité</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Aucun article</td></tr>'}</tbody></table>
-    <script>window.onload=function(){window.print()}<\/script></body></html>`);
-  win.document.close();
-}
 
 const COUNTRY_CODES: Record<string, string> = {
   france: "FR", belgique: "BE", allemagne: "DE", espagne: "ES", italie: "IT", "pays-bas": "NL", luxembourg: "LU",
@@ -309,7 +287,7 @@ export function GlsShippingCard({ order, disabledReason }: { order: OrderDetail;
       ) : null}
 
       {moduleSettings?.deliveryNote ? (
-        <InlineStack><Button onClick={() => printDeliveryNote(order, form)}>Imprimer le bon de livraison</Button></InlineStack>
+        <InlineStack><Button url={getDeliverySlipUrl(order.id)} external>Ouvrir le bon de livraison</Button></InlineStack>
       ) : null}
     </CarrierCard>
   );

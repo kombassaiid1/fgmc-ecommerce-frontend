@@ -137,6 +137,9 @@ const NAV_ITEMS = [
     subNavigationItems: [
       { label: "Commandes", url: "/admin_ben/settings/orders" },
       { label: "États de commandes", url: "/admin_ben/settings/order-states" },
+      { label: "Factures pro-forma", url: "/admin_ben/settings/pro-forma" },
+      { label: "Bons de livraison", url: "/admin_ben/settings/delivery-slips" },
+      { label: "Avoirs", url: "/admin_ben/settings/credit-notes" },
       { label: "Paramètres produit", url: "/admin_ben/settings/products" },
     ],
   },

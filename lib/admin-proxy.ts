@@ -26,10 +26,15 @@ export async function proxyAdminRequest(
       body,
       cache: "no-store",
     });
-    return new Response(await upstream.text(), {
-      status: upstream.status,
-      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
+    const headers = new Headers({
+      "Content-Type": upstream.headers.get("content-type") ?? "application/json",
     });
+    const disposition = upstream.headers.get("content-disposition");
+    if (disposition) {
+      headers.set("Content-Disposition", disposition);
+      headers.set("Cache-Control", "private, no-store");
+    }
+    return new Response(upstream.body, { status: upstream.status, headers });
   } catch {
     return Response.json({ message: "Impossible de joindre le serveur." }, { status: 502 });
   }

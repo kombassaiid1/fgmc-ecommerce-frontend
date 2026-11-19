@@ -17,6 +17,9 @@ export type OrderItemPayload = {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  unitPriceHt?: number;
+  totalPriceHt?: number;
+  taxRate?: number;
 };
 
 export type OrderTotalsPayload = {
@@ -171,6 +174,8 @@ export type OrderDetail = Omit<OrderListItem, "Client" | "Address"> & {
   }) | null;
   customerOrderCount: number;
   customerTotalSpent: number;
+  /** A note only the shop's staff can see. */
+  privateNote?: string | null;
 };
 
 export type OrdersResponse = {
@@ -278,8 +283,12 @@ export async function createAuthenticatedOrder(
 }
 
 /** What the order list shows when a row is opened. */
+export type ProFormaDocument = { reference: string; comment: string | null };
+
 export type OrderPreview = {
   carrierName: string | null;
+  proForma?: { reference: string; comment?: string | null } | null;
+  deliverySlip?: { reference: string } | null;
   /** The carrier family of the order: only that carrier's shipping card is usable on the order page. */
   carrierKind?: "GLS" | "COLISSIMO" | null;
   /** What the customer chose at checkout: the carrier and what it costs (null when no carrier was chosen). */
@@ -305,3 +314,89 @@ export async function getOrderPreview(id: string): Promise<OrderPreview> {
   if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(" ") : data.message || "Impossible de charger les détails.");
   return data as OrderPreview;
 }
+
+export function getDeliverySlipUrl(id: string): string {
+  return `/frontend-api/admin/orders/${encodeURIComponent(id)}/delivery-slip`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin: the customer card of an order                                */
+/* ------------------------------------------------------------------ */
+
+export type OrderAddressChoice = { id: string; street: string; zipCode: string; city: string; state: string; country: string };
+
+async function adminOrderCall<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/frontend-api/admin/orders/${path}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(" ") : data.message || "Action impossible.");
+  return data as T;
+}
+
+export const getAdminOrder = (id: string) => adminOrderCall<OrderDetail>(encodeURIComponent(id));
+
+/** The other addresses of the order's customer (none for a guest). */
+export const getOrderAddresses = (id: string) => adminOrderCall<{ currentId: string | null; addresses: OrderAddressChoice[] }>(`${encodeURIComponent(id)}/addresses`);
+
+export const chooseOrderAddress = (id: string, addressId: string) => adminOrderCall<OrderDetail>(`${encodeURIComponent(id)}/address-choice`, { method: "PATCH", body: JSON.stringify({ addressId }) });
+
+/** Corrects the order's address. The customer's address book is not touched. */
+export const updateOrderAddress = (id: string, address: { street: string; zipCode: string; city: string; state?: string; country: string }) =>
+  adminOrderCall<OrderDetail>(`${encodeURIComponent(id)}/address`, { method: "PATCH", body: JSON.stringify(address) });
+
+export const updateOrderGuest = (id: string, guest: { guestName?: string; guestEmail?: string; guestPhone?: string; guestAddress?: string }) =>
+  adminOrderCall<OrderDetail>(`${encodeURIComponent(id)}/guest`, { method: "PATCH", body: JSON.stringify(guest) });
+
+export const saveOrderNote = (id: string, note: string) => adminOrderCall<{ privateNote: string | null }>(`${encodeURIComponent(id)}/note`, { method: "PATCH", body: JSON.stringify({ note }) });
+
+export const saveProFormaComment = (id: string, note: string) =>
+  adminOrderCall<ProFormaDocument>(`${encodeURIComponent(id)}/pro-forma/comment`, { method: "PATCH", body: JSON.stringify({ note }) });
+
+export const regenerateOrderProForma = (id: string) =>
+  adminOrderCall<{ reference: string }>(`${encodeURIComponent(id)}/pro-forma/regenerate`, { method: "POST" });
+
+export type PaymentInvoiceKind = "invoice" | "pro-forma";
+
+export type OrderPayment = {
+  id: string;
+  paidAt: string;
+  method: string;
+  transactionId: string | null;
+  amountCents: number;
+  currency: string;
+  invoiceKind: PaymentInvoiceKind | null;
+  invoiceReference: string | null;
+  source: "manual" | "stripe" | "stripe-test";
+};
+
+export type OrderPayments = {
+  payments: OrderPayment[];
+  invoices: Array<{ kind: PaymentInvoiceKind; reference: string }>;
+  canRecord: boolean;
+};
+
+export type RecordOrderPayment = {
+  id: string;
+  paidAt: string;
+  method: string;
+  transactionId?: string;
+  amountCents: number;
+  currency: "EUR";
+  invoiceKind?: PaymentInvoiceKind;
+};
+
+export const getOrderPayments = (id: string) =>
+  adminOrderCall<OrderPayments>(`${encodeURIComponent(id)}/payments`);
+
+export type PaymentCardDetails = {
+  last4: string;
+  brand: string | null;
+  network: string | null;
+  expiry: string | null;
+  billingName: string | null;
+};
+
+export const getOrderPaymentDetails = (id: string, paymentId: string) =>
+  adminOrderCall<{ card: PaymentCardDetails | null }>(`${encodeURIComponent(id)}/payments/${encodeURIComponent(paymentId)}/details`);
+
+export const recordOrderPayment = (id: string, payment: RecordOrderPayment) =>
+  adminOrderCall<OrderPayments>(`${encodeURIComponent(id)}/payments`, { method: "POST", body: JSON.stringify(payment) });

@@ -1573,6 +1573,9 @@ function buildOrderTotalsPayload(
       quantity: Math.max(0, item.qty ?? 0),
       unitPrice: roundMoney(totalsForItem.unitTtc),
       totalPrice: roundMoney(totalsForItem.lineTtc),
+      unitPriceHt: roundMoney(totalsForItem.unitHt),
+      totalPriceHt: roundMoney(totalsForItem.lineHt),
+      taxRate: rateToFraction(item.taxRate) * 100,
     };
   });
 

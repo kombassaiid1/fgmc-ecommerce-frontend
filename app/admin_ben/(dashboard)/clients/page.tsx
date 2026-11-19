@@ -38,11 +38,11 @@ import {
 
 import { useAdminSession } from "@/components/admin/admin-session";
 import {
-  createClientImpersonationCode,
   deleteAdminClient,
   EMPTY_CLIENT_FILTERS,
   getAdminClientStats,
   listAdminClients,
+  openClientAccount,
   updateAdminClient,
   type AdminClient,
   type AdminClientFilters,
@@ -293,15 +293,9 @@ export default function AdminClientsPage() {
   ]);
 
   const loginAsClient = async (client: AdminClient) => {
-    // Open the tab synchronously (popup blockers), then point it at the one-time link.
-    const tab = window.open("about:blank", "_blank");
     try {
-      const { code } = await createClientImpersonationCode(client.id);
-      const url = `/impersonate?code=${encodeURIComponent(code)}`;
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
+      await openClientAccount(client.id);
     } catch (loginError) {
-      tab?.close();
       setError(loginError instanceof Error ? loginError.message : "Connexion au compte impossible.");
     }
   };
