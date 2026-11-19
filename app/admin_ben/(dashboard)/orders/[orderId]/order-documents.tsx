@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { getCreditNoteUrl, type OrderRefund } from "@/lib/api/order-refunds";
-import { getDeliverySlipUrl, regenerateOrderProForma, saveProFormaComment, type OrderDetail, type OrderPreview, type ProFormaDocument } from "@/lib/api/orders";
+import { getDeliverySlipUrl, getProFormaUrl, regenerateOrderProForma, saveProFormaComment, type OrderDetail, type OrderPreview, type ProFormaDocument } from "@/lib/api/orders";
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeZone: "Europe/Paris" });
 const linkStyle = "text-[#087e9a] hover:underline";
@@ -189,7 +189,7 @@ export function OrderDocuments({
               <td>Facture pro-forma</td>
               <td>
                 <a
-                  href={`/frontend-api/admin/orders/${encodeURIComponent(order.id)}/pro-forma`}
+                  href={getProFormaUrl(order.id)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={linkStyle}

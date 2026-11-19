@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Card, Text } from "@shopify/polaris";
 import { toast } from "sonner";
 import { getOrderPaymentDetails, getOrderPayments, recordOrderPayment, type OrderDetail, type OrderPayment, type OrderPayments, type PaymentCardDetails, type PaymentInvoiceKind } from "@/lib/api/orders";
@@ -45,7 +45,7 @@ function cardType(card: PaymentCardDetails | null) {
   return brand && brand !== "unknown" ? cardBrands[brand] ?? brand : "Non défini";
 }
 
-export function OrderPaymentsCard({ order, canEdit }: { order: OrderDetail; canEdit: boolean }) {
+export function OrderPaymentsCard({ order, canEdit, statusControl }: { order: OrderDetail; canEdit: boolean; statusControl?: ReactNode }) {
   const [data, setData] = useState<OrderPayments | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -170,8 +170,9 @@ export function OrderPaymentsCard({ order, canEdit }: { order: OrderDetail; canE
 
   return (
     <Card padding="0">
-      <div className="border-b border-[#dce4ea] bg-[#f6f8f9] px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#dce4ea] bg-[#f6f8f9] px-3 py-3">
         <Text as="h2" variant="headingMd">Paiement{data ? ` (${data.payments.length})` : ""}</Text>
+        {statusControl}
       </div>
       <div className="px-5 pt-9 pb-12">
         {loadError ? (

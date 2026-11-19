@@ -176,6 +176,7 @@ export type OrderDetail = Omit<OrderListItem, "Client" | "Address"> & {
   customerTotalSpent: number;
   /** A note only the shop's staff can see. */
   privateNote?: string | null;
+  adjacentOrders?: { previous: string | null; next: string | null };
 };
 
 export type OrdersResponse = {
@@ -317,6 +318,10 @@ export async function getOrderPreview(id: string): Promise<OrderPreview> {
 
 export function getDeliverySlipUrl(id: string): string {
   return `/frontend-api/admin/orders/${encodeURIComponent(id)}/delivery-slip`;
+}
+
+export function getProFormaUrl(id: string): string {
+  return `/frontend-api/admin/orders/${encodeURIComponent(id)}/pro-forma`;
 }
 
 /* ------------------------------------------------------------------ */

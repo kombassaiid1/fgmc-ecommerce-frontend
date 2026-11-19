@@ -1,14 +1,15 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Banner, BlockStack, Button, Card, InlineGrid, Spinner, Text } from "@shopify/polaris";
 import { useAdminSession } from "@/components/admin/admin-session";
 import { openClientAccount } from "@/lib/api/admin-clients";
-import { getAdminOrder, getOrderPreview, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview } from "@/lib/api/orders";
+import { getAdminOrder, getDeliverySlipUrl, getOrderPreview, getProFormaUrl, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 import { toast } from "sonner";
-import { File, History, RotateCcw, Truck } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronDown, File, History, Printer, ReceiptText, RotateCcw, Truck } from "lucide-react";
 import { GlsShippingCard } from "./gls-shipping-card";
 import { ColissimoShippingCard } from "./colissimo-shipping-card";
 import { CustomerCard } from "./customer-card";
@@ -22,6 +23,9 @@ const PAYMENT_STATUS_OPTIONS = [
   { label: "Paiement accepté", value: "Payé" },
   { label: "Échoué", value: "échoué" },
 ];
+const orderActionBase = "inline-flex min-h-9 items-center justify-center gap-1 whitespace-nowrap rounded border px-2 text-[13px] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08758a] disabled:opacity-50";
+const orderActionClass = `${orderActionBase} border-[#d9e1e6] bg-white font-medium text-[#344e60] hover:bg-[#f6f9fa]`;
+const statusOrder = new Intl.Collator("fr", { sensitivity: "base" });
 
 function formatMoney(value: number | null | undefined) {
   const amount = Number(value ?? 0);
@@ -55,9 +59,14 @@ function Detail({ label, value }: { label: string; value?: string | number | nul
 
 export default function AdminOrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = use(params);
+  return <AdminOrderDetail key={orderId} orderId={orderId} />;
+}
+
+function AdminOrderDetail({ orderId }: { orderId: string }) {
   const router = useRouter();
   const { can } = useAdminSession();
   const canOpenClientAccount = can("clients.edit");
+  const canEditOrder = can("orders.edit");
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const { options: statusOptions, colors: statusColors } = useOrderStates();
   const [loading, setLoading] = useState(true);
@@ -124,7 +133,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   }, [tab, refreshPreview]);
 
   const saveStatus = async (kind: "etat" | "paymentStatus") => {
-    if (!order) return;
+    if (!order || !canEditOrder || saving) return;
     setSaving(true);
     try {
       if (kind === "etat") await updateOrderStatus(order.id, nextStatus);
@@ -167,6 +176,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
   const refunding = refundOrderId === orderId;
   const refundContext = refunds?.orderId === orderId ? refunds.context : null;
   const orderRefunds = refundContext?.refunds ?? [];
+  const invoiceUrl = order.dolibarrInvoice?.invoiceUrl;
 
   function updateRefund(refund: OrderRefund) {
     setRefunds((current) => {
@@ -212,7 +222,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
           <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
             Ouvrir le PDF
           </a>
-        ) : order.dolibarrInvoice ? <p className="text-xs text-[#667085]">Lien public non disponible. Vérifiez que le PDF a été généré après l’activation du partage externe.</p> : null}
+        ) : null}
       </div>
     </Card>
   );
@@ -227,44 +237,81 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
         <Button onClick={() => router.push("/admin_ben/orders")}>Retour</Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border border-[#d9dde1] bg-[#e9eaec] p-2">
-        <select aria-label="Statut de paiement" value={nextPaymentStatus} onChange={(event) => setNextPaymentStatus(event.target.value)} className="h-9 min-w-52 rounded border border-[#cbd6de] bg-white px-3 text-sm font-semibold text-[#344054]">
-          {[...PAYMENT_STATUS_OPTIONS, ...(!PAYMENT_STATUS_OPTIONS.some((option) => option.value === nextPaymentStatus) ? [{ label: nextPaymentStatus, value: nextPaymentStatus }] : [])].map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <Button disabled={saving} onClick={() => void saveStatus("paymentStatus")}>Mettre à jour</Button>
-        <select aria-label="Statut de la commande" value={nextStatus} onChange={(event) => setNextStatus(event.target.value)} style={{ backgroundColor: statusColors[nextStatus]?.backgroundColor, color: statusColors[nextStatus]?.textColor }} className="h-9 min-w-56 rounded border border-black/10 px-3 text-sm font-semibold">
-          {statusOptions.map((option) => <option key={option.value} value={option.value} style={{ backgroundColor: option.backgroundColor, color: option.textColor }}>{option.label}</option>)}
-          {!statusOptions.some((option) => option.value === nextStatus) ? <option value={nextStatus} hidden>{nextStatus}</option> : null}
-        </select>
-        <Button disabled={saving} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
-        {order.dolibarrInvoice?.invoiceUrl ? (
-          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
-            Voir la facture Dolibarr
+      <div className="min-w-0 overflow-x-auto rounded-md border border-[#d9dde1] bg-[#e9eaec] print:hidden">
+        <div role="group" aria-label="Actions de la commande" className="flex w-max min-w-full items-center gap-2 p-2">
+          <div className="relative w-[280px]">
+            <select
+              aria-label="Statut de la commande"
+              title={nextStatus}
+              value={nextStatus}
+              onChange={(event) => setNextStatus(event.target.value)}
+              disabled={!canEditOrder || saving}
+              style={{ backgroundColor: statusColors[nextStatus]?.backgroundColor, color: statusColors[nextStatus]?.textColor }}
+              className="h-9 w-full appearance-none rounded border border-black/10 bg-white py-0 pr-9 pl-3 text-sm text-[#344e60] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08758a] [&>option]:bg-white [&>option]:text-[#172b38]"
+            >
+              {[...statusOptions].sort((a, b) => statusOrder.compare(a.label, b.label)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {!statusOptions.some((option) => option.value === nextStatus) ? <option value={nextStatus} hidden>{nextStatus}</option> : null}
+            </select>
+            <ChevronDown aria-hidden="true" className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" style={{ color: statusColors[nextStatus]?.textColor }} />
+          </div>
+          <button
+            type="button"
+            disabled={!canEditOrder || saving || nextStatus === order.etat}
+            onClick={() => void saveStatus("etat")}
+            className={`${orderActionBase} bg-[#08758a] font-semibold text-white hover:bg-[#066477] disabled:border-transparent disabled:bg-[#d9dde1] disabled:text-[#4b5962] disabled:opacity-100`}
+          >
+            Mettre à jour l’état
+          </button>
+          <a href={invoiceUrl || getProFormaUrl(order.id)} target="_blank" rel="noopener noreferrer" title={invoiceUrl ? undefined : "Ouvrir la facture pro-forma"} className={orderActionClass}>
+            <ReceiptText aria-hidden="true" className="size-4" />
+            Voir la facture
           </a>
-        ) : <Button disabled>Lien public indisponible</Button>}
-        <Button onClick={() => window.print()}>▣ Imprimer la commande</Button>
-        <Button
-          disabled={!order.Client || !canOpenClientAccount}
-          loading={openingClientAccount}
-          onClick={() => void loginAsClient()}
-        >
-          Connecter au compte client
-        </Button>
-        <Button
-          id="order-partial-refund-action"
-          ariaControls="order-products"
-          ariaExpanded={refunding}
-          disabled={refunding || !can("orders.edit")}
-          onClick={() => {
-            setRefundOrderId(orderId);
-            void getOrderRefunds(orderId).then((context) => setRefunds({ orderId, context })).catch((error: unknown) => {
-              setRefunds({ orderId, context: null, error: error instanceof Error ? error.message : "Impossible de charger les remboursements." });
-            });
-          }}
-        >
-          ↔ Remboursement partiel
-        </Button>
-        <span className="ml-auto flex gap-2"><Button disabled accessibilityLabel="Commande précédente">←</Button><Button disabled accessibilityLabel="Commande suivante">→</Button></span>
+          <button type="button" onClick={() => window.print()} className={orderActionClass}>
+            <Printer aria-hidden="true" className="size-4" /> Imprimer la commande
+          </button>
+          <a href={getDeliverySlipUrl(order.id)} target="_blank" rel="noopener noreferrer" className={orderActionClass}>
+            <Truck aria-hidden="true" className="size-4" /> Voir le bon de livraison
+          </a>
+          <button
+            type="button"
+            disabled={!order.Client || !canOpenClientAccount || openingClientAccount}
+            aria-busy={openingClientAccount}
+            className={`${orderActionBase} border-[#08758a] bg-[#08758a] font-semibold text-white hover:bg-[#066477]`}
+            onClick={() => void loginAsClient()}
+          >
+            {openingClientAccount ? "Connecting…" : "Connect to customer account"}
+          </button>
+          <button
+            type="button"
+            id="order-partial-refund-action"
+            aria-controls="order-products"
+            aria-expanded={refunding}
+            disabled={refunding || !can("orders.edit")}
+            className={orderActionClass}
+            onClick={() => {
+              setRefundOrderId(orderId);
+              void getOrderRefunds(orderId).then((context) => setRefunds({ orderId, context })).catch((error: unknown) => {
+                setRefunds({ orderId, context: null, error: error instanceof Error ? error.message : "Impossible de charger les remboursements." });
+              });
+            }}
+          >
+            <ArrowLeftRight aria-hidden="true" className="size-4" /> Remboursement partiel
+          </button>
+          <div className="ml-auto flex gap-1.5 pl-1">
+            {([
+              [order.adjacentOrders?.previous, "Commande précédente", ArrowLeft],
+              [order.adjacentOrders?.next, "Commande suivante", ArrowRight],
+            ] as const).map(([id, label, Icon]) => id ? (
+              <Link key={label} href={`/admin_ben/orders/${encodeURIComponent(id)}`} className={orderActionClass} aria-label={label} title={label}>
+                <Icon aria-hidden="true" className="size-4" />
+              </Link>
+            ) : (
+              <button key={label} type="button" disabled className={orderActionClass} aria-label={label}>
+                <Icon aria-hidden="true" className="size-4" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {refunding ? (
@@ -275,7 +322,9 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
       ) : null}
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(350px,0.82fr)_minmax(0,1.65fr)]">
-        <CustomerCard key={order.id} order={order} onUpdated={setOrder} onNoteSaved={onNoteSaved} />
+        <CustomerCard key={order.id} order={order} onUpdated={(updated) => setOrder((current) =>
+          current?.id === updated.id ? { ...updated, adjacentOrders: current.adjacentOrders } : current
+        )} onNoteSaved={onNoteSaved} />
 
         <BlockStack gap="300">
           {!refunding ? invoiceCard : null}
@@ -312,7 +361,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
                     {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     {!statusOptions.some((option) => option.value === nextStatus) ? <option value={nextStatus} hidden>{nextStatus}</option> : null}
                   </select>
-                  <Button variant="primary" disabled={saving || nextStatus === order.etat} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
+                  <Button variant="primary" disabled={!canEditOrder || saving || nextStatus === order.etat} onClick={() => void saveStatus("etat")}>Mettre à jour le statut</Button>
                 </div>
               </div>
             ) : null}
@@ -385,7 +434,25 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ ord
             {tab === "returns" ? <div role="tabpanel" id="order-panel-returns" aria-labelledby="order-tab-returns" className="p-4 text-sm text-[#667085]">Aucun retour pour cette commande.</div> : null}
           </Card>
 
-          <OrderPaymentsCard key={order.id} order={order} canEdit={can("orders.edit")} />
+          <OrderPaymentsCard key={order.id} order={order} canEdit={canEditOrder}
+            statusControl={
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+                <select
+                  aria-label="Statut de paiement"
+                  value={nextPaymentStatus}
+                  onChange={(event) => setNextPaymentStatus(event.target.value)}
+                  disabled={!canEditOrder || saving}
+                  className="h-9 rounded border border-[#cbd6de] bg-white px-2 text-sm text-[#344054]"
+                >
+                  {PAYMENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {!PAYMENT_STATUS_OPTIONS.some((option) => option.value === nextPaymentStatus) ? <option value={nextPaymentStatus} hidden>{nextPaymentStatus}</option> : null}
+                </select>
+                <Button disabled={!canEditOrder || saving || nextPaymentStatus === order.paymentStatus} onClick={() => void saveStatus("paymentStatus")}>
+                  Mettre à jour le paiement
+                </Button>
+              </div>
+            }
+          />
           {refunding ? invoiceCard : null}
 
           <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400" alignItems="start">
