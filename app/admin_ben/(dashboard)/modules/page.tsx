@@ -81,8 +81,8 @@ const modules: ModuleEntry[] = [
     image: "/modules/colissimo-shipping.svg",
     description:
       "Créez les étiquettes Colissimo depuis vos commandes, proposez les points de retrait et suivez vos colis.",
-    configHref: "/admin_ben/modules/colissimo",
-    configLabel: "Configurer Colissimo",
+    configHref: "/admin_ben/modules/colissimo/orders",
+    configLabel: "Ouvrir Colissimo",
     accent: "colissimo",
   },
 ];
