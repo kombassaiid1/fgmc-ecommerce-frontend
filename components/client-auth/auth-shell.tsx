@@ -1,125 +1,90 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, ShieldCheck, Truck } from "lucide-react";
+import { ArrowRight, PackageSearch, ReceiptText, ShieldCheck } from "lucide-react";
+
+import "./auth.css";
 
 type AuthShellProps = {
   title: string;
-  eyebrow: string;
   subtitle: string;
+  /** Headline and text of the navy panel, which change between sign-in and sign-up. */
+  panelTitle: string;
+  panelText: string;
   switchText: string;
   switchHref: string;
   switchLabel: string;
+  /** Where the three benefits sit in the navy panel. */
+  benefitsAt?: "top" | "bottom";
   children: React.ReactNode;
 };
 
 const BENEFITS = [
-  {
-    icon: Truck,
-    label: "Suivi de commandes",
-  },
-  {
-    icon: BadgeCheck,
-    label: "Devis et prix client",
-  },
-  {
-    icon: ShieldCheck,
-    label: "Espace securise",
-  },
+  { icon: PackageSearch, title: "Suivi de commandes", text: "Où en est votre colis, à tout moment." },
+  { icon: ReceiptText, title: "Devis et prix client", text: "Vos tarifs et vos documents au même endroit." },
+  { icon: ShieldCheck, title: "Espace sécurisé", text: "Vos informations restent chez FGMC." },
 ];
 
-export function AuthShell({
-  title,
-  eyebrow,
-  subtitle,
-  switchText,
-  switchHref,
-  switchLabel,
-  children,
-}: AuthShellProps) {
+/** Shared frame of the client sign-in and sign-up pages. */
+export function AuthShell({ title, subtitle, panelTitle, panelText, switchText, switchHref, switchLabel, benefitsAt = "bottom", children }: AuthShellProps) {
+  const benefits = (
+    <ul className={`relative z-10 hidden gap-1 lg:grid ${benefitsAt === "top" ? "mt-8" : ""}`}>
+      {BENEFITS.map(({ icon: Icon, title: benefit, text }) => (
+        <li key={benefit} className="flex items-start gap-4 border-t border-white/20 py-3.5 first:border-t-0">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/10">
+            <Icon className="size-5" aria-hidden="true" />
+          </span>
+          <span>
+            <span className="block text-[15px] font-semibold">{benefit}</span>
+            <span className="block text-sm leading-6 text-white/70">{text}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <section className="min-h-[calc(100dvh-5rem)] bg-muted px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-lg border border-border bg-background shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
-        <aside className="hidden bg-primary p-10 text-primary-foreground lg:flex lg:flex-col lg:justify-between">
+    <section className="auth-scope min-h-[calc(100dvh-5rem)] px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-3xl bg-[var(--auth-paper)] shadow-[0_30px_80px_-30px_rgba(11,31,77,0.45)] ring-1 ring-[var(--auth-line)] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        {/* ---------------------------------------------------------- the mat */}
+        <aside className="auth-mat flex flex-col justify-between gap-8 px-6 pb-6 pt-10 sm:px-10 sm:pb-10 sm:pt-12 lg:min-h-[640px] lg:px-12">
           <div>
-            <Link href="/" className="inline-flex items-center">
-              <Image
-                src="/logo.png"
-                alt="FGMC"
-                width={170}
-                height={70}
-                priority
-                className="h-auto w-40 rounded bg-white/95 px-3 py-2"
-              />
+            <Link href="/" aria-label="France Général Machines à Coudre, accueil" className="inline-block rounded-xl bg-white p-3 shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              <Image src="/brand/logo-fgmc.webp" alt="France Général Machines à Coudre" width={1452} height={460} priority className="h-auto w-[190px] sm:w-[230px]" />
             </Link>
 
-            <div className="mt-12 max-w-sm">
-              <p className="text-sm font-semibold uppercase tracking-normal text-primary-foreground/75">
-                France General Machine a Coudre
-              </p>
-              <h2 className="mt-4 text-3xl font-bold leading-tight">
-                Votre espace client pour acheter plus simplement.
-              </h2>
-              <p className="mt-4 text-base leading-7 text-primary-foreground/82">
-                Retrouvez vos informations, preparez vos commandes et gardez un
-                acces direct aux services FGMC.
-              </p>
-            </div>
+            <h2 className="mt-8! max-w-sm text-3xl! font-bold! leading-[1.1]! sm:text-4xl!">{panelTitle}</h2>
+            <p className="mt-4! hidden max-w-sm text-base! leading-7! text-white/80 sm:block">{panelText}</p>
+            {benefitsAt === "top" ? benefits : null}
           </div>
 
-          <div className="grid gap-3">
-            {BENEFITS.map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="flex min-h-12 items-center gap-3 rounded-md bg-white/10 px-4 py-3 text-sm font-medium">
-                <Icon className="size-5" />
-                <span>{label}</span>
-              </div>
-            ))}
-          </div>
+          {benefitsAt === "bottom" ? benefits : null}
+
+          {/* The thread of the logo, drawn once. */}
+          <svg className="auth-thread" viewBox="0 0 600 260" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path className="thread-blue" pathLength={1} d="M-10 215 C 140 190, 300 215, 470 120 S 590 40, 640 28" />
+            <path className="thread-red" pathLength={1} d="M-10 245 C 170 235, 330 255, 500 175 S 600 120, 640 98" />
+            <path className="thread-stitch" pathLength={1} d="M-10 230 C 155 212, 315 236, 485 148 S 595 80, 640 63" />
+          </svg>
         </aside>
 
-        <div className="px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
-          <div className="mx-auto w-full max-w-xl">
-            <div className="mb-8 flex items-center justify-between gap-4">
-              <Link href="/" className="inline-flex items-center lg:hidden">
-                <Image
-                  src="/logo.png"
-                  alt="FGMC"
-                  width={132}
-                  height={54}
-                  priority
-                  className="h-auto w-32"
-                />
-              </Link>
+        {/* ---------------------------------------------------------- the label */}
+        <div className="relative px-5 py-8 sm:px-10 lg:px-14 lg:py-12">
+          <div className="auth-label-frame" aria-hidden="true" />
+          <div className="relative mx-auto w-full max-w-xl">
+            <div className="mb-7 flex items-center justify-between gap-4">
+              <p className="text-sm text-[var(--auth-muted)]">{switchText}</p>
               <Link
                 href={switchHref}
-                className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary">
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border-2 border-[var(--auth-ink)] px-5 text-sm font-bold text-[var(--auth-ink)] transition-colors hover:bg-[var(--auth-ink)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--auth-blue)]">
                 {switchLabel}
-                <ArrowRight className="size-4" />
+                <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             </div>
 
-            <div className="mb-8">
-              <p className="text-sm font-semibold uppercase tracking-normal text-destructive">
-                {eyebrow}
-              </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-normal text-foreground sm:text-4xl">
-                {title}
-              </h1>
-              <p className="mt-3 max-w-lg text-base leading-7 text-muted-foreground">
-                {subtitle}
-              </p>
-              <p className="mt-3 text-sm text-muted-foreground">
-                {switchText}{" "}
-                <Link
-                  href={switchHref}
-                  className="font-semibold text-primary hover:text-primary/80">
-                  {switchLabel}
-                </Link>
-              </p>
-            </div>
+            <h1 className="text-4xl! font-bold! leading-tight! text-[var(--auth-ink)] sm:text-5xl!">{title}</h1>
+            <p className="mt-3! max-w-md text-base! leading-7! text-[var(--auth-muted)]">{subtitle}</p>
 
-            {children}
+            <div className="mt-8">{children}</div>
           </div>
         </div>
       </div>
