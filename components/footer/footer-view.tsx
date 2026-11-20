@@ -28,7 +28,7 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
   const style = { "--ft-bg": config.backgroundColor, "--ft-fg": config.textColor, "--ft-accent": config.accentColor, "--ft-cols": Math.max(1, config.groups.length) } as CSSProperties;
   const address = [site.address, [site.postalCode, site.city].filter(Boolean).join(" "), site.country].filter(Boolean).join(", ");
   const social = SOCIAL_ORDER.filter((id) => site.socialLinks[id]?.trim());
-  const hasContact = config.showContact && Boolean(site.phoneNumber || site.contactEmail || address);
+  const hasContact = config.showContact && Boolean(site.phoneNumber || site.secondPhoneNumber || site.contactEmail || address);
   const stop = preview ? (event: React.MouseEvent) => event.preventDefault() : undefined;
   const name = site.siteName || config.wordmark;
   const logo = config.logo || site.logo;
@@ -73,6 +73,7 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
               {hasContact ? (
                 <ul className="ft-contact" aria-label="Coordonnées">
                   {site.phoneNumber ? <li><PiPhoneCallDuotone className="size-5" aria-hidden="true" /><a href={`tel:${site.phoneNumber.replace(/\s+/g, "")}`} onClick={stop}>{site.phoneNumber}</a></li> : null}
+                  {site.secondPhoneNumber ? <li><PiPhoneCallDuotone className="size-5" aria-hidden="true" /><a href={`tel:${site.secondPhoneNumber.replace(/\s+/g, "")}`} onClick={stop}>{site.secondPhoneNumber}</a></li> : null}
                   {site.contactEmail ? <li><PiEnvelopeSimpleDuotone className="size-5" aria-hidden="true" /><a href={`mailto:${site.contactEmail}`} onClick={stop}>{site.contactEmail}</a></li> : null}
                   {address ? <li><PiMapPinAreaDuotone className="size-5" aria-hidden="true" /><span>{address}</span></li> : null}
                 </ul>

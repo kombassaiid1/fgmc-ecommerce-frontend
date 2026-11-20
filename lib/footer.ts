@@ -31,6 +31,7 @@ export type FooterSite = {
   logo: string;
   contactEmail: string;
   phoneNumber: string;
+  secondPhoneNumber: string;
   address: string;
   postalCode: string;
   city: string;
@@ -61,7 +62,7 @@ export const DEFAULT_FOOTER: FooterConfig = {
   legalLinks: [],
 };
 
-export const EMPTY_SITE: FooterSite = { siteName: "", logo: "", contactEmail: "", phoneNumber: "", address: "", postalCode: "", city: "", country: "", socialLinks: {} };
+export const EMPTY_SITE: FooterSite = { siteName: "", logo: "", contactEmail: "", phoneNumber: "", secondPhoneNumber: "", address: "", postalCode: "", city: "", country: "", socialLinks: {} };
 
 /** Reads the shop settings the footer needs, from the public or the admin settings response. */
 export function toFooterSite(settings: Record<string, unknown> | null | undefined): FooterSite {
@@ -72,6 +73,7 @@ export function toFooterSite(settings: Record<string, unknown> | null | undefine
     logo: text("logo"),
     contactEmail: text("contactEmail"),
     phoneNumber: text("phoneNumber"),
+    secondPhoneNumber: text("secondPhoneNumber"),
     address: text("address"),
     postalCode: text("postalCode"),
     city: text("city"),

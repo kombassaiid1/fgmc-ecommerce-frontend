@@ -237,9 +237,11 @@ function ContactInfoView({ title, layout, showPhone, showEmail, showAddress, sho
   const address = shopAddress(site);
   const social = SOCIAL_ORDER.filter((id) => site.socialLinks[id]?.trim());
   const rows = [
-    showPhone && site.phoneNumber ? { key: "phone" as const, value: site.phoneNumber, href: `tel:${site.phoneNumber.replace(/\s+/g, "")}`, external: false } : null,
-    showEmail && site.contactEmail ? { key: "email" as const, value: site.contactEmail, href: `mailto:${site.contactEmail}`, external: false } : null,
-    showAddress && address ? { key: "address" as const, value: address, href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`, external: true } : null,
+    showPhone && (site.phoneNumber || site.secondPhoneNumber)
+      ? { key: "phone" as const, external: false, entries: [site.phoneNumber, site.secondPhoneNumber].filter(Boolean).map((number) => ({ value: number, href: `tel:${number.replace(/\s+/g, "")}` })) }
+      : null,
+    showEmail && site.contactEmail ? { key: "email" as const, external: false, entries: [{ value: site.contactEmail, href: `mailto:${site.contactEmail}` }] } : null,
+    showAddress && address ? { key: "address" as const, external: true, entries: [{ value: address, href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}` }] } : null,
   ].filter((row): row is NonNullable<typeof row> => row !== null);
 
   if (rows.length === 0 && !(showSocial && social.length > 0)) {
@@ -267,10 +269,15 @@ function ContactInfoView({ title, layout, showPhone, showEmail, showAddress, sho
             <span className="pc-contact-icon"><Icon className="size-7" aria-hidden="true" /></span>
             <div className="pc-contact-text">
               <p className="pc-info-label">{label}</p>
-              <a className="pc-contact-link" href={row.href} {...(row.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
-                <span className="pc-contact-value">{row.value}</span>
-                <span className="pc-contact-cta" aria-hidden="true">{cta}<PiArrowUpRightBold className="size-4" /></span>
-              </a>
+              <div className="pc-contact-link">
+                <span className="pc-contact-values">
+                  {row.entries.map((entry) => (
+                    <a key={entry.href} className="pc-contact-value" href={entry.href} {...(row.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{entry.value}</a>
+                  ))}
+                </span>
+                {/* The same target as the first number, for the eye only: screen readers already have the links above. */}
+                <a className="pc-contact-cta" href={row.entries[0].href} tabIndex={-1} aria-hidden="true" {...(row.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{cta}<PiArrowUpRightBold className="size-4" /></a>
+              </div>
             </div>
           </li>
         );

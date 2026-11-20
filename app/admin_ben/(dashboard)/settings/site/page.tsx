@@ -20,6 +20,7 @@ type SiteSettings = {
   favicon: string | null;
   contactEmail: string | null;
   phoneNumber: string | null;
+  secondPhoneNumber: string | null;
   address: string | null;
   postalCode: string | null;
   city: string | null;
@@ -35,7 +36,7 @@ type SiteSettings = {
 };
 
 const TEXT_KEYS = [
-  "siteName", "siteUrl", "logo", "mobileLogo", "favicon", "contactEmail", "phoneNumber", "address", "postalCode", "city", "country",
+  "siteName", "siteUrl", "logo", "mobileLogo", "favicon", "contactEmail", "phoneNumber", "secondPhoneNumber", "address", "postalCode", "city", "country",
   "orderNotificationEmail", "metaTitle", "metaDescription", "metaKeywords", "ogImage", "robotsDefault",
   "locale",
 ] as const;
@@ -68,7 +69,7 @@ function isHttpUrl(value: string) {
 /** The groups of the page: what the side menu lists, and which fields count towards "filled". */
 const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; tone: string; color: string; keys: TextKey[]; description: string }> = [
   { id: "identite", label: "Identité", icon: Store, tone: "#eaf2ff", color: "#2456a6", keys: ["siteName", "siteUrl", "locale", "logo", "mobileLogo", "favicon"], description: "Le nom, l’adresse, la langue et les logos qui représentent votre boutique." },
-  { id: "coordonnees", label: "Coordonnées", icon: Phone, tone: "#e7f7ef", color: "#18794e", keys: ["contactEmail", "phoneNumber", "address", "postalCode", "city", "country", "orderNotificationEmail"], description: "Comment vos clients vous joignent, et où partent les alertes de commande." },
+  { id: "coordonnees", label: "Coordonnées", icon: Phone, tone: "#e7f7ef", color: "#18794e", keys: ["contactEmail", "phoneNumber", "secondPhoneNumber", "address", "postalCode", "city", "country", "orderNotificationEmail"], description: "Comment vos clients vous joignent, et où partent les alertes de commande." },
   { id: "seo", label: "Référencement", icon: Search, tone: "#f2edff", color: "#7044a6", keys: ["metaTitle", "metaDescription", "metaKeywords", "ogImage", "robotsDefault"], description: "Ce que Google et les réseaux sociaux affichent quand votre site apparaît." },
   { id: "reseaux", label: "Réseaux sociaux", icon: Share2, tone: "#fdeaf0", color: "#b3265a", keys: [], description: "Les pages qui représentent votre boutique sur les réseaux. Laissez vide ce que vous n’utilisez pas." },
 ];
@@ -275,6 +276,10 @@ export default function SiteSettingsPage() {
               <FormLayout.Group>
                 {text("contactEmail", "E-mail de contact", { type: "email" })}
                 {text("phoneNumber", "Téléphone", { type: "tel" })}
+              </FormLayout.Group>
+              <FormLayout.Group>
+                {text("secondPhoneNumber", "Deuxième téléphone", { type: "tel", helpText: "Facultatif : un mobile, un numéro SAV…" })}
+                <div />
               </FormLayout.Group>
               <TextField label="Adresse" value={form.address} onChange={set("address")} autoComplete="off" multiline={2} placeholder="Numéro et nom de la rue" />
               <FormLayout.Group>
