@@ -26,6 +26,7 @@ import {
   ProductIcon,
   SettingsIcon,
   StarIcon,
+  LayoutFooterIcon,
 } from "@shopify/polaris-icons";
 import en from "@shopify/polaris/locales/en.json";
 
@@ -96,7 +97,7 @@ const NAV_ITEMS = [
     permission: "appearance.view",
     subNavigationItems: [
       { label: "Header", url: "/admin_ben/apparence/header", icon: MenuHorizontalIcon },
-      { label: "Accueil & hero", url: "/admin_ben/apparence/hero", icon: ImageIcon },
+      { label: "Footer", url: "/admin_ben/apparence/footer", icon: LayoutFooterIcon },
       { label: "Media", url: "/admin_ben/apparence/media", icon: ImageIcon },
       { label: "Page builder", url: "/admin_ben/page-builder", icon: AppsIcon },
     ],

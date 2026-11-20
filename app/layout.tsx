@@ -6,6 +6,7 @@ import { TopNavBar } from "@/components/client/top-navbar";
 import { ReactQueryProvider } from "@/components/providers/react-query-provider";
 import { ClientVisitTracker } from "@/components/providers/client-visit-tracker";
 import { RecoTracker } from "@/components/providers/reco-tracker";
+import { SiteFooter } from "@/components/footer/site-footer";
 import { SplashScreen } from "@/components/splash/splash-screen";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
             <TopNavBar />
             {children}
           </main>
+          <SiteFooter />
           <Toaster />
           <RecoTracker />
           <ClientVisitTracker />

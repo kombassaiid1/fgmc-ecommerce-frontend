@@ -15,9 +15,9 @@ const SECTIONS = [
     url: "/admin_ben/apparence/header",
   },
   {
-    title: "Accueil & hero",
-    description: "Images et catégories du hero de la page d'accueil.",
-    url: "/admin_ben/apparence/hero",
+    title: "Footer",
+    description: "Couleurs, colonnes de liens, bandeau d'appel et mentions du pied de page.",
+    url: "/admin_ben/apparence/footer",
   },
   {
     title: "Médiathèque",

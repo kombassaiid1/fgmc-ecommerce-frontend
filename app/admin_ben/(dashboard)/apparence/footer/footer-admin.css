@@ -1,0 +1,44 @@
+/* Footer page of the back office. The page frame comes from the shop information page's stylesheet. */
+.fa-label { display: block; margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ss-ink); }
+.fa-toggles { display: grid; gap: 12px; }
+
+/* ------------------------------------------------------------ preview */
+.fa-preview { overflow: hidden; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--ss-line), 0 1px 2px rgba(16, 24, 40, 0.04); }
+.fa-preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #edf0f3; background: linear-gradient(180deg, #fbfcfe, #fff); }
+.fa-preview-title { font-size: 14px; font-weight: 700; color: var(--ss-ink); }
+.fa-device { display: inline-flex; gap: 2px; border-radius: 10px; background: #eef1f5; padding: 3px; }
+.fa-device button { border: 0; border-radius: 8px; background: transparent; padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ss-muted); cursor: pointer; }
+.fa-device button[aria-pressed="true"] { background: #fff; color: var(--ss-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12); }
+.fa-device button:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 1px; }
+.fa-frame { display: flex; justify-content: center; overflow: hidden; background: #dfe4ec; padding: 16px 16px 0; }
+.fa-page-bg { overflow: hidden; border-radius: 10px 10px 0 0; background: #f2f5fa; box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.08); }
+.fa-fake-page { display: grid; gap: 14px; padding: 28px 40px 40px; }
+.fa-fake-page span { height: 14px; border-radius: 7px; background: #dde3ec; }
+.fa-fake-page span:nth-child(1) { width: 38%; height: 22px; }
+.fa-fake-page span:nth-child(2) { width: 82%; }
+.fa-fake-page span:nth-child(3) { width: 60%; }
+.fa-off { padding: 40px; text-align: center; font-size: 14px; color: var(--ss-muted); background: #f2f5fa; }
+
+/* ------------------------------------------------------------ colours */
+.fa-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.fa-preset { display: grid; gap: 8px; border: 0; border-radius: 12px; background: #fff; padding: 10px; text-align: left; font: inherit; font-size: 13px; font-weight: 600; color: var(--ss-ink); cursor: pointer; box-shadow: inset 0 0 0 1px var(--ss-line); }
+.fa-preset:hover { box-shadow: inset 0 0 0 1px #aab6c8; }
+.fa-preset[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ss-blue); }
+.fa-preset:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 2px; }
+.fa-swatch { display: flex; align-items: flex-end; gap: 4px; height: 44px; border-radius: 8px; padding: 6px; }
+.fa-swatch i { display: block; height: 4px; flex: 1; border-radius: 2px; }
+.fa-swatch i:last-child { flex: 0 0 24px; }
+.fa-color-row { display: flex; gap: 8px; }
+.fa-color-row input[type="color"] { width: 44px; height: 36px; flex: none; padding: 2px; border: 1px solid #8a94a0; border-radius: 8px; background: #fff; cursor: pointer; }
+.fa-color-row input[type="text"] { min-width: 0; flex: 1; height: 36px; padding: 0 10px; border: 1px solid #8a94a0; border-radius: 8px; font: inherit; font-size: 13px; text-transform: lowercase; }
+.fa-color-row input[type="text"][aria-invalid="true"] { border-color: #c4352b; }
+
+/* ------------------------------------------------------------ links */
+.fa-group { border-radius: 14px; background: var(--ss-wash); padding: 16px; box-shadow: inset 0 0 0 1px #e8edf2; }
+.fa-group-head { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+.fa-group-actions { display: flex; gap: 4px; }
+.fa-links { display: grid; gap: 10px; }
+.fa-link-row { display: grid; gap: 8px; align-items: center; border-radius: 12px; background: #fff; padding: 10px; box-shadow: inset 0 0 0 1px #e3e8ee; }
+@media (min-width: 900px) {
+  .fa-link-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto auto; }
+}

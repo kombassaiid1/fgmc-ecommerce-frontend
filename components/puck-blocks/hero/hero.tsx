@@ -55,7 +55,7 @@ type CategoryNode = Category & { children: CategoryNode[]; menuImage?: string };
 type Slide = { key: string; imageUrl: string; altText: string; href: string };
 
 export const HERO_DEFAULTS: HeroProps = {
-  // Starting slides, copied from the site settings (Apparence > Accueil & hero).
+  // Starting slides.
   slides: [
     {
       imageUrl: "https://supabase.elbootic.tn/storage/v1/object/public/fgmc/image/1790679411314-MERIOMA 2026-AA.webp",
@@ -94,7 +94,7 @@ export const HERO_DEFAULTS: HeroProps = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Category helpers (same rules as the storefront's HomeHero)                 */
+/* Category helpers                                                           */
 /* -------------------------------------------------------------------------- */
 
 function normalize(value: string) {

@@ -1,0 +1,161 @@
+/*
+ * The footer is a seamstress's cutting mat: a grid on the fabric, a pinked (zigzag) top edge, a stitched seam,
+ * a giant outlined name, and a measuring tape along the bottom edge. It reacts to its own width (container
+ * queries), so the back office can show it at phone width inside a desktop page.
+ */
+.ft {
+  --ft-bg: #0b1f4d;
+  --ft-fg: #ffffff;
+  --ft-accent: #e2232d;
+  --ft-soft: color-mix(in srgb, var(--ft-fg) 76%, transparent);
+  --ft-faint: color-mix(in srgb, var(--ft-fg) 16%, transparent);
+  position: relative;
+  container: ft / inline-size;
+  color: var(--ft-fg);
+  font-family: var(--font-oswald), system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------- pinked edge */
+.ft-edge {
+  height: 14px;
+  background: var(--ft-bg);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 28px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 28px 100%;
+}
+
+/* ---------------------------------------------------------------- the mat */
+.ft-body {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--ft-bg);
+  padding: 0 20px;
+}
+.ft[data-grid="true"] .ft-body {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ft-fg) 11%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ft-fg) 11%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--ft-fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ft-fg) 5%, transparent) 1px, transparent 1px);
+  background-size: 112px 112px, 112px 112px, 28px 28px, 28px 28px;
+  background-position: 0 0;
+}
+.ft-inner { position: relative; z-index: 1; margin: 0 auto; max-width: 1240px; }
+
+/* The seam: two lines of stitches under the edge. */
+.ft-seam { display: grid; gap: 5px; padding-top: 22px; }
+.ft-seam::before,
+.ft-seam::after { content: ""; height: 3px; }
+.ft-seam::before { background: repeating-linear-gradient(90deg, var(--ft-accent) 0 12px, transparent 12px 20px); }
+.ft-seam::after { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ft-fg) 45%, transparent) 0 12px, transparent 12px 20px); }
+
+/* ---------------------------------------------------------------- call to action: a stitched label */
+.ft-cta {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  margin-top: 34px;
+  border: 2px dashed color-mix(in srgb, var(--ft-accent) 80%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--ft-fg) 7%, transparent);
+  padding: 24px;
+}
+.ft-cta h2 { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--ft-fg); }
+.ft-cta p { margin: 6px 0 0; font-size: 15px; line-height: 1.55; color: var(--ft-soft); }
+.ft-cta-btn {
+  display: inline-flex; width: fit-content; min-height: 48px; align-items: center; gap: 8px;
+  border-radius: 999px; background: var(--ft-accent); padding: 0 24px;
+  font-size: 15px; font-weight: 700; color: #fff; text-decoration: none;
+  box-shadow: 0 12px 26px -12px var(--ft-accent);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.ft-cta-btn:hover { filter: brightness(0.94); transform: translateY(-1px); }
+
+/* ---------------------------------------------------------------- columns */
+.ft-grid { display: grid; gap: 34px 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 44px 0 20px; }
+.ft-brand { grid-column: 1 / -1; display: grid; gap: 18px; align-content: start; }
+.ft-logo-tag { display: inline-block; width: fit-content; max-width: 100%; border-radius: 14px; background: #fff; padding: 10px 14px; box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6); }
+.ft-logo-tag img { display: block; height: 44px; width: auto; max-width: 100%; object-fit: contain; }
+.ft-name { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--ft-fg); }
+.ft-tagline { margin: 0; max-width: 34ch; font-size: 15px; line-height: 1.6; color: var(--ft-soft); }
+
+.ft-contact { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ft-contact li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.5; color: var(--ft-soft); }
+.ft-contact svg { flex: none; margin-top: 3px; color: var(--ft-accent); }
+.ft-contact a { color: inherit; text-decoration: none; }
+.ft-contact a:hover { color: var(--ft-fg); text-decoration: underline; text-underline-offset: 3px; }
+
+.ft-social { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ft-social a {
+  display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px;
+  background: color-mix(in srgb, var(--ft-fg) 10%, transparent); color: var(--ft-fg);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.ft-social a:hover { background: var(--ft-accent); color: #fff; transform: translateY(-2px); }
+
+.ft-col h3 { margin: 0 0 14px; padding-bottom: 10px; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: var(--ft-fg); background: linear-gradient(90deg, var(--ft-accent) 0 28px, var(--ft-faint) 28px) bottom / 100% 2px no-repeat; }
+.ft-col ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ft-link { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; font-size: 15px; color: var(--ft-soft); text-decoration: none; transition: color 0.15s ease, transform 0.15s ease; }
+.ft-link:hover { color: var(--ft-fg); transform: translateX(3px); }
+.ft a:focus-visible, .ft button:focus-visible { outline: 2px solid var(--ft-fg); outline-offset: 3px; border-radius: 6px; }
+
+/* ---------------------------------------------------------------- the giant name */
+.ft-wordmark {
+  margin: 10px 0 0;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
+  font-size: clamp(64px, 19cqw, 280px);
+  font-weight: 800;
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in srgb, var(--ft-fg) 26%, transparent);
+  user-select: none;
+  text-transform: uppercase;
+  padding-bottom: 0.04em;
+}
+
+/* ---------------------------------------------------------------- bottom line */
+.ft-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 18px 0 22px; border-top: 1px solid var(--ft-faint); font-size: 13px; color: var(--ft-soft); }
+.ft-bottom p { margin: 0; }
+.ft-legal { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; }
+.ft-legal a { color: inherit; text-decoration: none; }
+.ft-legal a:hover { color: var(--ft-fg); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Back to top: pull the thread. */
+.ft-top { position: relative; display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--ft-fg); font: inherit; font-size: 13px; font-weight: 600; }
+.ft-top-knob { position: relative; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--ft-accent); color: #fff; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+.ft-top-knob::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 0; height: 18px; border-left: 2px dashed var(--ft-accent); transform-origin: bottom; transform: scaleY(0.35); transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+.ft-top:hover .ft-top-knob { transform: translateY(-7px); }
+.ft-top:hover .ft-top-knob::before { transform: scaleY(1); }
+
+/* ---------------------------------------------------------------- measuring tape */
+.ft-ruler { position: relative; z-index: 1; height: 34px; overflow: hidden; border-top: 1px solid var(--ft-faint); background-color: color-mix(in srgb, var(--ft-fg) 6%, transparent); }
+.ft-ruler::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 14px;
+  background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--ft-fg) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ft-fg) 1px, transparent 1px);
+  background-size: 14px 7px, 70px 14px;
+  background-repeat: repeat-x;
+}
+.ft-ruler-nums { position: absolute; left: 0; top: 14px; display: flex; font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; color: var(--ft-soft); }
+.ft-ruler-nums span { width: 70px; flex: none; padding-left: 4px; }
+
+/* ---------------------------------------------------------------- wider footers */
+@container ft (min-width: 640px) {
+  .ft-body { padding: 0 32px; }
+  .ft-cta { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 28px 32px; }
+  .ft-cta h2 { font-size: 28px; }
+  .ft-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container ft (min-width: 960px) {
+  .ft-body { padding: 0 48px; }
+  .ft-grid { grid-template-columns: minmax(0, 1.5fr) repeat(var(--ft-cols, 3), minmax(0, 1fr)); gap: 40px 40px; }
+  .ft-brand { grid-column: auto; padding-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-cta-btn, .ft-link, .ft-social a, .ft-top-knob, .ft-top-knob::before { transition: none; }
+  .ft-cta-btn:hover, .ft-link:hover, .ft-social a:hover, .ft-top:hover .ft-top-knob { transform: none; }
+}

@@ -30,7 +30,6 @@ function toHeaderSettingsPayload(config: HeaderConfig) {
     links: config.links,
     mobileLinks: config.mobileLinks,
     socialLinks: config.socialLinks,
-    heroConfig: config.heroConfig,
   };
 }
 
@@ -55,16 +54,5 @@ export async function updateHeaderSettings(
     body: JSON.stringify(toHeaderSettingsPayload(config)),
   });
 
-  return normalizeHeaderConfig(response);
-}
-
-export async function updateHomeHeroConfig(
-  heroConfig: HeaderConfig["heroConfig"],
-): Promise<HeaderConfig> {
-  const response = await apiRequest<Partial<HeaderConfig>>({
-    path: "/header/settings",
-    method: "PATCH",
-    body: JSON.stringify({ heroConfig }),
-  });
   return normalizeHeaderConfig(response);
 }

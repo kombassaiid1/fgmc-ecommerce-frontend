@@ -4,6 +4,15 @@ import { BlockStack, Card, Text } from "@shopify/polaris";
 
 const settingsSections = [
   {
+    title: "Informations de la boutique",
+    description: "Nom, logo, coordonnées, horaires, référencement (SEO), statistiques et réseaux sociaux de votre site.",
+    href: "/admin_ben/settings/site",
+    action: "Modifier les informations",
+    icon: "i",
+    tone: "#e7f7ef",
+    iconColor: "#18794e",
+  },
+  {
     title: "Taxes",
     description: "Configurez les taux de TVA appliqués aux produits et gérez la taxe par défaut.",
     href: "/admin_ben/settings/taxes",
