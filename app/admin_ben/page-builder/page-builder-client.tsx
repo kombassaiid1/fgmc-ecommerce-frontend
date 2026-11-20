@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import "./puck-theme.css";
 import { BlockIcon } from "./block-icons";
 import { BuilderShell, TabbedFields } from "./builder-shell";
+import { isUsableBuilderPage } from "@/lib/builder-blocks";
 import { markMigrated, migrateSavedData } from "./migrate-data";
 import { blockLabel, puckConfig, initialData } from "./puck-config";
 
@@ -137,11 +138,18 @@ function readStored(key: string): Data | null {
   }
 }
 
-function writeStored(key: string, data: Data) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(data));
-  } catch {
-    toast.error("Impossible d'enregistrer localement.");
+const PAGE_URL = "/frontend-api/admin/pages";
+const SLUG = "home";
+
+async function savePage(data: Data) {
+  const response = await fetch(PAGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug: SLUG, title: "Accueil", data }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string | string[] };
+    throw new Error(Array.isArray(body.message) ? body.message.join(" ") : body.message || "Enregistrement impossible.");
   }
 }
 
@@ -150,50 +158,82 @@ export function PageBuilderClient() {
   const [saved, setSaved] = useState(true);
   const [editorKey, setEditorKey] = useState(0);
   const [query, setQuery] = useState("");
+  // Nothing is saved until the page has been read: a failed read must never overwrite the stored page.
+  const [canSave, setCanSave] = useState(false);
 
   useEffect(() => {
-    // Draft lives in localStorage until the backend is wired up.
-    // Blocks saved before a default changed are updated once, and saved back.
-    const draft = migrateSavedData(readStored(DRAFT_KEY));
-    const published = migrateSavedData(readStored(PUBLISHED_KEY));
-    if (draft.changed && draft.data) writeStored(DRAFT_KEY, draft.data);
-    if (published.changed && published.data) writeStored(PUBLISHED_KEY, published.data);
-    markMigrated();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setData(draft.data ?? published.data ?? initialData);
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${PAGE_URL}?slug=${SLUG}`, { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const body = (await response.json()) as { data?: Data };
+        let page = migrateSavedData(isUsableBuilderPage(body.data) ? body.data : null);
+        let imported = false;
+        if (!page.data) {
+          // Nothing in the database yet: take the draft this browser kept before pages were saved there.
+          page = migrateSavedData(readStored(DRAFT_KEY) ?? readStored(PUBLISHED_KEY));
+          imported = Boolean(page.data);
+        }
+        markMigrated();
+        if (cancelled) return;
+        setData(page.data ?? initialData);
+        setCanSave(true);
+        if (page.data && (page.changed || imported)) {
+          await savePage(page.data);
+          if (imported && !cancelled) toast.success("Brouillon de ce navigateur enregistré en ligne.");
+        }
+      } catch {
+        if (cancelled) return;
+        toast.error("Impossible de charger la page : modifications désactivées. Rechargez la page.");
+        setData(initialData);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Autosave the draft (debounced) on every change.
+  // Every change is saved (debounced) and goes live: there is no separate draft.
   const [pending, setPending] = useState<Data | null>(null);
   useEffect(() => {
-    if (!pending) return;
+    if (!pending || !canSave) return;
     const id = window.setTimeout(() => {
-      writeStored(DRAFT_KEY, pending);
-      setSaved(true);
+      savePage(pending)
+        .then(() => setSaved(true))
+        .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Enregistrement impossible."));
     }, 600);
     return () => window.clearTimeout(id);
-  }, [pending]);
+  }, [pending, canSave]);
 
   const handleChange = useCallback((next: Data) => {
     setSaved(false);
     setPending(next);
   }, []);
 
-  const handlePublish = useCallback((next: Data) => {
-    writeStored(PUBLISHED_KEY, next);
-    writeStored(DRAFT_KEY, next);
-    setSaved(true);
-    toast.success("Page publiée (stockage local).");
-  }, []);
+  const handlePublish = useCallback(
+    (next: Data) => {
+      if (!canSave) {
+        toast.error("La page n'a pas pu être chargée : rechargez avant d'enregistrer.");
+        return;
+      }
+      savePage(next)
+        .then(() => {
+          setSaved(true);
+          setPending(null);
+          toast.success("Page enregistrée : elle est en ligne.");
+        })
+        .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Enregistrement impossible."));
+    },
+    [canSave],
+  );
 
   const handleReset = useCallback(() => {
-    if (!window.confirm("Réinitialiser la page au modèle de départ ?")) return;
-    try {
-      window.localStorage.removeItem(DRAFT_KEY);
-    } catch {}
+    if (!window.confirm("Vider la page ? La page d'accueil d'origine s'affichera à la place.")) return;
     setData(initialData);
     setEditorKey((k) => k + 1);
-    setSaved(true);
+    setPending(initialData);
+    setSaved(false);
   }, []);
 
   if (!data) {

@@ -1,0 +1,149 @@
+/* Opening sequence. The scene is drawn twice (top and bottom half of the screen); the seam at 50% opens on exit. */
+html.fgmc-splash-lock { overflow: hidden; }
+html[data-splash="seen"] .fgmc-splash { display: none; }
+
+.fgmc-splash {
+  --p: 0;
+  --navy: #0b1f4d;
+  --blue: #0b4fb3;
+  --red: #e2232d;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: all;
+}
+
+.fgmc-splash-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background: #fff;
+  transition: transform 0.95s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+.fgmc-splash-top { top: 0; }
+.fgmc-splash-bottom { bottom: 0; }
+
+/* The scene is a full-screen layer; the bottom half shows its lower part. */
+.fgmc-splash-scene {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+.fgmc-splash-top .fgmc-splash-scene { top: 0; }
+.fgmc-splash-bottom .fgmc-splash-scene { bottom: 0; }
+
+.fgmc-splash-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60vmax 40vmax at 12% 8%, rgba(11, 79, 179, 0.10), transparent 70%),
+    radial-gradient(60vmax 40vmax at 90% 95%, rgba(226, 35, 45, 0.10), transparent 70%),
+    #fff;
+  opacity: 0;
+  animation: fgmc-glow-in 1.2s ease-out 0.1s forwards;
+}
+
+/* Logo: sits above the seam, clear of the sewing machine, revealed by a wipe with a short focus pull. */
+.fgmc-splash-logo {
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + 104px);
+  width: min(82vw, 760px);
+  aspect-ratio: 1452 / 460;
+  translate: -50% 0;
+  animation: fgmc-drift 5s ease-out 0.2s both;
+}
+.fgmc-splash-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  clip-path: inset(0 100% 0 0);
+  filter: blur(8px);
+  transform: scale(0.965);
+  animation: fgmc-logo-in 1.25s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+}
+
+/* The seam: two stitched lines, blue above and red below, drawn left to right by --p. */
+.fgmc-splash-stitch {
+  position: absolute;
+  left: 0;
+  height: 3px;
+  width: calc(var(--p) * 100%);
+  opacity: 0;
+  animation: fgmc-fade-in 0.4s ease-out 0.9s forwards;
+}
+.fgmc-splash-stitch-blue {
+  top: calc(50% - 7px);
+  background: repeating-linear-gradient(90deg, var(--blue) 0 14px, transparent 14px 24px);
+}
+.fgmc-splash-stitch-red {
+  top: calc(50% + 4px);
+  background: repeating-linear-gradient(90deg, var(--red) 0 14px, transparent 14px 24px);
+}
+
+/* The sewing machine rides the seam; its needle (x = 69 of 84, drawn at 1.4x) stays on the head of the stitches. */
+.fgmc-splash-machine {
+  position: absolute;
+  left: calc(var(--p) * 100%);
+  bottom: calc(50% + 2px);
+  margin-left: -97px;
+  width: 118px;
+  height: 92px;
+  overflow: visible;
+  opacity: 0;
+  filter: drop-shadow(0 6px 8px rgba(11, 31, 77, 0.25));
+  animation: fgmc-fade-in 0.4s ease-out 0.9s forwards, fgmc-shake 0.1s linear 0.9s infinite alternate;
+}
+.fgmc-splash[data-phase="leave"] .fgmc-splash-machine { opacity: 0; animation: none; transition: opacity 0.25s; }
+.fgmc-splash-needle-bar { animation: fgmc-needle 0.18s ease-in-out infinite alternate; }
+.fgmc-splash-wheel { transform-box: fill-box; transform-origin: center; animation: fgmc-spin 0.36s linear infinite; }
+
+.fgmc-splash-label {
+  position: absolute;
+  top: calc(50% + 26px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-oswald), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: var(--navy);
+  opacity: 0;
+  animation: fgmc-label 1.2s ease-out 1.2s forwards;
+}
+
+/* Exit: the seam tears open. */
+.fgmc-splash[data-phase="leave"] { pointer-events: none; }
+.fgmc-splash[data-phase="leave"] .fgmc-splash-top { transform: translateY(-101%); }
+.fgmc-splash[data-phase="leave"] .fgmc-splash-bottom { transform: translateY(101%); }
+.fgmc-splash[data-phase="leave"] .fgmc-splash-logo { transition: transform 0.95s cubic-bezier(0.76, 0, 0.24, 1); transform: translateY(-24px) scale(1.04); }
+
+@keyframes fgmc-needle { from { transform: translateY(-6px); } to { transform: translateY(1px); } }
+@keyframes fgmc-spin { to { transform: rotate(360deg); } }
+@keyframes fgmc-shake { from { translate: 0 0; } to { translate: 0 0.8px; } }
+@keyframes fgmc-glow-in { to { opacity: 1; } }
+@keyframes fgmc-fade-in { to { opacity: 1; } }
+@keyframes fgmc-label { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 0.72; transform: none; } }
+@keyframes fgmc-logo-in { to { clip-path: inset(0 0 0 0); filter: blur(0); transform: scale(1); } }
+@keyframes fgmc-drift { from { scale: 1; } to { scale: 1.035; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fgmc-splash-glow, .fgmc-splash-stitch, .fgmc-splash-machine, .fgmc-splash-needle-bar, .fgmc-splash-wheel, .fgmc-splash-label, .fgmc-splash-logo, .fgmc-splash-logo img { animation: none; }
+  .fgmc-splash-glow, .fgmc-splash-stitch, .fgmc-splash-machine { opacity: 1; }
+  .fgmc-splash-label { opacity: 0.72; }
+  .fgmc-splash-logo img { clip-path: none; filter: none; transform: none; }
+  .fgmc-splash-half { transition: opacity 0.3s linear; }
+  .fgmc-splash[data-phase="leave"] .fgmc-splash-top,
+  .fgmc-splash[data-phase="leave"] .fgmc-splash-bottom { transform: none; opacity: 0; }
+  .fgmc-splash[data-phase="leave"] .fgmc-splash-logo { transform: none; transition: none; }
+}

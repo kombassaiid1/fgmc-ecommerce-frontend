@@ -783,7 +783,8 @@ function findAudienceRoot(
   return null;
 }
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
-  const pathname = usePathname();
+  // The storefront lives under /fr: compare the path without that prefix.
+  const pathname = usePathname().replace(/^\/fr(?=\/|$)/, "") || "/";
   const active =
     pathname === href || (href !== "/" && pathname.startsWith(href));
 

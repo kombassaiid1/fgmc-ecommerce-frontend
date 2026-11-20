@@ -6,6 +6,7 @@ import { TopNavBar } from "@/components/client/top-navbar";
 import { ReactQueryProvider } from "@/components/providers/react-query-provider";
 import { ClientVisitTracker } from "@/components/providers/client-visit-tracker";
 import { RecoTracker } from "@/components/providers/reco-tracker";
+import { SplashScreen } from "@/components/splash/splash-screen";
 import { Toaster } from "@/components/ui/sonner";
 
 const oswald = Oswald({
@@ -24,8 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${oswald.variable} h-full antialiased`}>
+    <html lang="fr" className={`${oswald.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* A visitor who already saw the opening sequence in this session does not see it again, not even for a frame. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(sessionStorage.getItem("fgmc-splash-seen")==="1")document.documentElement.setAttribute("data-splash","seen")}catch(e){}` }} />
+      </head>
       <body className="min-h-screen! flex flex-col bg-[#F2F5FA]!">
+        <SplashScreen />
         <ReactQueryProvider>
           <main className="flex-1!">
             <TopNavBar />
