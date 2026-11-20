@@ -4,6 +4,7 @@ import {
   HydrationBoundary,
   dehydrate,
 } from "@tanstack/react-query";
+import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 import {
@@ -122,7 +123,7 @@ export default async function CategoryProductPage({ params }: Props) {
         (item) => item.categoryId === product.mainCategoryId || item.category?.id === product.mainCategoryId,
       )?.category ?? product.categories?.[0]?.category;
       if (category?.slug) redirect(`/${category.slug}/${product.slug}.html`);
-      return <ProductDetailClient categorySlug="" product={product} />;
+      return <CatalogSidePanels><ProductDetailClient categorySlug="" product={product} /></CatalogSidePanels>;
     }
 
     return (
@@ -161,8 +162,10 @@ export default async function CategoryProductPage({ params }: Props) {
   }
 
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <CategoryPageClient slug={slug} />
-    </HydrationBoundary>
+    <CatalogSidePanels>
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <CategoryPageClient slug={slug} />
+      </HydrationBoundary>
+    </CatalogSidePanels>
   );
 }

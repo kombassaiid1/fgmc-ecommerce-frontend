@@ -29,6 +29,8 @@ export type HeroProps = {
   showDots: boolean;
 
   showPanels: boolean;
+  /** Also show the two category panels on the category and product pages. */
+  showOnCatalogPages: boolean;
   leftTitle: string;
   leftFooter: string;
   rightTitle: string;
@@ -75,6 +77,7 @@ export const HERO_DEFAULTS: HeroProps = {
   showArrows: true,
   showDots: true,
   showPanels: true,
+  showOnCatalogPages: false,
   leftTitle: "",
   leftFooter: "Devis, financement & SAV dédiés aux professionnels.",
   rightTitle: "",
@@ -98,7 +101,7 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-function buildCategoryTree(categories: Category[]): CategoryNode[] {
+export function buildCategoryTree(categories: Category[]): CategoryNode[] {
   const nodes = new Map<string, CategoryNode>();
   categories.forEach((category) => nodes.set(category.id, { ...category, children: [] }));
   const roots: CategoryNode[] = [];
@@ -116,7 +119,7 @@ function flattenCategoryTree(categories: CategoryNode[]): CategoryNode[] {
   return categories.flatMap((category) => [category, ...flattenCategoryTree(category.children)]);
 }
 
-function getAudienceCategories(
+export function getAudienceCategories(
   categories: CategoryNode[],
   audience: "professionnels" | "particuliers",
   selection: CategorySelection[],
@@ -394,7 +397,7 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
 /* Category panel                                                             */
 /* -------------------------------------------------------------------------- */
 
-function CategoryPanel({
+export function CategoryPanel({
   title,
   href,
   color,
@@ -705,7 +708,7 @@ function useFollowScroll(
 /* Mobile list, opened under the two panel buttons                            */
 /* -------------------------------------------------------------------------- */
 
-function MobileDropdown({
+export function MobileDropdown({
   title,
   href,
   color,
@@ -748,7 +751,7 @@ function MobileDropdown({
     const doc = rootRef.current?.ownerDocument ?? document;
     const onDown = (event: Event) => {
       const target = event.target as Element | null;
-      if (!target || rootRef.current?.contains(target) || target.closest?.("aside")) return;
+      if (!target || rootRef.current?.contains(target) || target.closest?.("aside, [data-panel-toggle]")) return;
       closeRef.current();
     };
     doc.addEventListener("pointerdown", onDown);

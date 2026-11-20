@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
+import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 
 type Props = {
@@ -81,5 +82,5 @@ export default async function ProductDetailsPage({ params }: Props) {
     redirect(`/${mainCategory.slug}/${product.slug}.html`);
   }
 
-  return <ProductDetailClient categorySlug={slug} product={product} />;
+  return <CatalogSidePanels><ProductDetailClient categorySlug={slug} product={product} /></CatalogSidePanels>;
 }

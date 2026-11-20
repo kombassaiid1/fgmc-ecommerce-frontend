@@ -44,3 +44,32 @@ export function colorField(label: string, placeholder = "Par défaut"): CustomFi
     ),
   };
 }
+
+/** An on/off switch. */
+export function switchField(label: string, help?: string): CustomField<boolean> {
+  return {
+    type: "custom",
+    label,
+    render: ({ value, onChange, name }) => (
+      <FieldLabel label={label}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <button
+            type="button"
+            role="switch"
+            name={name}
+            aria-checked={Boolean(value)}
+            aria-label={label}
+            onClick={() => onChange(!value)}
+            style={{ position: "relative", flex: "none", width: 44, height: 24, borderRadius: 12, border: 0, padding: 0, cursor: "pointer", background: value ? "#0858b1" : "#c3cad3", transition: "background .15s" }}
+          >
+            <span style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .15s" }} />
+          </button>
+          <span style={{ fontSize: 12, lineHeight: 1.4, color: "#5b6573" }}>
+            <strong style={{ color: value ? "#0858b1" : "#5b6573" }}>{value ? "Activé" : "Désactivé"}</strong>
+            {help ? <><br />{help}</> : null}
+          </span>
+        </div>
+      </FieldLabel>
+    ),
+  };
+}

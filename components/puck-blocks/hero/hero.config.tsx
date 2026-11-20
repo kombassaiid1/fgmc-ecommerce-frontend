@@ -1,7 +1,7 @@
 import type { ComponentConfig } from "@puckeditor/core";
 
 import { categoryPickerField } from "../category-picker-field";
-import { colorField, yesNoOptions } from "../fields";
+import { colorField, switchField, yesNoOptions } from "../fields";
 import { mediaImageField } from "../media-image-field";
 import { HERO_DEFAULTS, Hero, type HeroProps } from "./hero";
 
@@ -35,6 +35,7 @@ export const heroBlock: ComponentConfig<HeroProps> = {
     showArrows: { type: "radio", label: "Flèches", options: yesNoOptions },
     showDots: { type: "radio", label: "Pastilles", options: yesNoOptions },
     showPanels: { type: "radio", label: "Panneaux de catégories", options: yesNoOptions },
+    showOnCatalogPages: switchField("Afficher les panneaux sur les pages produit et catégorie", "Les panneaux gauche et droit encadrent alors le contenu des pages catégorie et produit (écrans larges)."),
     followScroll: {
       type: "radio",
       label: "Suivre le défilement",
