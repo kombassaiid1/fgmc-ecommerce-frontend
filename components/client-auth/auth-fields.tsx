@@ -24,6 +24,7 @@ export function AuthField({
   placeholder,
   required = false,
   optional = false,
+  hint,
 }: {
   id: string;
   label: string;
@@ -35,6 +36,8 @@ export function AuthField({
   placeholder?: string;
   required?: boolean;
   optional?: boolean;
+  /** A short help line under the field. */
+  hint?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -52,9 +55,11 @@ export function AuthField({
           autoComplete={autoComplete}
           placeholder={placeholder}
           required={required}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           className={cn(INPUT_CLASS, "pl-11")}
         />
       </div>
+      {hint ? <p id={`${id}-hint`} className="text-xs leading-5 text-[var(--auth-muted)]">{hint}</p> : null}
     </div>
   );
 }

@@ -1,0 +1,94 @@
+/* Storefront header: a tailor's bench. Cutting-mat grid, measuring tape, and a thread that stitches as you scroll. */
+
+.hd-mat {
+  background-color: #fff;
+  background-image:
+    linear-gradient(#e8edf6 1px, transparent 1px),
+    linear-gradient(90deg, #e8edf6 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+/* The navigation bar is a measuring tape: ticks every 8px, a longer one every 40px. */
+.hd-tape {
+  position: relative;
+  background-color: #153675;
+}
+
+.hd-tape::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 9px;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.9) 0 1px, transparent 1px 40px);
+  background-size: 100% 4px, 100% 9px;
+  background-repeat: no-repeat;
+}
+
+.hd-tape::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+/* The thread, drawn along the foot of the header, follows the page scroll. */
+.hd-thread {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hd-thread-line {
+  height: 3px;
+  width: calc(var(--p, 0) * 100%);
+  background: repeating-linear-gradient(90deg, #ff4d57 0 8px, transparent 8px 12px);
+}
+
+.hd-needle {
+  position: absolute;
+  bottom: -7px;
+  left: calc(var(--p, 0) * (100% - 22px));
+  color: #ff4d57;
+  filter: drop-shadow(0 1px 1px rgba(11, 31, 77, 0.35));
+  opacity: calc(var(--p, 0) * 40);
+}
+
+/* A link on the tape: hovered or current, it becomes a stitched patch. */
+.hd-patch {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: #d3202b;
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.hd-patch::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 5px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.7);
+}
+
+.hd-link:hover .hd-patch,
+.hd-link:focus-visible .hd-patch,
+.hd-link[aria-current="page"] .hd-patch {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hd-patch {
+    transition: none;
+  }
+}

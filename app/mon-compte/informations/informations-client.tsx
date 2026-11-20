@@ -1,44 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useSyncExternalStore } from "react";
-import type { ComponentType, ReactNode, SVGProps } from "react";
+import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import {
-  AlertCircle,
-  ArrowLeft,
-  Building2,
-  CalendarDays,
-  CheckCircle2,
-  Fingerprint,
-  Loader2,
-  Mail,
-  Phone,
-  Save,
-  User,
-} from "lucide-react";
+  PiAddressBookDuotone,
+  PiArrowCounterClockwiseBold,
+  PiArrowRightBold,
+  PiAtDuotone,
+  PiBuildingsDuotone,
+  PiCalendarBlankDuotone,
+  PiCheckCircleDuotone,
+  PiEnvelopeSimpleDuotone,
+  PiFingerprintDuotone,
+  PiFloppyDiskBold,
+  PiLockKeyDuotone,
+  PiMapPinAreaDuotone,
+  PiPackageDuotone,
+  PiPhoneDuotone,
+  PiSealCheckDuotone,
+  PiSpinnerGapBold,
+  PiUserCircleDuotone,
+  PiUserDuotone,
+  PiWarningCircleDuotone,
+} from "react-icons/pi";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  updateClient,
-  type ClientAuthUser,
-  type ClientTitre,
-  type UpdateClientPayload,
-} from "@/lib/api/clients";
-import {
-  getClientSession,
-  saveClientSession,
-  subscribeToClientSession,
-  type ClientSession,
-} from "@/lib/client-auth";
+import "@/components/client-auth/auth.css";
+import { AuthChoice, AuthField } from "@/components/client-auth/auth-fields";
+import { updateClient, type ClientAuthUser, type ClientTitre, type UpdateClientPayload } from "@/lib/api/clients";
+import { getClientSession, saveClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
+
+import "../account.css";
+import "./infos.css";
 
 type InformationFormState = {
   Titre: ClientTitre;
@@ -73,9 +66,7 @@ function getServerSessionSnapshot() {
 
 function getClientSessionSnapshot() {
   const nextSession = getClientSession();
-  const nextKey = nextSession
-    ? `${nextSession.token}:${JSON.stringify(nextSession.user)}`
-    : "";
+  const nextKey = nextSession ? `${nextSession.token}:${JSON.stringify(nextSession.user)}` : "";
 
   if (nextKey === cachedSessionKey) {
     return cachedSession;
@@ -96,7 +87,7 @@ function normalizeDate(value: string | null | undefined) {
   return value.slice(0, 10);
 }
 
-function formFromUser(user: ClientAuthUser | null | undefined) {
+function formFromUser(user: ClientAuthUser | null | undefined): InformationFormState {
   if (!user) return EMPTY_FORM;
 
   return {
@@ -113,31 +104,36 @@ function formFromUser(user: ClientAuthUser | null | undefined) {
 }
 
 function displayName(user: ClientAuthUser | null | undefined) {
-  const fullName = [user?.firstName, user?.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
 
   return fullName || user?.username || user?.email || "Client FGMC";
 }
 
+function initials(user: ClientAuthUser | null | undefined) {
+  const letters = [user?.firstName, user?.lastName].filter(Boolean).map((part) => part!.trim()[0]).join("");
+  return (letters || user?.username?.[0] || user?.email?.[0] || "?").toUpperCase().slice(0, 2);
+}
+
 export function InformationsClient() {
-  const session = useSyncExternalStore(
-    subscribeToClientSession,
-    getClientSessionSnapshot,
-    getServerSessionSnapshot,
-  );
-  const [form, setForm] = useState<InformationFormState>(() =>
-    formFromUser(getClientSessionSnapshot()?.user),
-  );
+  const session = useSyncExternalStore(subscribeToClientSession, getClientSessionSnapshot, getServerSessionSnapshot);
+  // The server and the first client render both have no session, so the form starts empty and is filled once the
+  // customer's session is known (reading it earlier would make the page differ between server and browser).
+  const [form, setForm] = useState<InformationFormState>(EMPTY_FORM);
+  const [saved, setSaved] = useState<InformationFormState>(EMPTY_FORM);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  if (session?.user?.id && loadedFor !== session.user.id) {
+    const initial = formFromUser(session.user);
+    setLoadedFor(session.user.id);
+    setForm(initial);
+    setSaved(initial);
+  }
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function updateField<K extends keyof InformationFormState>(
-    key: K,
-    value: InformationFormState[K],
-  ) {
+  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
+
+  function updateField<K extends keyof InformationFormState>(key: K, value: InformationFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setError(null);
     setSuccess(null);
@@ -154,7 +150,7 @@ export function InformationsClient() {
     }
 
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      setError("Le prenom, le nom et l'adresse e-mail sont obligatoires.");
+      setError("Le prénom, le nom et l’adresse e-mail sont obligatoires.");
       return;
     }
 
@@ -181,295 +177,164 @@ export function InformationsClient() {
           ...updatedClient,
         },
       });
-      setForm(formFromUser(updatedClient));
-      setSuccess("Vos informations ont ete mises a jour.");
+      const next = formFromUser(updatedClient);
+      setForm(next);
+      setSaved(next);
+      setSuccess("Vos informations ont été mises à jour.");
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Impossible de mettre a jour vos informations.",
-      );
+      setError(submitError instanceof Error ? submitError.message : "Impossible de mettre à jour vos informations.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  const user = session?.user;
+  const since = user?.createdAt && Number.isFinite(Date.parse(user.createdAt)) ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(user.createdAt)) : "";
+
   return (
-    <main className="min-h-screen bg-[#f5f6f8] text-[#172033]">
-      <div className="border-t-2 border-destructive bg-[#ededed]">
-        <nav
-          aria-label="Fil d'Ariane"
-          className="mx-auto flex min-h-11 w-full max-w-[1320px] flex-wrap items-center gap-2 px-4 text-sm text-[#172033] sm:px-8">
-          <Link href="/" className="hover:text-primary hover:underline">
-            Accueil
-          </Link>
-          <BreadcrumbSeparator />
-          <Link href="/mon-compte" className="hover:text-primary hover:underline">
-            Mon compte
-          </Link>
-          <BreadcrumbSeparator />
-          <span aria-current="page">Informations</span>
+    <main className="ac">
+      <div className="ac-wrap">
+        <nav aria-label="Fil d’Ariane" className="ac-crumbs">
+          <Link href="/">Accueil</Link>
+          <span aria-hidden="true">/</span>
+          <Link href="/mon-compte">Mon compte</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">Mes informations</span>
         </nav>
-      </div>
 
-      <section className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-16 sm:px-8">
-        <Link
-          href="/mon-compte"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-          <ArrowLeft className="size-4" />
-          Retour a mon compte
-        </Link>
-
-        <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="overflow-hidden rounded-md border border-border bg-white shadow-[0_12px_28px_rgba(16,24,40,0.08)]">
-            <div className="border-b border-border bg-linear-to-r from-primary/10 via-white to-destructive/10 px-5 py-6 sm:px-8">
-              <p className="text-xs font-bold uppercase text-primary">
-                Informations personnelles
-              </p>
-              <h1 className="mt-2 text-2xl font-bold text-[#101828] sm:text-3xl">
-                Modifier mes informations
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">
-                Gardez vos coordonnees a jour pour simplifier vos commandes,
-                factures et livraisons.
-              </p>
+        {/* ------------------------------------------------------------ the mat */}
+        <section className="ac-hero" aria-labelledby="ai-title">
+          <div className="ai-hero-row">
+            <span className="ac-avatar" aria-hidden="true">{initials(user)}</span>
+            <div className="min-w-0">
+              <h1 id="ai-title" className="ai-title">Mes informations</h1>
+              <p className="ai-sub">Gardez vos coordonnées à jour pour simplifier vos commandes, vos factures et vos livraisons.</p>
             </div>
+          </div>
+        </section>
 
-            <form onSubmit={handleSubmit} className="space-y-6 p-5 sm:p-8">
-              {error ? (
-                <StatusMessage tone="error" icon={AlertCircle}>
-                  {error}
-                </StatusMessage>
-              ) : null}
+        <div className="ai-layout">
+          <form onSubmit={handleSubmit} className="ai-form" noValidate>
+            {error ? <Alert tone="bad" icon={PiWarningCircleDuotone}>{error}</Alert> : null}
+            {success ? <Alert tone="ok" icon={PiCheckCircleDuotone}>{success}</Alert> : null}
+            {!session ? (
+              <Alert tone="info" icon={PiWarningCircleDuotone}>
+                Vous n’êtes pas connecté. Vous pouvez consulter la page, mais l’enregistrement demande une session client.{" "}
+                <Link href="/login?returnTo=/mon-compte/informations" className="underline">Se connecter</Link>
+              </Alert>
+            ) : null}
 
-              {success ? (
-                <StatusMessage tone="success" icon={CheckCircle2}>
-                  {success}
-                </StatusMessage>
-              ) : null}
-
-              {!session ? (
-                <StatusMessage tone="error" icon={AlertCircle}>
-                  Vous n&apos;etes pas connecte. Vous pouvez consulter la page,
-                  mais la sauvegarde necessite une session client.
-                </StatusMessage>
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-[0.55fr_1fr_1fr]">
-                <div className="space-y-2">
-                  <Label htmlFor="information-title">Titre</Label>
-                  <Select
-                    value={form.Titre}
-                    onValueChange={(value) =>
-                      updateField("Titre", value as ClientTitre)
-                    }>
-                    <SelectTrigger id="information-title" className="h-12 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="M">M</SelectItem>
-                      <SelectItem value="Mme">Mme</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <TextField
-                  id="information-first-name"
-                  label="Prenom"
-                  value={form.firstName}
-                  onChange={(value) => updateField("firstName", value)}
-                  autoComplete="given-name"
-                  icon={User}
-                  required
+            <Card icon={PiUserCircleDuotone} title="Identité" text="Comment nous nous adressons à vous.">
+              <div className="ai-row is-civ auth-scope">
+                <AuthChoice
+                  label="Civilité"
+                  value={form.Titre}
+                  onChange={(value) => updateField("Titre", value)}
+                  options={[
+                    { value: "M", label: "M" },
+                    { value: "Mme", label: "Mme" },
+                  ]}
                 />
-
-                <TextField
-                  id="information-last-name"
-                  label="Nom"
-                  value={form.lastName}
-                  onChange={(value) => updateField("lastName", value)}
-                  autoComplete="family-name"
-                  icon={User}
-                  required
-                />
+                <AuthField id="information-first-name" label="Prénom" value={form.firstName} onChange={(value) => updateField("firstName", value)} autoComplete="given-name" icon={PiUserDuotone} required />
+                <AuthField id="information-last-name" label="Nom" value={form.lastName} onChange={(value) => updateField("lastName", value)} autoComplete="family-name" icon={PiUserDuotone} required />
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  id="information-email"
-                  label="Adresse e-mail"
-                  type="email"
-                  value={form.email}
-                  onChange={(value) => updateField("email", value)}
-                  autoComplete="email"
-                  icon={Mail}
-                  required
-                />
-
-                <TextField
-                  id="information-username"
-                  label="Nom utilisateur"
-                  value={form.username}
-                  onChange={(value) => updateField("username", value)}
-                  autoComplete="username"
-                  icon={User}
-                />
+              <div className="ai-row is-two auth-scope">
+                <AuthField id="information-birth-date" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={(value) => updateField("dateOfBirth", value)} autoComplete="bday" icon={PiCalendarBlankDuotone} optional />
+                <AuthField id="information-username" label="Nom d’utilisateur" value={form.username} onChange={(value) => updateField("username", value)} autoComplete="username" icon={PiAtDuotone} optional />
               </div>
+            </Card>
 
-              <TextField
-                id="information-phone"
-                label="Numero de telephone"
-                type="tel"
-                value={form.phoneNumber}
-                onChange={(value) => updateField("phoneNumber", value)}
-                autoComplete="tel"
-                icon={Phone}
-              />
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  id="information-company"
-                  label="Societe"
-                  value={form.company}
-                  onChange={(value) => updateField("company", value)}
-                  autoComplete="organization"
-                  icon={Building2}
-                />
-
-                <TextField
-                  id="information-tax-id"
-                  label="Matricule fiscal"
-                  value={form.numberIdFiscale}
-                  onChange={(value) => updateField("numberIdFiscale", value)}
-                  icon={Fingerprint}
-                />
+            <Card icon={PiAddressBookDuotone} tone="red" title="Coordonnées" text="Pour vous écrire et vous joindre à propos d’une livraison.">
+              <div className="ai-row is-two auth-scope">
+                <AuthField id="information-email" label="Adresse e-mail" type="email" value={form.email} onChange={(value) => updateField("email", value)} autoComplete="email" icon={PiEnvelopeSimpleDuotone} required />
+                <AuthField id="information-phone" label="Téléphone" type="tel" value={form.phoneNumber} onChange={(value) => updateField("phoneNumber", value)} autoComplete="tel" icon={PiPhoneDuotone} optional hint="Le transporteur peut l’utiliser pour vous joindre à la livraison." />
               </div>
+            </Card>
 
-              <TextField
-                id="information-birth-date"
-                label="Date de naissance"
-                type="date"
-                value={form.dateOfBirth}
-                onChange={(value) => updateField("dateOfBirth", value)}
-                autoComplete="bday"
-                icon={CalendarDays}
-              />
-
-              <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[#667085]">
-                  Les champs marques avec * sont obligatoires.
-                </p>
-                <Button
-                  type="submit"
-                  className="h-12 px-6 text-sm font-semibold"
-                  disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Enregistrement...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="size-4" />
-                      Enregistrer
-                    </>
-                  )}
-                </Button>
+            <Card icon={PiBuildingsDuotone} tone="green" title="Société" text="Pour les achats professionnels : ces informations figurent sur vos factures.">
+              <div className="ai-row is-two auth-scope">
+                <AuthField id="information-company" label="Société" value={form.company} onChange={(value) => updateField("company", value)} autoComplete="organization" icon={PiBuildingsDuotone} optional />
+                <AuthField id="information-tax-id" label="Matricule fiscal" value={form.numberIdFiscale} onChange={(value) => updateField("numberIdFiscale", value)} icon={PiFingerprintDuotone} optional />
               </div>
-            </form>
-          </section>
+            </Card>
 
-          <aside className="h-fit rounded-md border border-border bg-white p-5 shadow-[0_12px_28px_rgba(16,24,40,0.08)] sm:p-6">
-            <div className="grid size-12 place-items-center rounded-md bg-primary/10 text-primary">
-              <User className="size-6" />
+            {dirty ? (
+              <div className="ai-savebar" role="region" aria-label="Enregistrer les modifications">
+                <span className="ai-savebar-text">Modifications non enregistrées</span>
+                <button type="button" className="ai-bar-btn is-quiet" onClick={() => { setForm(saved); setError(null); }} disabled={isSubmitting}>
+                  <PiArrowCounterClockwiseBold className="size-4" aria-hidden="true" />Annuler
+                </button>
+                <button type="submit" className="ai-bar-btn is-save" disabled={isSubmitting}>
+                  {isSubmitting ? <PiSpinnerGapBold className="animate-spin size-4" aria-hidden="true" /> : <PiFloppyDiskBold className="size-4" aria-hidden="true" />}
+                  {isSubmitting ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </div>
+            ) : null}
+          </form>
+
+          {/* ------------------------------------------------------------ the client card */}
+          <aside className="ai-aside" aria-label="Ma fiche client">
+            <div className="ai-id">
+              <div className="ai-id-top">
+                <span className="ac-avatar" aria-hidden="true">{initials(user)}</span>
+                <p className="ai-id-name">{displayName(user)}</p>
+                <p className="ai-id-mail">{user?.email ?? "Connectez-vous pour charger vos données."}</p>
+              </div>
+              <dl className="ai-id-facts">
+                {saved.company ? <Fact icon={PiBuildingsDuotone} label="Société" value={saved.company} /> : null}
+                {saved.phoneNumber ? <Fact icon={PiPhoneDuotone} label="Téléphone" value={saved.phoneNumber} /> : null}
+                {since ? <Fact icon={PiSealCheckDuotone} label="Client depuis" value={since} /> : null}
+              </dl>
+              <div className="ai-id-links">
+                <Link href="/mon-compte/commandes" className="ai-pill"><PiPackageDuotone className="size-5" aria-hidden="true" />Mes commandes</Link>
+                <Link href="/mon-compte/adresses" className="ai-pill"><PiMapPinAreaDuotone className="size-5" aria-hidden="true" />Mes adresses<PiArrowRightBold className="size-3.5" aria-hidden="true" /></Link>
+              </div>
             </div>
-            <h2 className="mt-4 text-lg font-bold text-[#101828]">
-              {displayName(session?.user)}
-            </h2>
-            <p className="mt-2 break-words text-sm text-[#667085]">
-              {session?.user?.email ?? "Connectez-vous pour charger vos donnees."}
+            <p className="ai-note">
+              <PiLockKeyDuotone className="size-5" aria-hidden="true" />
+              <span>Ces informations servent à préparer vos documents de commande et à pré-remplir vos prochaines commandes. Elles restent chez FGMC.</span>
             </p>
-            <div className="mt-5 rounded-md border border-primary/15 bg-primary/5 p-4 text-sm leading-6 text-[#344054]">
-              Ces informations servent a preparer vos documents de commande et
-              a pre-remplir vos prochaines commandes.
-            </div>
           </aside>
         </div>
-      </section>
+      </div>
     </main>
   );
 }
 
-function BreadcrumbSeparator() {
+function Card({ icon: Icon, tone = "blue", title, text, children }: { icon: typeof PiUserDuotone; tone?: "blue" | "red" | "green"; title: string; text: string; children: ReactNode }) {
+  const id = `ai-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <span aria-hidden className="text-[#667085]">
-      /
-    </span>
+    <section className="ai-card" aria-labelledby={id}>
+      <div className="ai-card-head">
+        <span className={`ai-card-icon ${tone === "blue" ? "" : `is-${tone}`}`} aria-hidden="true"><Icon className="size-7" /></span>
+        <div>
+          <h2 id={id} className="ai-card-title">{title}</h2>
+          <p className="ai-card-text">{text}</p>
+        </div>
+      </div>
+      <div className="ai-seam" aria-hidden="true" />
+      <div className="ai-fields">{children}</div>
+    </section>
   );
 }
 
-function StatusMessage({
-  children,
-  icon: Icon,
-  tone,
-}: {
-  children: ReactNode;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  tone: "error" | "success";
-}) {
-  const isError = tone === "error";
-
+function Fact({ icon: Icon, label, value }: { icon: typeof PiUserDuotone; label: string; value: string }) {
   return (
-    <div
-      role={isError ? "alert" : "status"}
-      className={
-        isError
-          ? "flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          : "flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-      }>
-      <Icon className="mt-0.5 size-4 shrink-0" />
-      <span>{children}</span>
+    <div className="ai-id-fact">
+      <Icon className="size-6" aria-hidden="true" />
+      <div>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
+      </div>
     </div>
   );
 }
 
-function TextField({
-  id,
-  label,
-  value,
-  onChange,
-  icon: Icon,
-  type = "text",
-  required = false,
-  autoComplete,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  type?: string;
-  required?: boolean;
-  autoComplete?: string;
-}) {
+function Alert({ tone, icon: Icon, children }: { tone: "ok" | "bad" | "info"; icon: typeof PiUserDuotone; children: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>
-        {label}
-        {required ? <span className="text-destructive">*</span> : null}
-      </Label>
-      <div className="relative">
-        <Icon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id={id}
-          type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          autoComplete={autoComplete}
-          required={required}
-          className="h-12 bg-white pl-10"
-        />
-      </div>
+    <div role={tone === "bad" ? "alert" : "status"} className={`ai-alert is-${tone}`}>
+      <Icon className="size-5" aria-hidden="true" />
+      <span>{children}</span>
     </div>
   );
 }

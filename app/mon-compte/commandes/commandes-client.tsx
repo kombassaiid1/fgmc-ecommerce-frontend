@@ -1,65 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import {
-  AlertCircle,
-  ArrowLeft,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  CreditCard,
-  Eye,
-  Loader2,
-  PackageCheck,
-  ReceiptText,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  Truck,
-} from "lucide-react";
+  PiArrowRightBold,
+  PiArrowsClockwiseBold,
+  PiCalendarBlankDuotone,
+  PiCaretDownBold,
+  PiCaretLeftBold,
+  PiCaretRightBold,
+  PiCheckBold,
+  PiCreditCardDuotone,
+  PiMagnifyingGlassDuotone,
+  PiPackageDuotone,
+  PiReceiptDuotone,
+  PiShoppingBagDuotone,
+  PiSpinnerGapBold,
+  PiTruckDuotone,
+  PiWarningCircleDuotone,
+  PiXCircleDuotone,
+} from "react-icons/pi";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { getImageUrl } from "@/lib/api";
-import {
-  getOrders,
-  type OrderListItem,
-  type StoredOrderProduct,
-} from "@/lib/api/orders";
-import {
-  getClientSession,
-  subscribeToClientSession,
-  type ClientSession,
-} from "@/lib/client-auth";
-import { cn } from "@/lib/utils";
+import { getOrders, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
+import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
+
+import "../account.css";
 import { ColissimoOrderPanel } from "./colissimo-order-panel";
+import { OrderDocuments } from "./order-documents";
+import "./orders.css";
 
 const PAGE_SIZE = 10;
 
 const ALL_VALUE = "all";
 
 const ETAT_OPTIONS = [
-  { label: "Tous les etats", value: ALL_VALUE },
+  { label: "Toutes", value: ALL_VALUE },
   { label: "En cours", value: "En_cours" },
-  { label: "Confirmees", value: "Confirmées" },
-  { label: "Expediees", value: "Expédiées" },
-  { label: "Annulees", value: "Annulées" },
+  { label: "Confirmées", value: "Confirmées" },
+  { label: "Expédiées", value: "Expédiées" },
+  { label: "Annulées", value: "Annulées" },
   { label: "Retour", value: "Retour" },
 ];
 
 const PAYMENT_OPTIONS = [
-  { label: "Tous les paiements", value: ALL_VALUE },
-  { label: "Payees", value: "paid" },
+  { label: "Tous", value: ALL_VALUE },
+  { label: "Payées", value: "paid" },
   { label: "En attente", value: "pending" },
 ];
 
@@ -81,9 +68,7 @@ function getServerSessionSnapshot() {
 
 function getClientSessionSnapshot() {
   const nextSession = getClientSession();
-  const nextKey = nextSession
-    ? `${nextSession.token}:${JSON.stringify(nextSession.user)}`
-    : "";
+  const nextKey = nextSession ? `${nextSession.token}:${JSON.stringify(nextSession.user)}` : "";
 
   if (nextKey === cachedSessionKey) {
     return cachedSession;
@@ -95,11 +80,7 @@ function getClientSessionSnapshot() {
 }
 
 export function CommandesClient() {
-  const session = useSyncExternalStore(
-    subscribeToClientSession,
-    getClientSessionSnapshot,
-    getServerSessionSnapshot,
-  );
+  const session = useSyncExternalStore(subscribeToClientSession, getClientSessionSnapshot, getServerSessionSnapshot);
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,8 +107,7 @@ export function CommandesClient() {
           limit: PAGE_SIZE,
           search: customerSearch,
           etat: etat === ALL_VALUE ? undefined : etat,
-          paymentStatus:
-            paymentStatus === ALL_VALUE ? undefined : paymentStatus,
+          paymentStatus: paymentStatus === ALL_VALUE ? undefined : paymentStatus,
         });
 
         if (cancelled) return;
@@ -135,11 +115,7 @@ export function CommandesClient() {
         setMeta(response.meta);
       } catch (loadError) {
         if (cancelled) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Impossible de charger vos commandes.",
-        );
+        setError(loadError instanceof Error ? loadError.message : "Impossible de charger vos commandes.");
         setOrders([]);
         setMeta(EMPTY_META);
       } finally {
@@ -156,22 +132,13 @@ export function CommandesClient() {
   }, [customerSearch, etat, page, paymentStatus, refreshKey, session]);
 
   const customerOrders = useMemo(() => {
-    return orders
-      .filter((order) => isCurrentCustomerOrder(order, session))
-      .filter((order) => matchesLocalQuery(order, query));
+    return orders.filter((order) => isCurrentCustomerOrder(order, session)).filter((order) => matchesLocalQuery(order, query));
   }, [orders, query, session]);
 
   const stats = useMemo(() => {
-    const paidCount = customerOrders.filter((order) =>
-      normalizeStatus(order.paymentStatus).includes("pay"),
-    ).length;
-    const activeCount = customerOrders.filter(
-      (order) => !normalizeStatus(order.etat).includes("annul"),
-    ).length;
-    const totalSpent = customerOrders.reduce(
-      (sum, order) => sum + Number(order.total ?? 0),
-      0,
-    );
+    const paidCount = customerOrders.filter((order) => normalizeStatus(order.paymentStatus).includes("pay")).length;
+    const activeCount = customerOrders.filter((order) => !normalizeStatus(order.etat).includes("annul")).length;
+    const totalSpent = customerOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
 
     return { paidCount, activeCount, totalSpent };
   }, [customerOrders]);
@@ -186,362 +153,264 @@ export function CommandesClient() {
 
   if (!session) {
     return (
-      <AccountShell current="Commandes">
-        <section className="mx-auto flex min-h-[420px] max-w-xl flex-col items-center justify-center rounded-md border border-border bg-white px-6 py-12 text-center shadow-sm">
-          <div className="grid size-14 place-items-center rounded-md bg-primary/10 text-primary">
-            <ReceiptText className="size-7" />
+      <AccountShell current="Mes commandes">
+        <section className="ac-signin" aria-labelledby="oc-signin">
+          <h1 id="oc-signin" className="ac-signin-title">Connectez-vous pour voir vos commandes</h1>
+          <p>Votre historique est rattaché à votre compte client FGMC.</p>
+          <div className="ac-signin-actions">
+            <Link href="/login?returnTo=/mon-compte/commandes" className="ac-btn is-red">Se connecter<PiArrowRightBold className="size-4" aria-hidden="true" /></Link>
           </div>
-          <h1 className="mt-5 text-2xl font-bold text-[#101828]">
-            Connectez-vous pour voir vos commandes
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-[#667085]">
-            Votre historique est rattache a votre compte client FGMC.
-          </p>
-          <Button asChild className="mt-6 h-11 px-5">
-            <Link href="/login">Connexion client</Link>
-          </Button>
         </section>
       </AccountShell>
     );
   }
 
+  const hasFilters = Boolean(query.trim()) || etat !== ALL_VALUE || paymentStatus !== ALL_VALUE;
+
   return (
-    <AccountShell current="Commandes">
-      <section className="overflow-hidden rounded-md border border-border bg-white shadow-[0_12px_28px_rgba(16,24,40,0.08)]">
-        <div className="border-b border-border bg-linear-to-r from-primary/10 via-white to-destructive/10 px-5 py-6 sm:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase text-primary">
-                Historique client
-              </p>
-              <h1 className="mt-2 text-2xl font-bold text-[#101828] sm:text-3xl">
-                Mes commandes
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">
-                Consultez vos achats, les statuts de livraison et les details de
-                paiement.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 bg-white"
-              disabled={loading}
-              onClick={reload}>
-              {loading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-              Actualiser
-            </Button>
+    <AccountShell current="Mes commandes">
+      {/* ------------------------------------------------------------ the mat */}
+      <section className="ac-hero" aria-labelledby="oc-title">
+        <div className="oc-hero-row">
+          <div>
+            <h1 id="oc-title" className="oc-title">Mes commandes</h1>
+            <p className="oc-sub">Retrouvez vos achats, suivez vos colis et téléchargez vos factures.</p>
           </div>
+          <button type="button" className="oc-btn is-line" disabled={loading} onClick={reload}>
+            {loading ? <PiSpinnerGapBold className="oc-spin size-4" aria-hidden="true" /> : <PiArrowsClockwiseBold className="size-4" aria-hidden="true" />}
+            Actualiser
+          </button>
         </div>
-
-        <div className="grid gap-4 border-b border-border p-5 sm:grid-cols-3 sm:p-6 lg:p-8">
-          <SummaryCard
-            icon={ShoppingBag}
-            label="Commandes"
-            value={String(customerOrders.length)}
-            helper={`Page ${String(meta.page)} / ${String(Math.max(1, meta.totalPages))}`}
-          />
-          <SummaryCard
-            icon={CheckCircle2}
-            label="Paiements valides"
-            value={String(stats.paidCount)}
-            helper={`${String(stats.activeCount)} commande(s) actives`}
-          />
-          <SummaryCard
-            icon={CreditCard}
-            label="Total page"
-            value={formatEuro(stats.totalSpent)}
-            helper="Montant TTC affiche"
-          />
-        </div>
-
-        <div className="border-b border-border p-5 sm:p-6 lg:p-8">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_210px_220px]">
-            <div className="space-y-2">
-              <Label htmlFor="orders-search">Recherche</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#667085]" />
-                <Input
-                  id="orders-search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Reference, produit, adresse..."
-                  className="h-11 bg-white pl-10"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="orders-status">Etat</Label>
-              <Select
-                value={etat}
-                onValueChange={(value) => {
-                  setPage(1);
-                  setEtat(value);
-                }}>
-                <SelectTrigger id="orders-status" className="h-11 w-full bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ETAT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="orders-payment">Paiement</Label>
-              <Select
-                value={paymentStatus}
-                onValueChange={(value) => {
-                  setPage(1);
-                  setPaymentStatus(value);
-                }}>
-                <SelectTrigger id="orders-payment" className="h-11 w-full bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-6 lg:p-8">
-          {error ? (
-            <StatusMessage tone="error" icon={AlertCircle}>
-              {error}
-            </StatusMessage>
-          ) : null}
-
-          {loading ? (
-            <div className="grid gap-4">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-44 animate-pulse rounded-md border border-border bg-[#f7f8fa]"
-                />
-              ))}
-            </div>
-          ) : customerOrders.length === 0 ? (
-            <EmptyOrdersState hasFilters={Boolean(query.trim()) || etat !== ALL_VALUE || paymentStatus !== ALL_VALUE} />
-          ) : (
-            <div className="grid gap-4">
-              {customerOrders.map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-[#667085]">
-              {`Page ${String(meta.page)} sur ${String(Math.max(1, meta.totalPages))}`}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading || !meta.hasPreviousPage}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                Precedent
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading || !meta.hasNextPage}
-                onClick={() =>
-                  setPage((current) =>
-                    Math.min(Math.max(1, meta.totalPages), current + 1),
-                  )
-                }>
-                Suivant
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ul className="ac-stats" aria-label="Vos commandes en chiffres">
+          <li className="ac-stat">
+            <p className="ac-stat-value">{loading ? <span className="ac-skeleton" /> : customerOrders.length}</p>
+            <p className="ac-stat-label">Commandes{meta.totalPages > 1 ? ` · page ${meta.page}/${meta.totalPages}` : ""}</p>
+          </li>
+          <li className="ac-stat">
+            <p className="ac-stat-value">{loading ? <span className="ac-skeleton" /> : stats.paidCount}</p>
+            <p className="ac-stat-label">Paiements validés · {stats.activeCount} en cours ou terminées</p>
+          </li>
+          <li className="ac-stat">
+            <p className="ac-stat-value">{loading ? <span className="ac-skeleton" style={{ width: "6ch" }} /> : formatEuro(stats.totalSpent)}</p>
+            <p className="ac-stat-label">Total TTC affiché</p>
+          </li>
+        </ul>
       </section>
+
+      {/* ------------------------------------------------------------ filters */}
+      <section className="oc-filters" aria-label="Filtrer mes commandes">
+        <div className="oc-search">
+          <PiMagnifyingGlassDuotone className="size-5" aria-hidden="true" />
+          <input id="orders-search" type="search" aria-label="Rechercher une commande" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher une référence, un produit, une ville…" />
+        </div>
+        <ChipGroup label="État de la commande" options={ETAT_OPTIONS} value={etat} onChange={(value) => { setPage(1); setEtat(value); }} />
+        <ChipGroup label="Paiement" options={PAYMENT_OPTIONS} value={paymentStatus} onChange={(value) => { setPage(1); setPaymentStatus(value); }} />
+      </section>
+
+      {error ? (
+        <div role="alert" className="oc-banner"><PiWarningCircleDuotone className="size-5" aria-hidden="true" /><span>{error}</span></div>
+      ) : null}
+
+      {/* ------------------------------------------------------------ the orders */}
+      {loading ? (
+        <div className="oc-list" aria-busy="true" aria-label="Chargement des commandes">
+          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="oc-skeleton" />)}
+        </div>
+      ) : customerOrders.length === 0 ? (
+        <EmptyOrdersState hasFilters={hasFilters} />
+      ) : (
+        <ul className="oc-list">
+          {customerOrders.map((order) => (
+            <li key={order.id} className="oc-item"><OrderCard order={order} defaultOpen={false} /></li>
+          ))}
+        </ul>
+      )}
+
+      <div className="oc-pager">
+        <p>{`Page ${String(meta.page)} sur ${String(Math.max(1, meta.totalPages))}`}</p>
+        <div>
+          <button type="button" className="oc-btn is-line" disabled={loading || !meta.hasPreviousPage} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            <PiCaretLeftBold className="size-4" aria-hidden="true" />Précédent
+          </button>
+          <button type="button" className="oc-btn is-line" disabled={loading || !meta.hasNextPage} onClick={() => setPage((current) => Math.min(Math.max(1, meta.totalPages), current + 1))}>
+            Suivant<PiCaretRightBold className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
     </AccountShell>
   );
 }
 
-function AccountShell({
-  children,
-  current,
-}: {
-  children: React.ReactNode;
-  current: string;
-}) {
+function AccountShell({ children, current }: { children: ReactNode; current: string }) {
   return (
-    <main className="min-h-screen bg-[#f5f6f8] text-[#172033]">
-      <div className="border-t-2 border-destructive bg-[#ededed]">
-        <nav
-          aria-label="Fil d'Ariane"
-          className="mx-auto flex min-h-11 w-full max-w-[1320px] flex-wrap items-center gap-2 px-4 text-sm text-[#172033] sm:px-8">
-          <Link href="/" className="hover:text-primary hover:underline">
-            Accueil
-          </Link>
-          <BreadcrumbSeparator />
-          <Link href="/mon-compte" className="hover:text-primary hover:underline">
-            Mon compte
-          </Link>
-          <BreadcrumbSeparator />
+    <main className="ac">
+      <div className="ac-wrap is-wide">
+        <nav aria-label="Fil d’Ariane" className="ac-crumbs">
+          <Link href="/">Accueil</Link>
+          <span aria-hidden="true">/</span>
+          <Link href="/mon-compte">Mon compte</Link>
+          <span aria-hidden="true">/</span>
           <span aria-current="page">{current}</span>
         </nav>
+        {children}
       </div>
-
-      <section className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-16 sm:px-8">
-        <Link
-          href="/mon-compte"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-          <ArrowLeft className="size-4" />
-          Retour a mon compte
-        </Link>
-        <div className="mt-4">{children}</div>
-      </section>
     </main>
   );
 }
 
-function BreadcrumbSeparator() {
+function ChipGroup({ label, options, value, onChange }: { label: string; options: Array<{ label: string; value: string }>; value: string; onChange: (value: string) => void }) {
   return (
-    <span aria-hidden className="text-[#667085]">
-      /
-    </span>
+    <div className="oc-group" role="group" aria-label={label}>
+      <span className="oc-group-label" aria-hidden="true">{label}</span>
+      <ul className="oc-chips">
+        {options.map((option) => (
+          <li key={option.value}>
+            <button type="button" className="oc-chip" aria-pressed={value === option.value} onClick={() => onChange(option.value)}>{option.label}</button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  helper,
-}: {
-  icon: typeof ShoppingBag;
-  label: string;
-  value: ReactNode;
-  helper: string;
-}) {
-  return (
-    <article className="rounded-md border border-[#d8dde6] bg-[#fbfcfe] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase text-[#667085]">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-[#101828]">{value}</p>
-          <p className="mt-1 text-sm text-[#667085]">{helper}</p>
-        </div>
-        <div className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-          <Icon className="size-5" />
-        </div>
-      </div>
-    </article>
-  );
+/* ------------------------------------------------------------------ one order */
+
+const STEPS = ["Commande reçue", "Confirmée", "Expédiée", "Livrée"];
+
+/** Where an order stands on the four steps, from its state name. Cancelled and returned orders have no steps. */
+function progressOf(etat: string): { kind: "steps"; step: number } | { kind: "cancelled" } | { kind: "returned" } {
+  const status = normalizeStatus(etat);
+  if (status.includes("annul") || status.includes("echou")) return { kind: "cancelled" };
+  if (status.includes("retour") || status.includes("rembours")) return { kind: "returned" };
+  if (/\blivre(e|es|s)?\b/.test(status)) return { kind: "steps", step: 4 };
+  if (status.includes("exp")) return { kind: "steps", step: 3 };
+  if (status.includes("confirm") || status.includes("prepar") || status.includes("pay")) return { kind: "steps", step: 2 };
+  return { kind: "steps", step: 1 };
 }
 
-function OrderCard({ order }: { order: OrderListItem }) {
+function OrderCard({ order, defaultOpen }: { order: OrderListItem; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const products = getProducts(order);
   const address = getDeliveryAddress(order);
+  const progress = progressOf(order.etat);
+  const pieces = products.reduce((sum, product) => sum + Math.max(1, Number(product.quantity ?? 1)), 0);
+  const reference = order.reference ?? shortOrderId(order.id);
+  const first = products[0]?.title?.trim();
 
   return (
-    <article className="rounded-md border border-[#d8dde6] bg-white shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+    <article className="oc-card" aria-labelledby={`order-${order.id}`}>
+      <div className="oc-card-main">
+      <div className="oc-card-top">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold text-[#101828]">
-              Commande {order.reference ?? shortOrderId(order.id)}
-            </h2>
-            <StatusBadge value={order.etat} type="order" />
-            <StatusBadge value={order.paymentStatus} type="payment" />
+          <p className="oc-ref">Commande</p>
+          <h2 id={`order-${order.id}`} className="oc-order">{reference}</h2>
+          <p className="oc-date"><PiCalendarBlankDuotone className="size-5" aria-hidden="true" />{formatDate(order.createdAt)}</p>
+          <div className="oc-chips-row">
+            <StatusPill value={order.etat} type="order" />
+            <StatusPill value={order.paymentStatus} type="payment" />
           </div>
-          <p className="mt-2 flex items-center gap-2 text-sm text-[#667085]">
-            <CalendarDays className="size-4" />
-            {formatDate(order.createdAt)}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 sm:block sm:text-right">
-          <p className="text-xs font-bold uppercase text-[#667085]">Total TTC</p>
-          <p className="mt-1 text-2xl font-bold text-destructive">
-            {formatEuro(order.total)}
-          </p>
         </div>
       </div>
 
-      <div className="grid gap-5 p-4 lg:grid-cols-[minmax(0,1fr)_280px] sm:p-5">
-        <div className="min-w-0">
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#101828]">
-            <PackageCheck className="size-4 text-primary" />
-            Articles commandes
+      {progress.kind === "steps" ? (
+        <ol className="oc-track" style={{ "--p": (progress.step - 1) / 3 } as React.CSSProperties} aria-label={`Avancement : ${STEPS[progress.step - 1]}`}>
+          {STEPS.map((label, index) => (
+            <li key={label} className={`oc-step ${index < progress.step ? "is-done" : ""} ${index === progress.step - 1 ? "is-current" : ""}`} aria-current={index === progress.step - 1 ? "step" : undefined}>
+              <span className="oc-dot" aria-hidden="true"><PiCheckBold className="size-4" /></span>
+              {label}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className={`oc-alert ${progress.kind === "cancelled" ? "is-red" : "is-amber"}`}>
+          <PiXCircleDuotone className="size-5" aria-hidden="true" />
+          {progress.kind === "cancelled" ? "Cette commande a été annulée." : "Cette commande fait l’objet d’un retour."}
+        </p>
+      )}
+
+      {products.length > 0 ? (
+        <div className="oc-items">
+          <div className="oc-thumbs" aria-hidden="true">
+            {products.slice(0, 4).map((product, index) => {
+              const image = product.image?.trim() ? getImageUrl(product.image) : null;
+              return (
+                <span key={`${product.id ?? product.title ?? "p"}-${index}`} className="oc-thumb">
+                  {image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={image} alt="" loading="lazy" />
+                  ) : (
+                    <PiShoppingBagDuotone className="size-6" />
+                  )}
+                </span>
+              );
+            })}
+            {products.length > 4 ? <span className="oc-thumb is-more">+{products.length - 4}</span> : null}
           </div>
-          {products.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-[#fbfcfe] px-4 py-3 text-sm text-[#667085]">
-              Aucun detail produit disponible.
-            </p>
-          ) : (
-            <div className="grid gap-3">
-              {products.map((product, index) => (
-                <ProductLine key={`${product.id ?? product.title ?? "product"}-${index}`} product={product} />
-              ))}
+          <p className="oc-items-text">
+            <strong>{first || "Produit"}{products.length > 1 ? ` et ${products.length - 1} autre${products.length > 2 ? "s" : ""}` : ""}</strong>
+            {pieces} pièce{pieces > 1 ? "s" : ""}
+          </p>
+        </div>
+      ) : null}
+      </div>
+
+      <aside className="oc-card-side">
+        <div className="oc-total">
+          <p className="oc-total-label">Total TTC</p>
+          <p className="oc-total-value">{formatEuro(order.total)}</p>
+        </div>
+        <OrderDocuments order={order} />
+      </aside>
+
+      <details className="oc-details" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+        <summary>
+          {open ? "Masquer le détail" : "Voir le détail et le suivi"}
+          <PiCaretDownBold className="size-4" aria-hidden="true" />
+        </summary>
+        {open ? (
+          <div className="oc-details-body">
+            <div>
+              <h3 className="oc-block-title"><PiPackageDuotone className="size-5" aria-hidden="true" />Articles commandés</h3>
+              {products.length === 0 ? (
+                <p className="oc-empty-lines">Aucun détail produit disponible.</p>
+              ) : (
+                <ul className="oc-lines">
+                  {products.map((product, index) => (
+                    <ProductLine key={`${product.id ?? product.title ?? "product"}-${index}`} product={product} />
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-        </div>
 
-        <aside className="grid content-start gap-3 rounded-md border border-[#e4e7ec] bg-[#fbfcfe] p-4 text-sm">
-          <DetailRow
-            icon={Truck}
-            label="Livraison"
-            value={address || "Adresse non disponible"}
-          />
-          <DetailRow
-            icon={CreditCard}
-            label="Paiement"
-            value={readableStatus(order.paymentStatus)}
-          />
-          <DetailRow
-            icon={Clock3}
-            label="Etat"
-            value={readableStatus(order.etat)}
-          />
-          <DetailRow
-            icon={ReceiptText}
-            label="Facture Dolibarr"
-            value={order.dolibarrInvoice ? (
-              <span className="grid gap-1">
-                <span>{order.dolibarrInvoice.reference} - {readableStatus(order.dolibarrInvoice.status ?? "validated")}</span>
-                {order.dolibarrInvoice.invoiceUrl ? (
-                  <a
-                    href={order.dolibarrInvoice.invoiceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-primary underline underline-offset-2"
-                  >
-                    Telecharger la facture PDF
-                  </a>
-                ) : null}
-              </span>
-            ) : order.dolibarrId ? "En attente de synchronisation" : "Pas encore disponible"}
-            wrap
-          />
-          <DetailRow
-            icon={ReceiptText}
-            label="Reference commande"
-            value={order.id}
-            wrap
-          />
-        </aside>
-      </div>
-      <ColissimoOrderPanel orderId={order.id} />
+            <dl className="oc-facts">
+              <Fact icon={PiTruckDuotone} label="Livraison" value={address || "Adresse non disponible"} />
+              <Fact icon={PiCreditCardDuotone} label="Paiement" value={sentence(readableStatus(order.paymentStatus))} />
+              <Fact
+                icon={PiReceiptDuotone}
+                label="Facture"
+                value={
+                  order.dolibarrInvoice ? (
+                    <>
+                      {order.dolibarrInvoice.reference} · {sentence(readableStatus(order.dolibarrInvoice.status ?? "validated"))}
+                      {order.dolibarrInvoice.invoiceUrl ? (
+                        <>
+                          <br />
+                          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer">Télécharger la facture PDF</a>
+                        </>
+                      ) : null}
+                    </>
+                  ) : order.dolibarrId ? "En attente de synchronisation" : "Pas encore disponible"
+                }
+              />
+            </dl>
+
+            <div className="oc-wide">
+              <ColissimoOrderPanel orderId={order.id} />
+            </div>
+          </div>
+        ) : null}
+      </details>
+
     </article>
   );
 }
@@ -552,67 +421,34 @@ function ProductLine({ product }: { product: StoredOrderProduct }) {
   const quantity = Math.max(0, Number(product.quantity ?? 0));
 
   return (
-    <div className="flex gap-3 rounded-md border border-border bg-white p-3">
-      <div className="relative size-16 shrink-0 overflow-hidden rounded-md bg-[#eef2f7]">
+    <li className="oc-line">
+      <span className="oc-line-img">
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            alt={title}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
+          <img src={image} alt="" loading="lazy" />
         ) : (
-          <div className="grid h-full w-full place-items-center text-[#667085]">
-            <ShoppingBag className="size-5" />
-          </div>
+          <PiShoppingBagDuotone className="size-6" aria-hidden="true" />
         )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-semibold text-[#101828]">
-          {title}
+      </span>
+      <div className="oc-line-body">
+        <p className="oc-line-title">{title}</p>
+        {product.variantId ? <p className="oc-line-meta"><span>Variante : {product.variantId}</span></p> : null}
+        <p className="oc-line-meta">
+          <span>{String(quantity)} pièce{quantity > 1 ? "s" : ""}</span>
+          <strong>{formatEuro(product.totalPrice ?? product.unitPrice ?? 0)}</strong>
         </p>
-        {product.variantId ? (
-          <p className="mt-1 break-words text-xs text-[#667085]">
-            Variante: {product.variantId}
-          </p>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-[#667085]">{String(quantity)} piece(s)</span>
-          <span className="font-bold text-[#101828]">
-            {formatEuro(product.totalPrice ?? product.unitPrice ?? 0)}
-          </span>
-        </div>
       </div>
-    </div>
+    </li>
   );
 }
 
-function DetailRow({
-  icon: Icon,
-  label,
-  value,
-  wrap = false,
-}: {
-  icon: typeof Truck;
-  label: string;
-  value: ReactNode;
-  wrap?: boolean;
-}) {
+function Fact({ icon: Icon, label, value }: { icon: typeof PiTruckDuotone; label: string; value: ReactNode }) {
   return (
-    <div className="flex gap-3">
-      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase text-[#667085]">{label}</p>
-        <p
-          className={cn(
-            "mt-0.5 text-sm font-medium text-[#101828]",
-            wrap ? "break-all" : "break-words",
-          )}>
-          {value}
-        </p>
+    <div className="oc-fact">
+      <span className="oc-fact-icon" aria-hidden="true"><Icon className="size-5" /></span>
+      <div>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
       </div>
     </div>
   );
@@ -620,92 +456,43 @@ function DetailRow({
 
 function EmptyOrdersState({ hasFilters }: { hasFilters: boolean }) {
   return (
-    <div className="flex min-h-[320px] flex-col items-center justify-center rounded-md border border-dashed border-[#c8d0dc] bg-[#fbfcfe] px-6 py-12 text-center">
-      <div className="grid size-14 place-items-center rounded-md bg-primary/10 text-primary">
-        {hasFilters ? <Search className="size-7" /> : <Eye className="size-7" />}
-      </div>
-      <h2 className="mt-5 text-xl font-bold text-[#101828]">
-        {hasFilters ? "Aucune commande trouvee" : "Aucune commande pour le moment"}
-      </h2>
-      <p className="mt-2 max-w-md text-sm leading-6 text-[#667085]">
-        {hasFilters
-          ? "Essayez avec un autre filtre ou une autre reference."
-          : "Vos prochaines commandes apparaitront ici apres validation."}
-      </p>
-      {!hasFilters ? (
-        <Button asChild className="mt-6 h-11 px-5">
-          <Link href="/">Continuer mes achats</Link>
-        </Button>
-      ) : null}
+    <div className="oc-empty">
+      <span className="oc-empty-icon" aria-hidden="true">{hasFilters ? <PiMagnifyingGlassDuotone className="size-9" /> : <PiShoppingBagDuotone className="size-9" />}</span>
+      <h2 className="oc-empty-title">{hasFilters ? "Aucune commande trouvée" : "Aucune commande pour le moment"}</h2>
+      <p>{hasFilters ? "Essayez avec un autre filtre ou une autre référence." : "Vos prochaines commandes apparaîtront ici dès leur validation."}</p>
+      {!hasFilters ? <Link href="/categorie-produit" className="ac-btn is-red">Continuer mes achats<PiArrowRightBold className="size-4" aria-hidden="true" /></Link> : null}
     </div>
   );
 }
 
-function StatusMessage({
-  children,
-  icon: Icon,
-  tone,
-}: {
-  children: React.ReactNode;
-  icon: typeof AlertCircle;
-  tone: "error" | "success";
-}) {
-  const isError = tone === "error";
+function StatusPill({ value, type }: { value: string; type: "order" | "payment" }) {
+  const status = normalizeStatus(value);
+  let tone: "blue" | "green" | "amber" | "red" | "grey" = "amber";
+  if (status.includes("annul") || status.includes("echou") || status.includes("refus")) tone = "red";
+  else if (type === "payment") tone = status.includes("pay") || status.includes("accept") ? "green" : status.includes("attente") || status.includes("pend") ? "amber" : "grey";
+  else if (/\blivre/.test(status) || status.includes("exp")) tone = "green";
+  else if (status.includes("confirm")) tone = "blue";
+  else if (status.includes("retour")) tone = "grey";
 
   return (
-    <div
-      role={isError ? "alert" : "status"}
-      className={
-        isError
-          ? "mb-4 flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          : "mb-4 flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-      }>
-      <Icon className="mt-0.5 size-4 shrink-0" />
-      <span>{children}</span>
-    </div>
+    <span className={`oc-pill is-${tone}`}>
+      <i aria-hidden="true" />
+      {type === "payment" ? "Paiement : " : ""}
+      {sentence(readableStatus(value))}
+    </span>
   );
 }
 
-function StatusBadge({
-  value,
-  type,
-}: {
-  value: string;
-  type: "order" | "payment";
-}) {
-  const normalized = normalizeStatus(value);
-  const variant =
-    normalized.includes("annul") || normalized.includes("echou")
-      ? "destructive"
-      : normalized.includes("pay") ||
-          normalized.includes("confirm") ||
-          normalized.includes("exp")
-        ? "default"
-        : "secondary";
-
-  return (
-    <Badge
-      variant={variant}
-      className={type === "payment" && variant === "default" ? "bg-[#101828]" : ""}>
-      {readableStatus(value)}
-    </Badge>
-  );
-}
+/* ------------------------------------------------------------------ data helpers */
 
 function getCustomerSearch(session: ClientSession | null) {
   const user = session?.user;
-  const fullName = [user?.firstName, user?.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
 
   return user?.email?.trim() || fullName || user?.id || "";
 }
 
-function isCurrentCustomerOrder(
-  order: OrderListItem,
-  session: ClientSession | null,
-) {
+function isCurrentCustomerOrder(order: OrderListItem, session: ClientSession | null) {
   const user = session?.user;
   const email = user?.email?.trim().toLowerCase();
   const id = user?.id?.trim();
@@ -724,14 +511,11 @@ function matchesLocalQuery(order: OrderListItem, query: string) {
   const products = getProducts(order);
   const haystack = [
     order.id,
+    order.reference ?? "",
     readableStatus(order.etat),
     readableStatus(order.paymentStatus),
     getDeliveryAddress(order),
-    ...products.flatMap((product) => [
-      product.title ?? "",
-      product.slug ?? "",
-      product.variantId ?? "",
-    ]),
+    ...products.flatMap((product) => [product.title ?? "", product.slug ?? "", product.variantId ?? ""]),
   ]
     .join(" ")
     .toLowerCase();
@@ -740,9 +524,7 @@ function matchesLocalQuery(order: OrderListItem, query: string) {
 }
 
 function getProducts(order: OrderListItem): StoredOrderProduct[] {
-  return Array.isArray(order.products)
-    ? (order.products as StoredOrderProduct[])
-    : [];
+  return Array.isArray(order.products) ? (order.products as StoredOrderProduct[]) : [];
 }
 
 function getDeliveryAddress(order: OrderListItem) {
@@ -760,7 +542,7 @@ function shortOrderId(id: string) {
 function normalizeStatus(value: string | null | undefined) {
   return (value ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/_/g, " ")
     .trim()
     .toLowerCase();
@@ -770,12 +552,18 @@ function readableStatus(value: string | null | undefined) {
   return (value ?? "-").replace(/_/g, " ").trim() || "-";
 }
 
+/** "EN COURS" or "en_cours" gives "En cours". */
+function sentence(value: string) {
+  const lower = value.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
 
   return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "medium",
+    dateStyle: "long",
     timeStyle: "short",
   }).format(date);
 }

@@ -1,0 +1,156 @@
+/*
+ * My account. The page opens on a cutting-mat panel with the customer's monogram and figures, then a ticket for the
+ * last order, then the account's rooms as hang tags. Same atelier language as the footer, login and contact pages.
+ */
+.ac {
+  --ac-ink: #0b1f4d;
+  --ac-blue: #0858b1;
+  --ac-red: #d3202b;
+  --ac-line: #d3dbe8;
+  --ac-muted: #54627e;
+  min-height: 100dvh;
+  background:
+    radial-gradient(70vmax 40vmax at 0% 0%, rgba(8, 88, 177, 0.09), transparent 70%),
+    radial-gradient(60vmax 40vmax at 100% 100%, rgba(211, 32, 43, 0.07), transparent 70%),
+    #eef2f9;
+  color: var(--ac-ink);
+}
+.ac-wrap { margin: 0 auto; width: 100%; max-width: 1180px; padding: 0 16px; }
+.ac-wrap.is-wide { max-width: 1640px; }
+@media (min-width: 640px) { .ac-wrap { padding: 0 28px; } }
+
+.ac-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 18px 0 14px; font-size: 0.9375rem; color: var(--ac-muted); }
+.ac-crumbs a { color: inherit; text-decoration: none; }
+.ac-crumbs a:hover { color: var(--ac-blue); text-decoration: underline; text-underline-offset: 3px; }
+.ac-crumbs [aria-current] { font-weight: 600; color: var(--ac-ink); }
+
+/* ---------------------------------------------------------------- the mat */
+.ac-hero {
+  position: relative; overflow: hidden; border-radius: 28px; color: #fff; background-color: var(--ac-ink); padding: 44px 22px 22px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 112px 112px, 112px 112px, 28px 28px, 28px 28px;
+  box-shadow: 0 34px 60px -38px rgba(11, 31, 77, 0.85);
+}
+@media (min-width: 640px) { .ac-hero { padding: 52px 36px 28px; } }
+.ac-hero::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 16px; opacity: 0.55;
+  background-image: linear-gradient(90deg, #fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px);
+  background-size: 14px 7px, 70px 16px; background-repeat: repeat-x;
+}
+.ac-hero-top { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 24px; }
+.ac-id { display: flex; min-width: 0; align-items: center; gap: 18px; }
+.ac-avatar {
+  position: relative; display: grid; width: 84px; height: 84px; flex: none; place-items: center; border-radius: 50%;
+  background: #fff; color: var(--ac-ink); font-size: 2rem; font-weight: 700; letter-spacing: 0.02em;
+  box-shadow: 0 0 0 4px var(--ac-ink), 0 0 0 6px var(--ac-red), 0 14px 26px -10px rgba(0, 0, 0, 0.6);
+}
+/* a ring of stitches around the monogram */
+.ac-avatar::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; border: 2px dashed rgba(11, 31, 77, 0.35); }
+.ac-hello { margin: 0; font-size: 0.9375rem; font-weight: 600; color: rgba(255, 255, 255, 0.75); }
+.ac h1.ac-name { margin: 2px 0 0; font-size: clamp(1.75rem, 4.5vw, 2.6rem) !important; font-weight: 700 !important; line-height: 1.1 !important; color: #fff; overflow-wrap: anywhere; }
+.ac-email { margin: 8px 0 0; font-size: 1rem; color: rgba(255, 255, 255, 0.8); overflow-wrap: anywhere; }
+.ac-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ac-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.13); padding: 5px 13px; font-size: 0.875rem; font-weight: 600; color: #fff; }
+
+.ac-logout {
+  display: inline-flex; min-height: 44px; cursor: pointer; align-items: center; gap: 8px; border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 999px;
+  background: transparent; padding: 0 20px; font: inherit; font-size: 0.9375rem; font-weight: 700; color: #fff; transition: background 0.15s, border-color 0.15s;
+}
+.ac-logout:hover { background: var(--ac-red); border-color: var(--ac-red); }
+.ac a:focus-visible, .ac button:focus-visible { outline: 3px solid var(--ac-blue); outline-offset: 3px; border-radius: 10px; }
+.ac-hero a:focus-visible, .ac-hero button:focus-visible { outline-color: #fff; }
+
+.ac-stats { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 30px 0 0; padding: 0; list-style: none; }
+.ac-stat { border-radius: 18px; background: rgba(255, 255, 255, 0.1); padding: 14px 16px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.ac-stat-value { margin: 0; font-size: clamp(1.4rem, 3.4vw, 2rem); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: #fff; }
+.ac-stat-label { margin: 4px 0 0; font-size: 0.875rem; color: rgba(255, 255, 255, 0.75); }
+.ac-skeleton { display: inline-block; width: 2.2ch; height: 0.9em; border-radius: 6px; background: rgba(255, 255, 255, 0.25); vertical-align: -0.05em; animation: ac-pulse 1.4s ease-in-out infinite; }
+@keyframes ac-pulse { 50% { opacity: 0.45; } }
+
+/* ---------------------------------------------------------------- sections */
+.ac-section { margin-top: 34px; }
+.ac h2.ac-title { margin: 0 0 16px !important; padding-bottom: 12px; position: relative; font-size: 1.35rem !important; font-weight: 700 !important; color: var(--ac-ink); }
+.ac h2.ac-title::after { content: ""; position: absolute; left: 0; bottom: 0; width: 72px; height: 4px; background: repeating-linear-gradient(90deg, var(--ac-red) 0 10px, transparent 10px 16px); }
+
+/* the last order: a ticket */
+.ac-ticket { position: relative; display: grid; border-radius: 24px; background: #fff; box-shadow: 0 0 0 1px var(--ac-line), 0 26px 46px -34px rgba(11, 31, 77, 0.55); }
+@media (min-width: 760px) { .ac-ticket { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
+.ac-ticket-main { padding: 24px 24px 22px; }
+.ac-ticket-side { position: relative; display: grid; gap: 14px; align-content: center; border-top: 2px dashed var(--ac-line); padding: 22px 24px; }
+@media (min-width: 760px) { .ac-ticket-side { border-top: 0; border-left: 2px dashed var(--ac-line); } }
+/* the notches where the stub tears off */
+.ac-ticket-side::before, .ac-ticket-side::after { content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #eef2f9; box-shadow: inset 0 0 0 1px var(--ac-line); }
+.ac-ticket-side::before { top: -12px; left: 50%; margin-left: -11px; }
+.ac-ticket-side::after { display: none; }
+@media (min-width: 760px) {
+  .ac-ticket-side::before { top: -12px; left: -12px; margin: 0; }
+  .ac-ticket-side::after { display: block; bottom: -12px; left: -12px; }
+}
+.ac-ref { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--ac-muted); }
+.ac-order-title { margin: 4px 0 0; font-size: 1.6rem; font-weight: 700; color: var(--ac-ink); font-variant-numeric: tabular-nums; }
+.ac-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; border-radius: 999px; background: #e3effc; padding: 5px 14px 5px 12px; font-size: 0.9375rem; font-weight: 700; color: var(--ac-blue); }
+.ac-status i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.ac-order-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 14px 0 0; font-size: 0.9375rem; color: var(--ac-muted); }
+.ac-total { margin: 0; font-size: 2rem; font-weight: 700; color: var(--ac-ink); font-variant-numeric: tabular-nums; }
+.ac-total-label { margin: 0 0 2px; font-size: 0.875rem; color: var(--ac-muted); }
+.ac-btn {
+  display: inline-flex; min-height: 48px; width: fit-content; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; background: var(--ac-ink);
+  padding: 0 24px; font-size: 1rem; font-weight: 700; color: #fff; text-decoration: none; transition: background 0.15s, transform 0.15s;
+}
+.ac-btn:hover { background: var(--ac-blue); transform: translateY(-1px); }
+.ac-btn.is-red { background: var(--ac-red); }
+.ac-btn.is-red:hover { background: #b51a24; }
+.ac-btn.is-line { background: #fff; color: var(--ac-ink); box-shadow: inset 0 0 0 2px var(--ac-ink); }
+.ac-btn.is-line:hover { background: var(--ac-ink); color: #fff; }
+.ac-empty { display: grid; justify-items: start; gap: 12px; border-radius: 24px; border: 2px dashed #b6c3da; background: rgba(255, 255, 255, 0.7); padding: 28px; }
+.ac-empty p { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--ac-muted); }
+.ac-empty strong { font-size: 1.25rem; color: var(--ac-ink); }
+
+/* the rooms: hang tags */
+.ac-grid { display: grid; gap: 22px 18px; margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ac-tag {
+  position: relative; display: flex; height: 100%; min-height: 168px; flex-direction: column; gap: 14px; border: 2px dashed #b6c3da; border-radius: 22px; background: #fff;
+  padding: 40px 22px 20px; color: inherit; text-decoration: none; box-shadow: 0 20px 36px -30px rgba(11, 31, 77, 0.55); transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.ac-tag::before { content: ""; position: absolute; top: 14px; left: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #eef2f9; box-shadow: inset 0 0 0 2px #b6c3da; }
+a.ac-tag:hover { transform: translateY(-4px); border-color: #7f97c0; }
+.ac-tag-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ac-tag-icon { display: grid; width: 52px; height: 52px; flex: none; place-items: center; border-radius: 16px; background: #e3effc; color: var(--ac-blue); }
+.ac-tag.is-red .ac-tag-icon { background: #fde6e8; color: var(--ac-red); }
+.ac-tag.is-green .ac-tag-icon { background: #def3e6; color: #17703a; }
+.ac-tag.is-amber .ac-tag-icon { background: #fff1d9; color: #a05a00; }
+.ac-count { min-width: 30px; border-radius: 999px; background: var(--ac-ink); padding: 3px 10px; text-align: center; font-size: 0.875rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.ac-tag-title { margin: 0; font-size: 1.2rem; font-weight: 700; line-height: 1.25; color: var(--ac-ink); }
+.ac-tag-text { margin: 4px 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ac-muted); }
+.ac-tag-go { display: inline-flex; width: fit-content; align-items: center; gap: 6px; margin-top: auto; font-size: 0.9375rem; font-weight: 700; color: var(--ac-blue); transition: gap 0.15s; }
+a.ac-tag:hover .ac-tag-go { gap: 10px; }
+.ac-tag.is-soon { border-color: #cdd6e6; background: rgba(255, 255, 255, 0.55); box-shadow: none; }
+.ac-tag.is-soon .ac-tag-icon { background: #eef1f6; color: #8392ad; }
+.ac-tag.is-soon .ac-tag-title { color: #4a5873; }
+.ac-soon { border-radius: 999px; background: #e6ebf3; padding: 3px 11px; font-size: 0.8125rem; font-weight: 700; color: #5b6b86; }
+
+.ac-help { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; margin: 40px 0 56px; border-radius: 22px; background: #fff; padding: 20px 24px; box-shadow: 0 0 0 1px var(--ac-line); }
+.ac-help-text { display: flex; align-items: center; gap: 14px; }
+.ac-help-icon { display: grid; width: 48px; height: 48px; flex: none; place-items: center; border-radius: 14px; background: #e3effc; color: var(--ac-blue); }
+.ac-help p { margin: 0; }
+.ac-help strong { display: block; font-size: 1.0625rem; color: var(--ac-ink); }
+.ac-help span.sub { font-size: 0.9375rem; color: var(--ac-muted); }
+
+/* signed out */
+.ac-signin { display: grid; justify-items: start; gap: 14px; border-radius: 28px; background: #fff; padding: 34px 28px; box-shadow: 0 0 0 1px var(--ac-line), 0 30px 54px -38px rgba(11, 31, 77, 0.6); }
+.ac h1.ac-signin-title { margin: 0 !important; font-size: clamp(1.7rem, 4vw, 2.3rem) !important; font-weight: 700 !important; color: var(--ac-ink); }
+.ac-signin p { margin: 0; max-width: 46ch; font-size: 1.0625rem; line-height: 1.6; color: var(--ac-muted); }
+.ac-signin-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+
+@media (max-width: 520px) {
+  .ac-stats { grid-template-columns: 1fr; }
+  .ac-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .ac-stat-label { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-logout, .ac-btn, .ac-tag, .ac-tag-go { transition: none; }
+  a.ac-tag:hover, .ac-btn:hover { transform: none; }
+  .ac-skeleton { animation: none; }
+}

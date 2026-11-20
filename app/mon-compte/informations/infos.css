@@ -1,0 +1,71 @@
+/*
+ * My information. Built on the account page's atelier look (account.css): a cutting-mat header, one card per part of the
+ * form, a client card on the side, and a save bar that appears when something changed.
+ */
+.ai-hero-row { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px 22px; }
+.ac h1.ai-title { margin: 0 !important; font-size: clamp(1.9rem, 4.6vw, 2.8rem) !important; font-weight: 700 !important; line-height: 1.08 !important; color: #fff; }
+.ai-sub { margin: 10px 0 0; max-width: 54ch; font-size: 1.0625rem; line-height: 1.55; color: rgba(255, 255, 255, 0.8); }
+
+.ai-layout { display: grid; gap: 22px; margin-top: 24px; align-items: start; }
+@media (min-width: 1000px) { .ai-layout { grid-template-columns: minmax(0, 1fr) 360px; } .ai-aside { position: sticky; top: 16px; } }
+
+/* ---------------------------------------------------------------- the form, one card per part */
+.ai-form { display: grid; gap: 22px; padding-bottom: 96px; }
+.ai-card { border-radius: 26px; background: #fff; padding: 24px 24px 26px; box-shadow: 0 0 0 1px var(--ac-line), 0 26px 46px -36px rgba(11, 31, 77, 0.5); }
+@media (min-width: 640px) { .ai-card { padding: 28px 30px 30px; } }
+.ai-card-head { display: flex; align-items: center; gap: 14px; }
+.ai-card-icon { display: grid; width: 50px; height: 50px; flex: none; place-items: center; border-radius: 16px; background: #e3effc; color: var(--ac-blue); }
+.ai-card-icon.is-red { background: #fde6e8; color: var(--ac-red); }
+.ai-card-icon.is-green { background: #def3e6; color: #17703a; }
+.ac h2.ai-card-title { margin: 0 !important; font-size: 1.35rem !important; font-weight: 700 !important; line-height: 1.2 !important; color: var(--ac-ink); }
+.ai-card-text { margin: 3px 0 0; font-size: 0.9375rem; line-height: 1.45; color: var(--ac-muted); }
+.ai-seam { display: grid; gap: 4px; margin: 20px 0 22px; }
+.ai-seam::before, .ai-seam::after { content: ""; height: 3px; }
+.ai-seam::before { background: repeating-linear-gradient(90deg, var(--ac-red) 0 12px, transparent 12px 20px); }
+.ai-seam::after { background: repeating-linear-gradient(90deg, var(--ac-blue) 0 12px, transparent 12px 20px); }
+.ai-fields { display: grid; gap: 18px; }
+.ai-row { display: grid; gap: 18px; }
+@media (min-width: 640px) { .ai-row.is-two { grid-template-columns: 1fr 1fr; } .ai-row.is-civ { grid-template-columns: 200px 1fr 1fr; } }
+/* the field components come from the sign-in pages: their colours are scoped to .auth-scope */
+.ai-fields.auth-scope, .ai-row.auth-scope { background: none; }
+
+.ai-alert { display: flex; align-items: flex-start; gap: 12px; border-radius: 18px; padding: 14px 18px; font-size: 1rem; font-weight: 600; line-height: 1.45; }
+.ai-alert.is-ok { background: #def3e6; color: #17703a; }
+.ai-alert.is-bad { background: #fde6e8; color: #a3141d; }
+.ai-alert.is-info { background: #fff1d9; color: #8a4d00; }
+.ai-alert svg { flex: none; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- the client card on the side */
+.ai-id { position: relative; overflow: hidden; border-radius: 26px; background: #fff; box-shadow: 0 0 0 1px var(--ac-line), 0 26px 46px -36px rgba(11, 31, 77, 0.55); }
+.ai-id-top { display: grid; justify-items: center; gap: 6px; padding: 28px 24px 20px; text-align: center; background: linear-gradient(180deg, #eaf1fb, #fff); }
+.ai-id .ac-avatar { width: 92px; height: 92px; font-size: 2.2rem; box-shadow: 0 0 0 4px #fff, 0 0 0 6px var(--ac-red), 0 14px 26px -10px rgba(11, 31, 77, 0.45); }
+.ai-id-name { margin: 8px 0 0; font-size: 1.4rem; font-weight: 700; line-height: 1.2; color: var(--ac-ink); overflow-wrap: anywhere; }
+.ai-id-mail { margin: 0; font-size: 0.9375rem; color: var(--ac-muted); overflow-wrap: anywhere; }
+.ai-id-facts { margin: 0; padding: 4px 24px 8px; border-top: 2px dashed var(--ac-line); }
+.ai-id-fact { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.ai-id-fact + .ai-id-fact { border-top: 1px dashed #dde4f0; }
+.ai-id-fact svg { flex: none; color: var(--ac-blue); }
+.ai-id-fact dt { font-size: 0.8125rem; color: var(--ac-muted); }
+.ai-id-fact dd { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--ac-ink); overflow-wrap: anywhere; }
+.ai-id-links { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 24px 20px; }
+.ai-pill { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; border-radius: 999px; background: #eef4fc; padding: 0 16px; font-size: 0.9375rem; font-weight: 700; color: var(--ac-blue); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.ai-pill:hover { background: var(--ac-blue); color: #fff; }
+.ai-note { display: flex; gap: 12px; margin-top: 16px; border-radius: 20px; border: 2px dashed #b6c3da; background: rgba(255, 255, 255, 0.6); padding: 16px 18px; font-size: 0.9375rem; line-height: 1.55; color: var(--ac-muted); }
+.ai-note svg { flex: none; margin-top: 2px; color: #17703a; }
+
+/* ---------------------------------------------------------------- the save bar */
+.ai-savebar {
+  position: fixed; left: 50%; bottom: 20px; z-index: 600; display: flex; max-width: calc(100vw - 24px); align-items: center; gap: 10px; transform: translateX(-50%);
+  border-radius: 18px; background: #1b2540; padding: 10px 12px 10px 20px; color: #fff; box-shadow: 0 22px 44px -14px rgba(11, 31, 77, 0.7); animation: ai-rise 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ai-savebar-text { margin-right: 6px; font-size: 0.9375rem; font-weight: 600; white-space: nowrap; }
+.ai-bar-btn { display: inline-flex; min-height: 44px; cursor: pointer; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 0 20px; font: inherit; font-size: 0.9375rem; font-weight: 700; transition: filter 0.15s, transform 0.15s; }
+.ai-bar-btn.is-quiet { background: transparent; color: #fff; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4); }
+.ai-bar-btn.is-quiet:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.ai-bar-btn.is-save { background: var(--ac-red); color: #fff; }
+.ai-bar-btn.is-save:hover:not(:disabled) { filter: brightness(0.93); transform: translateY(-1px); }
+.ai-bar-btn:disabled { cursor: progress; opacity: 0.7; }
+.ai-bar-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+@keyframes ai-rise { from { opacity: 0; transform: translate(-50%, 12px); } }
+@media (max-width: 520px) { .ai-savebar-text { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ai-savebar { animation: none; } .ai-bar-btn, .ai-pill { transition: none; } }

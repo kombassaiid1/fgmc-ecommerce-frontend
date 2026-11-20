@@ -14,21 +14,24 @@ import {
 import type { CSSProperties, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight,
-  ChevronDown,
-  Clock,
-  LayoutDashboard,
-  LogOut,
-  Loader2,
-  Mail,
-  Menu,
-  Package,
-  Phone,
-  Search as SearchIcon,
-  ShoppingCart,
-  User,
-  X,
-} from "lucide-react";
+  PiArrowRightBold as ArrowRight,
+  PiCaretDownBold as ChevronDown,
+  PiClockDuotone as Clock,
+  PiEnvelopeSimpleDuotone as Mail,
+  PiHeadsetDuotone as Headset,
+  PiListBold as Menu,
+  PiNeedleDuotone,
+  PiMagnifyingGlassBold as SearchIcon,
+  PiPackageDuotone as Package,
+  PiPhoneDuotone as Phone,
+  PiShoppingCartSimpleDuotone as ShoppingCart,
+  PiSignOutDuotone as LogOut,
+  PiSpinnerGapBold as Loader2,
+  PiSquaresFourDuotone as LayoutDashboard,
+  PiTruckDuotone as Truck,
+  PiUserCircleDuotone as User,
+  PiXBold as X,
+} from "react-icons/pi";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +52,8 @@ import {
 } from "@/lib/header-config";
 import { useCartStore } from "@/lib/stores/cart-store";
 import { cn } from "@/lib/utils";
+
+import "./header.css";
 
 type ParentWithChildren = Category & { children: ParentWithChildren[] };
 type SearchProduct = ProductListItem & { categories?: unknown[] | null };
@@ -194,6 +199,23 @@ export function TopNavBar() {
     staleTime: 30_000,
   });
   const headerConfig = headerSettingsQuery.data ?? DEFAULT_HEADER_CONFIG;
+  const headerRef = useRef<HTMLElement>(null);
+
+  // The thread along the foot of the header fills as the page scrolls.
+  useEffect(() => {
+    const update = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      headerRef.current?.style.setProperty("--p", progress.toFixed(4));
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 
   if (pathname.startsWith("/admin_ben")) {
     return null;
@@ -213,9 +235,10 @@ export function TopNavBar() {
 
   return (
     <header
+      ref={headerRef}
       className={cn(
-        "z-[9999] bg-white text-[#142c5b] transition-shadow",
-        headerConfig.sticky && "sticky top-0",
+        "hd-mat z-[9999] text-[#142c5b] transition-shadow",
+        headerConfig.sticky ? "sticky top-0" : "relative",
         isScrolled && "shadow-lg",
       )}
       style={headerVars}>
@@ -225,24 +248,36 @@ export function TopNavBar() {
         <span className="flex-1 bg-[#D6202E]" />
       </div>
       {headerConfig.showUtilityBar ? <div
-        className="hidden h-8 bg-[#10295f] text-xs text-white lg:block"
+        className="hidden h-9 bg-[#10295f] text-xs text-white lg:block"
         style={{ backgroundColor: headerConfig.utilityColor, color: headerConfig.utilityTextColor }}>
-        <div className="mx-auto flex h-full max-w-[1500px] items-center justify-end px-4">
-          <Link href={telHref(headerConfig.phoneNumber)} className="inline-flex items-center gap-1.5">
-            <Phone className="size-3.5" /> {headerConfig.phoneNumber}
-          </Link>
-          <span className="mx-4 opacity-50">|</span>
-          <Link href={`mailto:${headerConfig.contactEmail}`}>Nous contacter</Link>
-          <span className="mx-4 opacity-50">|</span>
-          <Link href="/informations">Aide &amp; SAV</Link>
+        <div className="mx-auto flex h-full max-w-[1500px] items-center justify-between gap-6 px-4">
+          <p className="flex min-w-0 items-center gap-2 truncate">
+            <Clock className="size-4 shrink-0 opacity-80" aria-hidden="true" />
+            <span className="truncate">{headerConfig.promoText?.trim() || formatOpeningHours(headerConfig)}</span>
+          </p>
+          <div className="flex shrink-0 items-center gap-5 font-medium">
+            <Link href={telHref(headerConfig.phoneNumber)} className="inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
+              <Phone className="size-4" aria-hidden="true" /> {headerConfig.phoneNumber}
+            </Link>
+            <Link href={`mailto:${headerConfig.contactEmail}`} className="inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
+              <Mail className="size-4" aria-hidden="true" /> Nous contacter
+            </Link>
+            <Link href="/informations" className="inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
+              <Headset className="size-4" aria-hidden="true" /> Aide &amp; SAV
+            </Link>
+          </div>
         </div>
       </div> : null}
 
-      <div className="mx-auto flex min-h-[96px] max-w-[1500px] items-center gap-6 px-4 py-3">
-        <HeaderLogo config={headerConfig} />
-        <div className="flex min-w-0 flex-1 items-stretch">
+      <div
+        className={cn(
+          "mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-x-4 gap-y-2.5 px-4 transition-[padding] duration-200 lg:flex-nowrap lg:justify-start lg:gap-7",
+          isScrolled ? "py-2" : "py-3.5",
+        )}>
+        <HeaderLogo config={headerConfig} compact={isScrolled} />
+        <div className="order-3 flex min-w-0 basis-full items-stretch lg:order-none lg:flex-1 lg:basis-0">
           {headerConfig.showSearch ? (
-            <div className="flex min-w-0 flex-1 items-stretch overflow-visible rounded-lg border-2 border-[#153675]">
+            <div className="flex min-w-0 flex-1 items-stretch overflow-visible rounded-xl border-2 border-[#153675] bg-white shadow-[0_6px_18px_-12px_rgba(11,31,77,0.6)] transition-colors focus-within:border-[#0858b1]">
               <CategoriesDropdown
                 categories={parentCategories}
                 label={searchCategory?.title ?? "Tout le magasin"}
@@ -251,7 +286,7 @@ export function TopNavBar() {
               />
               <NavbarSearch
                 className="min-w-0 flex-1"
-                inputClassName="h-[46px] rounded-none border-0 bg-white pl-4 text-sm shadow-none focus-visible:ring-0"
+                inputClassName="h-11 rounded-none border-0 bg-white pl-4 text-sm shadow-none focus-visible:ring-0"
                 category={searchCategory}
               />
             </div>
@@ -264,19 +299,19 @@ export function TopNavBar() {
       </div>
 
       <nav
-        className="bg-[#153675] text-white"
+        className="hd-tape pt-2 text-white"
         style={{ "--header-text": "#ffffff", "--header-accent": "#ffffff" } as CSSProperties}
         aria-label="Navigation principale">
-        <div className="mx-auto flex min-h-[50px] max-w-[1500px] items-center justify-between gap-6 px-4">
-          <div className="hidden min-w-0 items-center gap-9 lg:flex">
+        <div className="mx-auto flex min-h-[48px] max-w-[1500px] items-center justify-between gap-6 px-4">
+          <div className="hidden min-w-0 items-center gap-8 lg:flex">
             <DesktopHeaderLinks links={headerConfig.links} categories={parentCategories} />
           </div>
-          <span className="hidden shrink-0 text-sm font-semibold lg:block">Livraison France &amp; Europe</span>
+          <span className="hidden shrink-0 items-center gap-2 rounded-full border border-dashed border-white/40 bg-white/10 px-3.5 py-1 text-xs font-semibold lg:inline-flex"><Truck className="size-4" aria-hidden="true" />Livraison France &amp; Europe</span>
           <button
             type="button"
-            className="inline-flex items-center gap-2 py-3 text-sm font-semibold lg:hidden"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold lg:hidden"
             onClick={() => setIsMobileMenuOpen((open) => !open)}>
-            <Menu className="size-5" /> Menu
+            <Menu className="size-5" aria-hidden="true" /> Menu
           </button>
         </div>
         <MobileMenu
@@ -287,6 +322,10 @@ export function TopNavBar() {
           config={headerConfig}
         />
       </nav>
+      <div className="hd-thread" aria-hidden="true">
+        <div className="hd-thread-line" />
+        <PiNeedleDuotone className="hd-needle size-[22px] -rotate-45" />
+      </div>
     </header>
   );
 }
@@ -299,7 +338,7 @@ function TopNavBarSkeleton({ isScrolled }: { isScrolled: boolean }) {
         <span className="flex-1 bg-[#FFFFFF]" />
         <span className="flex-1 bg-[#D6202E]" />
       </div>
-      <div className="hidden h-8 bg-[#10295f] lg:block" />
+      <div className="hidden h-9 bg-[#10295f] lg:block" />
       <div className="mx-auto flex min-h-[96px] max-w-[1500px] items-center gap-6 px-4 py-3">
         <SkeletonBar className="h-12 w-56 rounded-md" />
         <SkeletonBar className="h-12 min-w-0 flex-1 rounded-md" />
@@ -325,7 +364,7 @@ function SkeletonBar({ className }: { className: string }) {
   );
 }
 
-function HeaderLogo({ config }: { config: HeaderConfig }) {
+function HeaderLogo({ config, compact = false }: { config: HeaderConfig; compact?: boolean }) {
   return (
     <div className="shrink-0">
       <Link
@@ -334,7 +373,7 @@ function HeaderLogo({ config }: { config: HeaderConfig }) {
         <img
           src={resolveHeaderLogo(config.logoUrl)}
           alt={config.logoAlt || SITE_SETTINGS.siteName}
-          className="hidden h-auto max-h-14 w-[var(--header-logo-width)] object-contain lg:block"
+          className={cn("hidden h-auto w-[var(--header-logo-width)] object-contain transition-[max-height] duration-200 lg:block", compact ? "max-h-10" : "max-h-14")}
         />
         <img
           src={resolveHeaderLogo(config.logoUrl || SITE_SETTINGS.mobileLogo)}
@@ -422,9 +461,9 @@ function DesktopClientAuth({ session }: { session: ClientSession | null }) {
         asChild
         variant="outline"
         size="sm"
-          className="min-h-9 max-w-44 border-current/20 bg-current/5 px-3 text-[var(--header-text)] hover:border-current/40 hover:bg-current/10">
+          className="min-h-11 max-w-48 rounded-xl border-2 border-[#153675]/20 bg-transparent px-3 text-[#153675] hover:border-[#153675]/50 hover:bg-[#153675]/5">
           <Link href="/mon-compte" title={getClientDisplayName(session)}>
-            <User className="size-4 text-[var(--header-accent)]" />
+            <User className="size-5 text-[#d3202b]" />
             <span className="truncate">{getClientDisplayName(session)}</span>
           </Link>
         </Button>
@@ -443,10 +482,10 @@ function DesktopClientAuth({ session }: { session: ClientSession | null }) {
 
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Button asChild variant="ghost" size="sm" className="h-auto gap-2 px-2 text-left text-[#153675] hover:bg-slate-100">
+      <Button asChild variant="ghost" size="sm" className="h-auto gap-2.5 rounded-xl border-2 border-[#153675]/20 px-3 py-1.5 text-left text-[#153675] hover:border-[#153675]/50 hover:bg-[#153675]/5">
         <Link href="/login">
-          <span className="flex size-9 items-center justify-center rounded-full border-2 border-[#153675]"><User className="size-4" /></span>
-          <span className="flex flex-col text-[11px] leading-tight"><span>Bonjour</span><strong className="text-xs">SE CONNECTER</strong></span>
+          <User className="size-7 text-[#d3202b]" aria-hidden="true" />
+          <span className="flex flex-col text-[11px] leading-tight"><span className="text-[#5b6b8c]">Bonjour</span><strong className="text-[13px]">Se connecter</strong></span>
         </Link>
       </Button>
     </div>
@@ -516,13 +555,13 @@ function NavbarSearch({
           aria-label="Recherche"
         />
         {productsQuery.isFetching ? (
-          <Loader2 className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          <Loader2 className="absolute top-1/2 right-3.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
         ) : (
           <Button
             type="button"
             variant="default"
             size="icon"
-            className="absolute top-0 right-0 h-full w-12 rounded-none rounded-r-sm bg-[#2456b1] text-white hover:bg-[#153675]"
+            className="absolute top-1 right-1 h-[calc(100%-8px)] w-11 cursor-pointer rounded-lg bg-[#d3202b] text-white hover:bg-[#b01a24]"
             onClick={handleViewAllResults}
             aria-label="Voir tous les résultats">
             <SearchIcon className="size-4" />
@@ -640,7 +679,7 @@ function CategoriesDropdown({
         variant="ghost"
         className={cn(
           "flex items-center gap-1 text-[var(--header-text)] hover:bg-current/10",
-          compact && "h-[46px] rounded-none border-0 border-r border-[#d7dfec] px-4 text-xs font-bold uppercase",
+          compact && "h-11 max-w-52 cursor-pointer rounded-none rounded-l-[9px] border-0 border-r-2 border-dashed border-[#c5d0e6] bg-[#f3f6fc] px-4 text-xs font-bold uppercase text-[#153675]",
         )}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
@@ -791,12 +830,13 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative font-medium transition-colors",
-        active ? "text-[var(--header-accent)]" : "text-[var(--header-text)] hover:text-[var(--header-accent)]",
+        "hd-link relative my-2.5 rounded-[7px] px-3.5 py-1.5 text-sm font-semibold tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-white",
+        active ? "text-white" : "text-white/85 hover:text-white",
       )}>
-      {children}
-      <span className="absolute -bottom-1 left-0 h-0.5 w-0 bg-[var(--header-accent)] transition-all duration-300 group-hover:w-full" />
+      <span aria-hidden="true" className="hd-patch" />
+      <span className="relative">{children}</span>
     </Link>
   );
 }
@@ -817,11 +857,16 @@ function CartActionButton() {
   }, []);
 
   return (
-    <Link href="/cart" aria-label="Panier" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#153675] px-4 py-2 text-white hover:bg-[#10295f]">
-      <ShoppingCart className="size-5" />
+    <Link href="/cart" aria-label={`Panier${mounted && totalItems > 0 ? `, ${totalItems} article${totalItems > 1 ? "s" : ""}` : ""}`} className="relative inline-flex min-h-11 items-center gap-2.5 rounded-xl bg-[#153675] px-4 py-2 text-white shadow-[0_8px_18px_-10px_rgba(11,31,77,0.9)] transition-colors hover:bg-[#10295f]">
+      <span className="relative">
+        <ShoppingCart className="size-6" aria-hidden="true" />
+        {mounted && totalItems > 0 ? (
+          <span className="absolute -top-2 -right-2.5 grid min-w-[18px] place-items-center rounded-full bg-[#d3202b] px-1 text-[10px] leading-[18px] font-bold text-white ring-2 ring-[#153675]">{totalItems}</span>
+        ) : null}
+      </span>
       <span className="hidden flex-col text-[11px] leading-tight sm:flex">
-        <span>Panier{mounted && totalItems > 0 ? ` (${totalItems})` : ""}</span>
-        <strong>{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(mounted ? totalAmount : 0)}</strong>
+        <span className="text-white/75">Panier</span>
+        <strong className="text-[13px]">{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(mounted ? totalAmount : 0)}</strong>
       </span>
     </Link>
   );
@@ -851,8 +896,8 @@ function MobileMenu({
       />
       <div className="fixed top-0 right-0 z-[10001] h-full w-80 overflow-y-auto border-l border-border bg-background shadow-xl lg:hidden">
         <div className="p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Menu</h2>
+          <div className="mb-6 flex items-center justify-between border-b-2 border-dashed border-[#d3202b]/40 pb-3">
+            <h2 className="text-xl font-bold text-[#153675]">Menu</h2>
             <Button
               type="button"
               variant="ghost"
@@ -950,8 +995,8 @@ function MobileMenu({
             </div>
           </div>
 
-          <div className="rounded-lg bg-primary/10 p-4">
-            <h3 className="mb-2 font-semibold">Service Client</h3>
+          <div className="rounded-xl border-2 border-dashed border-[#153675]/25 bg-[#153675]/5 p-4">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold text-[#153675]"><Headset className="size-5" aria-hidden="true" />Service client</h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Phone className="size-4" />

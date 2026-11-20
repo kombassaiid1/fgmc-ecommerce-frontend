@@ -2,78 +2,52 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
-import type { ComponentType, ReactNode, SVGProps } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import type { ComponentType } from "react";
 import {
-  Bell,
-  CalendarDays,
-  ChevronRight,
-  FileText,
-  LogOut,
-  MapPin,
-  Tag,
-  UserCircle,
-} from "lucide-react";
+  PiArrowRightBold,
+  PiBellRingingDuotone,
+  PiBuildingsDuotone,
+  PiHeadsetDuotone,
+  PiMapPinAreaDuotone,
+  PiPackageDuotone,
+  PiReceiptDuotone,
+  PiSealCheckDuotone,
+  PiSignOutBold,
+  PiTicketDuotone,
+  PiUserCircleDuotone,
+} from "react-icons/pi";
 
-import { Button } from "@/components/ui/button";
-import {
-  clearClientSession,
-  getClientSession,
-  subscribeToClientSession,
-  type ClientSession,
-} from "@/lib/client-auth";
+import { getClientAddresses, getOrders, type OrderListItem } from "@/lib/api/orders";
+import { clearClientSession, getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
 
-type AccountTile = {
+import "./account.css";
+
+type Tone = "blue" | "red" | "green" | "amber";
+
+type AccountRoom = {
   id: string;
-  title: ReactNode;
-  description: ReactNode;
-  href: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  title: string;
+  description: string;
+  href: string | null;
+  icon: ComponentType<{ className?: string }>;
+  tone: Tone;
+  /** Which figure to show as a badge on the tag. */
+  badge?: "orders" | "addresses";
+  cta: string;
 };
 
-const accountTiles: AccountTile[] = [
-  {
-    id: "informations",
-    title: "Informations",
-    description: <>Identit&eacute;, e-mail et mot de passe</>,
-    href: "/mon-compte/informations",
-    icon: UserCircle,
-  },
-  {
-    id: "adresses",
-    title: "Adresses",
-    description: "Livraison et facturation",
-    href: "/mon-compte/adresses",
-    icon: MapPin,
-  },
-  {
-    id: "commandes",
-    title: <>Historique et d&eacute;tails de mes commandes</>,
-    description: <>Suivi, factures et achats pass&eacute;s</>,
-    href: "/mon-compte/commandes",
-    icon: CalendarDays,
-  },
-  {
-    id: "avoirs",
-    title: "Avoirs",
-    description: <>Cr&eacute;dits disponibles sur votre compte</>,
-    href: "/mon-compte/avoirs",
-    icon: FileText,
-  },
-  {
-    id: "reductions",
-    title: <>Bons de r&eacute;duction</>,
-    description: "Codes actifs et avantages client",
-    href: "/mon-compte/reductions",
-    icon: Tag,
-  },
-  {
-    id: "alertes",
-    title: "Mes alertes",
-    description: <>Notifications produits et disponibilit&eacute;s</>,
-    href: "/mon-compte/alertes",
-    icon: Bell,
-  },
+/** The rooms of the account. The ones without a page yet are shown, but not as links, so no one lands on a dead end. */
+const PURCHASES: AccountRoom[] = [
+  { id: "commandes", title: "Mes commandes", description: "Suivi, factures et achats passés.", href: "/mon-compte/commandes", icon: PiPackageDuotone, tone: "blue", badge: "orders", cta: "Voir mes commandes" },
+  { id: "avoirs", title: "Avoirs", description: "Les crédits disponibles sur votre compte.", href: null, icon: PiReceiptDuotone, tone: "green", cta: "" },
+  { id: "reductions", title: "Bons de réduction", description: "Vos codes actifs et avantages client.", href: null, icon: PiTicketDuotone, tone: "red", cta: "" },
+  { id: "alertes", title: "Mes alertes", description: "Disponibilités et baisses de prix des produits suivis.", href: null, icon: PiBellRingingDuotone, tone: "amber", cta: "" },
+];
+
+const PROFILE: AccountRoom[] = [
+  { id: "informations", title: "Mes informations", description: "Identité, e-mail et mot de passe.", href: "/mon-compte/informations", icon: PiUserCircleDuotone, tone: "blue", cta: "Modifier" },
+  { id: "adresses", title: "Mes adresses", description: "Vos adresses de livraison et de facturation.", href: "/mon-compte/adresses", icon: PiMapPinAreaDuotone, tone: "red", badge: "addresses", cta: "Gérer mes adresses" },
 ];
 
 function getServerSessionSnapshot() {
@@ -85,135 +59,244 @@ let cachedSessionKey = "";
 
 function getClientSessionSnapshot() {
   const nextSession = getClientSession();
-  const nextKey = nextSession
-    ? `${nextSession.token}:${JSON.stringify(nextSession.user)}`
-    : "";
-
-  if (nextKey === cachedSessionKey) {
-    return cachedSession;
-  }
-
+  const nextKey = nextSession ? `${nextSession.token}:${JSON.stringify(nextSession.user)}` : "";
+  if (nextKey === cachedSessionKey) return cachedSession;
   cachedSession = nextSession;
   cachedSessionKey = nextKey;
   return cachedSession;
 }
 
-function getDisplayName(session: ClientSession | null) {
-  const user = session?.user;
-  const fullName = [user?.firstName, user?.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+const fullName = (session: ClientSession | null) => [session?.user?.firstName, session?.user?.lastName].filter(Boolean).join(" ").trim();
 
-  return fullName || user?.username || user?.email || "Mon compte";
+function firstName(session: ClientSession | null) {
+  const user = session?.user;
+  return user?.firstName?.trim() || user?.username?.trim() || user?.email?.split("@")[0] || "";
 }
+
+function initials(session: ClientSession | null) {
+  const user = session?.user;
+  const letters = [user?.firstName, user?.lastName].filter(Boolean).map((part) => part!.trim()[0]).join("");
+  return (letters || user?.username?.[0] || user?.email?.[0] || "?").toUpperCase().slice(0, 2);
+}
+
+const isCurrentCustomerOrder = (order: OrderListItem, session: ClientSession) => {
+  const email = session.user?.email?.trim().toLowerCase();
+  const id = session.user?.id?.trim();
+  if (id && order.Client?.id === id) return true;
+  if (email && order.Client?.email?.trim().toLowerCase() === email) return true;
+  if (email && order.guestEmail?.trim().toLowerCase() === email) return true;
+  return false;
+};
+
+const formatDate = (value: string, options: Intl.DateTimeFormatOptions = { dateStyle: "long" }) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("fr-FR", options).format(date);
+};
+
+const formatEuro = (value: number | null | undefined) =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
+
+const readable = (value: string | null | undefined) => (value ?? "").replace(/_/g, " ").trim().toLowerCase();
+const sentence = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+const orderCount = (products: unknown) => (Array.isArray(products) ? products.reduce((sum: number, item: { quantity?: number }) => sum + (Number(item?.quantity) || 1), 0) : 0);
+
+type Overview = { orders: number | null; moreOrders: boolean; last: OrderListItem | null; addresses: number | null };
 
 export function MonCompteClient() {
   const router = useRouter();
-  const session = useSyncExternalStore(
-    subscribeToClientSession,
-    getClientSessionSnapshot,
-    getServerSessionSnapshot,
-  );
+  const session = useSyncExternalStore(subscribeToClientSession, getClientSessionSnapshot, getServerSessionSnapshot);
+  const [overview, setOverview] = useState<Overview | null>(null);
 
-  function handleLogout() {
+  // The figures are a bonus: when they cannot be read, the page still works and shows dashes.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const search = session.user?.email?.trim() || fullName(session) || session.user?.id || "";
+    Promise.allSettled([getOrders({ limit: 30, search }), getClientAddresses(session.token)]).then(([ordersResult, addressesResult]) => {
+      if (cancelled) return;
+      const mine = ordersResult.status === "fulfilled" ? ordersResult.value.data.filter((order) => isCurrentCustomerOrder(order, session)) : null;
+      const sorted = mine ? [...mine].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) : null;
+      setOverview({
+        orders: mine ? mine.length : null,
+        moreOrders: ordersResult.status === "fulfilled" ? ordersResult.value.meta.hasNextPage : false,
+        last: sorted?.[0] ?? null,
+        addresses: addressesResult.status === "fulfilled" ? addressesResult.value.data.length : null,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  function logout() {
     clearClientSession();
     router.push("/login");
     router.refresh();
   }
 
-  return (
-    <main className="min-h-screen bg-[#f5f6f8] text-[#172033]">
-      <div className="border-t-2 border-destructive bg-[#ededed]">
-        <nav
-          aria-label="Fil d'Ariane"
-          className="mx-auto flex min-h-11 w-full max-w-[1740px] flex-wrap items-center gap-2 px-4 text-sm text-[#172033] sm:px-8 lg:px-12">
-          <Link href="/" className="hover:text-primary hover:underline">
-            Accueil
-          </Link>
-          <BreadcrumbSeparator />
-          <Link href="/mon-compte" className="hover:text-primary hover:underline">
-            Mon compte
-          </Link>
-          <BreadcrumbSeparator />
-          <span>Votre compte</span>
-          <BreadcrumbSeparator />
-          <span aria-current="page">Mon compte</span>
-        </nav>
-      </div>
+  const crumbs = (
+    <nav aria-label="Fil d’Ariane" className="ac-crumbs">
+      <Link href="/">Accueil</Link>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">Mon compte</span>
+    </nav>
+  );
 
-      <section className="mx-auto w-full max-w-[1740px] px-4 pt-6 pb-16 sm:px-8 lg:px-12">
-        <div className="overflow-hidden rounded-md border border-border bg-white shadow-[0_12px_28px_rgba(16,24,40,0.08)]">
-          <div className="border-b border-border bg-linear-to-r from-primary/10 via-white to-destructive/10 px-5 py-6 sm:px-8">
-            <div className="min-w-0">
+  if (!session) {
+    return (
+      <main className="ac">
+        <div className="ac-wrap">
+          {crumbs}
+          <section className="ac-signin" aria-labelledby="ac-signin-title">
+            <h1 id="ac-signin-title" className="ac-signin-title">Connectez-vous pour retrouver votre compte</h1>
+            <p>Suivez vos commandes, gérez vos adresses et retrouvez vos documents au même endroit.</p>
+            <div className="ac-signin-actions">
+              <Link href="/login?returnTo=/mon-compte" className="ac-btn is-red">Se connecter<PiArrowRightBold className="size-4" aria-hidden="true" /></Link>
+              <Link href="/signup" className="ac-btn is-line">Créer un compte</Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const user = session.user;
+  const loaded = overview !== null;
+  const last = overview?.last ?? null;
+  const countOf = (badge?: "orders" | "addresses") => (badge === "orders" ? overview?.orders : badge === "addresses" ? overview?.addresses : null);
+  const sinceDate = user?.createdAt ? formatDate(user.createdAt, { month: "long", year: "numeric" }) : "";
+
+  return (
+    <main className="ac">
+      <div className="ac-wrap">
+        {crumbs}
+
+        {/* ------------------------------------------------------------ the mat */}
+        <section className="ac-hero" aria-labelledby="ac-name">
+          <div className="ac-hero-top">
+            <div className="ac-id">
+              <span className="ac-avatar" aria-hidden="true">{initials(session)}</span>
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-primary">
-                  Votre compte
-                </p>
-                <h1 className="mt-2 text-2xl font-bold text-[#101828] sm:text-3xl">
-                  Bonjour, {getDisplayName(session)}
-                </h1>
-                {session?.user?.email ? (
-                  <p className="mt-2 break-words text-sm text-[#5b667a]">
-                    {session.user.email}
-                  </p>
-                ) : null}
+                <p className="ac-hello">Bonjour</p>
+                <h1 id="ac-name" className="ac-name">{firstName(session) || "à vous"}</h1>
+                {user?.email ? <p className="ac-email">{user.email}</p> : null}
+                <div className="ac-chips">
+                  {user?.company ? <span className="ac-chip"><PiBuildingsDuotone className="size-4" aria-hidden="true" />{user.company}</span> : null}
+                  {sinceDate ? <span className="ac-chip"><PiSealCheckDuotone className="size-4" aria-hidden="true" />Client depuis {sinceDate}</span> : null}
+                </div>
               </div>
             </div>
+            <button type="button" className="ac-logout" onClick={logout}>
+              <PiSignOutBold className="size-4" aria-hidden="true" />
+              Se déconnecter
+            </button>
           </div>
 
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 lg:gap-5 lg:p-8">
-            {accountTiles.map((tile) => (
-              <AccountTileLink key={tile.id} tile={tile} />
-            ))}
-          </div>
-        </div>
+          <ul className="ac-stats" aria-label="Votre compte en chiffres">
+            <Stat label="Commandes" value={overview?.orders} suffix={overview?.moreOrders ? "+" : ""} loaded={loaded} />
+            <Stat label="Adresses" value={overview?.addresses} loaded={loaded} />
+            <li className="ac-stat">
+              <p className="ac-stat-value">{!loaded ? <span className="ac-skeleton" style={{ width: "6ch" }} /> : last ? formatDate(last.createdAt, { day: "numeric", month: "short" }) : "–"}</p>
+              <p className="ac-stat-label">Dernière commande</p>
+            </li>
+          </ul>
+        </section>
 
-        <div className="mt-6 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 rounded-md border-[#d0d5dd] bg-white px-5 text-xs font-bold uppercase text-[#172033] shadow-sm hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleLogout}>
-            <LogOut className="size-4" />
-            D&eacute;connexion
-          </Button>
-        </div>
-      </section>
+        {/* ------------------------------------------------------------ the last order */}
+        <section className="ac-section" aria-labelledby="ac-last">
+          <h2 id="ac-last" className="ac-title">Ma dernière commande</h2>
+          {!loaded ? (
+            <div className="ac-empty" aria-busy="true"><p>Chargement de votre dernière commande…</p></div>
+          ) : last ? (
+            <article className="ac-ticket">
+              <div className="ac-ticket-main">
+                <p className="ac-ref">Commande n° {last.reference ?? last.id.slice(-8).toUpperCase()}</p>
+                <p className="ac-order-title">{formatDate(last.createdAt)}</p>
+                <span className="ac-status"><i aria-hidden="true" />{sentence(readable(last.etat) || "en cours")}</span>
+                <p className="ac-order-meta">
+                  <span>{orderCount(last.products)} article{orderCount(last.products) > 1 ? "s" : ""}</span>
+                  {last.paymentStatus ? <span>Paiement : {readable(last.paymentStatus)}</span> : null}
+                </p>
+              </div>
+              <div className="ac-ticket-side">
+                <div>
+                  <p className="ac-total-label">Total</p>
+                  <p className="ac-total">{formatEuro(last.total)}</p>
+                </div>
+                <Link href="/mon-compte/commandes" className="ac-btn">Suivre mes commandes<PiArrowRightBold className="size-4" aria-hidden="true" /></Link>
+              </div>
+            </article>
+          ) : (
+            <div className="ac-empty">
+              <strong>Pas encore de commande</strong>
+              <p>Quand vous commanderez, le suivi apparaîtra ici.</p>
+              <Link href="/categorie-produit" className="ac-btn is-red">Découvrir la boutique<PiArrowRightBold className="size-4" aria-hidden="true" /></Link>
+            </div>
+          )}
+        </section>
+
+        {/* ------------------------------------------------------------ the rooms */}
+        <Rooms title="Mes achats" rooms={PURCHASES} countOf={countOf} />
+        <Rooms title="Mon profil" rooms={PROFILE} countOf={countOf} />
+
+        <aside className="ac-help" aria-label="Aide">
+          <div className="ac-help-text">
+            <span className="ac-help-icon" aria-hidden="true"><PiHeadsetDuotone className="size-7" /></span>
+            <p>
+              <strong>Une question sur votre compte ou une commande ?</strong>
+              <span className="sub">Notre équipe vous répond avec une proposition claire.</span>
+            </p>
+          </div>
+          <Link href="/informations" className="ac-btn is-line">Nous contacter</Link>
+        </aside>
+      </div>
     </main>
   );
 }
 
-function BreadcrumbSeparator() {
+function Stat({ label, value, suffix = "", loaded }: { label: string; value: number | null | undefined; suffix?: string; loaded: boolean }) {
   return (
-    <span aria-hidden className="text-[#667085]">
-      /
-    </span>
+    <li className="ac-stat">
+      <p className="ac-stat-value">{!loaded ? <span className="ac-skeleton" /> : value == null ? "–" : `${value}${suffix}`}</p>
+      <p className="ac-stat-label">{label}</p>
+    </li>
   );
 }
 
-function AccountTileLink({ tile }: { tile: AccountTile }) {
-  const Icon = tile.icon;
-
+function Rooms({ title, rooms, countOf }: { title: string; rooms: AccountRoom[]; countOf: (badge?: "orders" | "addresses") => number | null | undefined }) {
+  const headingId = `ac-${title.replace(/\W+/g, "-").toLowerCase()}`;
   return (
-    <Link
-      href={tile.href}
-      className="group flex min-h-[138px] items-center gap-4 rounded-md border border-[#d8dde6] bg-white p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/5 hover:shadow-[0_10px_22px_rgba(8,88,177,0.12)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-      <span className="grid size-12 shrink-0 place-items-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-        <Icon aria-hidden className="size-6" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold uppercase leading-snug text-[#172033]">
-          {tile.title}
-        </span>
-        <span className="mt-2 block text-sm leading-5 text-[#667085]">
-          {tile.description}
-        </span>
-      </span>
-      <ChevronRight
-        aria-hidden
-        className="size-5 shrink-0 text-[#98a2b3] transition-transform group-hover:translate-x-1 group-hover:text-primary"
-      />
-    </Link>
+    <section className="ac-section" aria-labelledby={headingId}>
+      <h2 id={headingId} className="ac-title">{title}</h2>
+      <ul className="ac-grid">
+        {rooms.map((room) => {
+          const Icon = room.icon;
+          const count = countOf(room.badge);
+          const inner = (
+            <>
+              <div className="ac-tag-head">
+                <span className="ac-tag-icon" aria-hidden="true"><Icon className="size-7" /></span>
+                {room.href ? (count != null ? <span className="ac-count" aria-label={`${count}`}>{count}</span> : null) : <span className="ac-soon">Bientôt</span>}
+              </div>
+              <div>
+                <h3 className="ac-tag-title">{room.title}</h3>
+                <p className="ac-tag-text">{room.description}</p>
+              </div>
+              {room.href ? <span className="ac-tag-go">{room.cta}<PiArrowRightBold className="size-4" aria-hidden="true" /></span> : null}
+            </>
+          );
+          return (
+            <li key={room.id}>
+              {room.href ? (
+                <Link href={room.href} className={`ac-tag is-${room.tone}`}>{inner}</Link>
+              ) : (
+                <div className={`ac-tag is-soon is-${room.tone}`} aria-disabled="true">{inner}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

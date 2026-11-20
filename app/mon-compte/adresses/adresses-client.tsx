@@ -1,45 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { ComponentType, KeyboardEvent, ReactNode, SVGProps } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import countries from "world-countries";
 import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Check,
-  ChevronDown,
-  Home,
-  Mailbox,
-  MapPin,
-  Pencil,
-  Plus,
-  Save,
-  Search,
-  Star,
-  Trash2,
-  User,
-  X,
-} from "lucide-react";
+  PiBuildingsDuotone,
+  PiCaretDownBold,
+  PiCheckBold,
+  PiCheckCircleDuotone,
+  PiFloppyDiskBold,
+  PiGlobeHemisphereWestDuotone,
+  PiHouseDuotone,
+  PiHouseLineDuotone,
+  PiMailboxDuotone,
+  PiMapPinAreaDuotone,
+  PiPencilSimpleDuotone,
+  PiPlusBold,
+  PiReceiptDuotone,
+  PiSpinnerGapBold,
+  PiStarFill,
+  PiTagDuotone,
+  PiTrashDuotone,
+  PiUserDuotone,
+  PiWarningCircleDuotone,
+  PiXBold,
+} from "react-icons/pi";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import "@/components/client-auth/auth.css";
+import { AuthChoice, AuthField } from "@/components/client-auth/auth-fields";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createClientAddress, deleteClientAddress, getClientAddresses, updateClientAddress } from "@/lib/api/orders";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  getClientSession,
-  subscribeToClientSession,
-  type ClientSession,
-} from "@/lib/client-auth";
+import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
+
+import "../account.css";
+import "./adresses.css";
 
 type AddressKind = "livraison" | "facturation" | "mixte";
 
@@ -242,7 +237,9 @@ export function AdressesClient() {
   useEffect(() => {
     if (!session?.token) return;
     let cancelled = false;
-    setLoadingAddresses(true);
+    queueMicrotask(() => {
+      if (!cancelled) setLoadingAddresses(true);
+    });
     void getClientAddresses(session.token)
       .then(({ data }) => {
         if (cancelled) return;
@@ -435,91 +432,64 @@ export function AdressesClient() {
     }
   }
 
+  // On a phone the panel sits below the list: bring it into view when it opens.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isFormOpen) return;
+    panelRef.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [isFormOpen, editingId]);
+
+  const defaultAddress = addresses.find((address) => address.isDefault);
+
   return (
-    <main className="min-h-screen bg-[#f5f6f8] text-[#172033]">
-      <div className="border-t-2 border-destructive bg-[#ededed]">
-        <nav
-          aria-label="Fil d'Ariane"
-          className="mx-auto flex min-h-11 w-full max-w-[1320px] flex-wrap items-center gap-2 px-4 text-sm text-[#172033] sm:px-8">
-          <Link href="/" className="hover:text-primary hover:underline">
-            Accueil
-          </Link>
-          <BreadcrumbSeparator />
-          <Link href="/mon-compte" className="hover:text-primary hover:underline">
-            Mon compte
-          </Link>
-          <BreadcrumbSeparator />
-          <span aria-current="page">Adresses</span>
+    <main className="ac">
+      <div className="ac-wrap is-wide">
+        <nav aria-label="Fil d’Ariane" className="ac-crumbs">
+          <Link href="/">Accueil</Link>
+          <span aria-hidden="true">/</span>
+          <Link href="/mon-compte">Mon compte</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">Mes adresses</span>
         </nav>
-      </div>
 
-      <section className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-16 sm:px-8">
-        <Link
-          href="/mon-compte"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-          <ArrowLeft className="size-4" />
-          Retour a mon compte
-        </Link>
-
-        <div className="mt-4 overflow-hidden rounded-md border border-border bg-white shadow-[0_12px_28px_rgba(16,24,40,0.08)]">
-          <div className="border-b border-border bg-linear-to-r from-primary/10 via-white to-destructive/10 px-5 py-6 sm:px-8">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-primary">
-                  Carnet d&apos;adresses
-                </p>
-                <h1 className="mt-2 text-2xl font-bold text-[#101828] sm:text-3xl">
-                  Mes adresses
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">
-                  Ajoutez et organisez vos adresses de livraison et de
-                  facturation pour commander plus rapidement.
-                </p>
-              </div>
-              <Button
-                type="button"
-                className="h-11 px-5 font-semibold"
-                onClick={startCreate}>
-                <Plus className="size-4" />
-                Ajouter une adresse
-              </Button>
+        {/* ------------------------------------------------------------ the mat */}
+        <section className="ac-hero" aria-labelledby="ad-title">
+          <div className="ad-hero-row">
+            <div>
+              <h1 id="ad-title" className="ad-title">Mes adresses</h1>
+              <p className="ad-sub">Enregistrez vos adresses de livraison et de facturation pour commander plus vite.</p>
             </div>
+            <button type="button" className="ad-add" onClick={startCreate}>
+              <PiPlusBold className="size-5" aria-hidden="true" />
+              Ajouter une adresse
+            </button>
           </div>
+          <ul className="ac-stats" aria-label="Vos adresses en chiffres" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <li className="ac-stat">
+              <p className="ac-stat-value">{loadingAddresses && addresses.length === 0 ? <span className="ac-skeleton" /> : addresses.length}</p>
+              <p className="ac-stat-label">Adresse{addresses.length > 1 ? "s" : ""} enregistrée{addresses.length > 1 ? "s" : ""}</p>
+            </li>
+            <li className="ac-stat">
+              <p className="ac-stat-value ad-stat-value-text">{defaultAddress ? [defaultAddress.postalCode, defaultAddress.city].filter(Boolean).join(" ") : "–"}</p>
+              <p className="ac-stat-label">Adresse par défaut</p>
+            </li>
+          </ul>
+        </section>
 
-          <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_420px] lg:p-8">
-            <section className="min-w-0">
-              {error ? (
-                <StatusMessage tone="error" icon={AlertCircle}>
-                  {error}
-                </StatusMessage>
-              ) : null}
+        <div className="ad-layout">
+          <section className="min-w-0" aria-label="Mes adresses enregistrées">
+            {error ? <Alert tone="bad" icon={PiWarningCircleDuotone}>{error}</Alert> : null}
+            {success ? <Alert tone="ok" icon={PiCheckCircleDuotone}>{success}</Alert> : null}
+            {!session ? <Alert tone="info" icon={PiWarningCircleDuotone}>Vous n’êtes pas connecté : vos adresses sont conservées uniquement sur ce navigateur. <Link href="/login?returnTo=/mon-compte/adresses" className="underline">Se connecter</Link></Alert> : null}
+            {session && loadingAddresses ? <p className="ad-loading" role="status">Chargement de vos adresses…</p> : null}
 
-              {success ? (
-                <StatusMessage tone="success" icon={CheckCircle2}>
-                  {success}
-                </StatusMessage>
-              ) : null}
-
-              {!session ? (
-                <div className="mb-4">
-                  <StatusMessage tone="error" icon={AlertCircle}>
-                    Vous n&apos;etes pas connecte. Les adresses sont conservees
-                    localement sur ce navigateur.
-                  </StatusMessage>
-                </div>
-              ) : null}
-
-              {session && loadingAddresses ? (
-                <p className="mb-4 rounded-md border border-border bg-white px-4 py-3 text-sm text-[#667085]">Chargement de vos adresses…</p>
-              ) : null}
-
-              {addresses.length === 0 && !loadingAddresses ? (
-                <EmptyState onCreate={startCreate} />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {addresses.map((address) => (
+            {addresses.length === 0 && !loadingAddresses ? (
+              <EmptyState onCreate={startCreate} />
+            ) : (
+              <ul className="ad-grid">
+                {addresses.map((address) => (
+                  <li key={address.id}>
                     <AddressCard
-                      key={address.id}
                       address={address}
                       isConfirmingDelete={deleteId === address.id}
                       onEdit={() => startEdit(address)}
@@ -528,85 +498,69 @@ export function AdressesClient() {
                       onCancelDelete={() => setDeleteId(null)}
                       onConfirmDelete={() => handleDelete(address.id)}
                     />
-                  ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <aside className="ad-aside" aria-label={editingId ? "Modifier l’adresse" : "Ajouter une adresse"}>
+            <div ref={panelRef}>
+              {isFormOpen ? (
+                <div className="ad-panel">
+                  <div className="ad-panel-head">
+                    <div className="ad-panel-title">
+                      <span className="ad-panel-icon" aria-hidden="true">{editingId ? <PiPencilSimpleDuotone className="size-7" /> : <PiMapPinAreaDuotone className="size-7" />}</span>
+                      <div>
+                        <h2 className="ad-panel-h">{editingId ? "Modifier l’adresse" : "Nouvelle adresse"}</h2>
+                        <p className="ad-panel-sub">{editingId ? "Vos changements s’appliquent aux prochaines commandes." : "Elle sera proposée lors de vos commandes."}</p>
+                      </div>
+                    </div>
+                    <button type="button" className="ad-close" onClick={cancelForm} aria-label="Fermer le formulaire"><PiXBold className="size-5" aria-hidden="true" /></button>
+                  </div>
+                  <div className="ad-seam" aria-hidden="true" />
+                  <AddressForm form={form} editingId={editingId} onSubmit={handleSubmit} onCancel={cancelForm} onFieldChange={updateField} isSaving={savingAddress} />
+                </div>
+              ) : (
+                <div className="ad-placeholder">
+                  <span className="ad-placeholder-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-8" /></span>
+                  <p>Choisissez « Modifier » sur une adresse, ou ajoutez une nouvelle adresse à votre carnet.</p>
+                  <button type="button" className="ad-btn" onClick={startCreate}><PiPlusBold className="size-4" aria-hidden="true" />Ajouter une adresse</button>
                 </div>
               )}
-            </section>
-
-            <aside className="min-w-0">
-              <div className="sticky top-28 rounded-md border border-[#d8dde6] bg-[#fbfcfe] p-5">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-primary">
-                      {editingId ? "Modifier" : "Nouvelle adresse"}
-                    </p>
-                    <h2 className="mt-1 text-lg font-bold text-[#101828]">
-                      {editingId ? "Modifier l'adresse" : "Ajouter une adresse"}
-                    </h2>
-                  </div>
-                  {isFormOpen ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={cancelForm}
-                      aria-label="Fermer le formulaire">
-                      <X className="size-4" />
-                    </Button>
-                  ) : null}
-                </div>
-
-                {isFormOpen ? (
-                  <AddressForm
-                    form={form}
-                    editingId={editingId}
-                    onSubmit={handleSubmit}
-                    onCancel={cancelForm}
-                    onFieldChange={updateField}
-                    isSaving={savingAddress}
-                  />
-                ) : (
-                  <div className="rounded-md border border-dashed border-[#c8d0dc] bg-white p-5 text-sm leading-6 text-[#667085]">
-                    Selectionnez une adresse a modifier ou ajoutez une nouvelle
-                    adresse a votre carnet.
-                  </div>
-                )}
-              </div>
-            </aside>
-          </div>
+            </div>
+          </aside>
         </div>
-      </section>
+      </div>
     </main>
   );
 }
 
-function BreadcrumbSeparator() {
+function Alert({ tone, icon: Icon, children }: { tone: "ok" | "bad" | "info"; icon: typeof PiUserDuotone; children: ReactNode }) {
   return (
-    <span aria-hidden className="text-[#667085]">
-      /
-    </span>
+    <div role={tone === "bad" ? "alert" : "status"} className={`ad-alert is-${tone}`}>
+      <Icon className="size-5" aria-hidden="true" />
+      <span>{children}</span>
+    </div>
   );
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex min-h-[320px] flex-col items-center justify-center rounded-md border border-dashed border-[#c8d0dc] bg-[#fbfcfe] px-6 py-12 text-center">
-      <div className="grid size-14 place-items-center rounded-md bg-primary/10 text-primary">
-        <MapPin className="size-7" />
-      </div>
-      <h2 className="mt-5 text-xl font-bold text-[#101828]">
-        Aucune adresse enregistree
-      </h2>
-      <p className="mt-2 max-w-md text-sm leading-6 text-[#667085]">
-        Ajoutez votre premiere adresse pour accelerer vos prochaines commandes.
-      </p>
-      <Button type="button" className="mt-6 h-11 px-5" onClick={onCreate}>
-        <Plus className="size-4" />
-        Ajouter une adresse
-      </Button>
+    <div className="ad-empty">
+      <span className="ad-empty-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-10" /></span>
+      <h2 className="ad-empty-title">Aucune adresse enregistrée</h2>
+      <p>Ajoutez votre première adresse pour accélérer vos prochaines commandes.</p>
+      <button type="button" className="ad-add" onClick={onCreate}><PiPlusBold className="size-5" aria-hidden="true" />Ajouter une adresse</button>
     </div>
   );
 }
+
+const KIND_STYLE: Record<AddressKind, { icon: typeof PiUserDuotone; className: string }> = {
+  livraison: { icon: PiHouseLineDuotone, className: "" },
+  facturation: { icon: PiReceiptDuotone, className: "is-billing" },
+  mixte: { icon: PiHouseDuotone, className: "is-both" },
+};
 
 function AddressCard({
   address,
@@ -626,81 +580,41 @@ function AddressCard({
   onConfirmDelete: () => void;
 }) {
   const fullName = [address.firstName, address.lastName].filter(Boolean).join(" ");
-  const lines = [
-    address.street,
-    address.apartment,
-    [address.postalCode, address.city].filter(Boolean).join(" "),
-    address.country,
-  ].filter(Boolean);
+  const lines = [address.street, address.apartment, [address.postalCode, address.city].filter(Boolean).join(" "), address.country].filter(Boolean);
+  const kind = KIND_STYLE[address.kind];
+  const KindIcon = kind.icon;
 
   return (
-    <article className="rounded-md border border-[#d8dde6] bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-[#101828]">{address.label}</h3>
-            {address.isDefault ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-                <Star className="size-3 fill-current" />
-                Defaut
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 text-xs font-bold uppercase text-[#667085]">
-            {kindLabel(address.kind)}
-          </p>
-        </div>
-        <div className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-          <Home className="size-5" />
-        </div>
+    <article className={`ad-card ${address.isDefault ? "is-default" : ""}`} aria-label={address.label}>
+      <div className="ad-card-top">
+        <span className={`ad-kind ${kind.className}`}><KindIcon className="size-5" aria-hidden="true" />{kindLabel(address.kind)}</span>
+        {address.isDefault ? <span className="ad-default"><PiStarFill className="size-4" aria-hidden="true" />Par défaut</span> : null}
       </div>
-
-      <div className="mt-4 space-y-1 text-sm leading-6 text-[#344054]">
-        <p className="font-semibold text-[#172033]">{fullName}</p>
-        {lines.map((line) => (
-          <p key={line}>{line}</p>
-        ))}
+      <div className="ad-card-body">
+        <p className="ad-label">{address.label}</p>
+        <p className="ad-name">{fullName || "—"}</p>
+        <address className="ad-lines">
+          {lines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </address>
+        <div className="ad-barcode" aria-hidden="true" />
       </div>
+      <div className="ad-tear" aria-hidden="true" />
 
       {isConfirmingDelete ? (
-        <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 p-3">
-          <p className="text-sm font-medium text-destructive">
-            Supprimer cette adresse ?
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={onConfirmDelete}>
-              Supprimer
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={onCancelDelete}>
-              Annuler
-            </Button>
+        <div className="ad-confirm" role="alertdialog" aria-label="Confirmer la suppression">
+          <p>Supprimer cette adresse ?</p>
+          <div>
+            <button type="button" className="ad-btn is-solid-danger" onClick={onConfirmDelete}>Supprimer</button>
+            <button type="button" className="ad-btn" onClick={onCancelDelete}>Annuler</button>
           </div>
         </div>
       ) : (
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-            <Pencil className="size-4" />
-            Modifier
-          </Button>
-          {!address.isDefault ? (
-            <Button type="button" variant="outline" size="sm" onClick={onSetDefault}>
-              <Star className="size-4" />
-              Definir par defaut
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={onAskDelete}>
-            <Trash2 className="size-4" />
-            Supprimer
-          </Button>
+        <div className="ad-actions">
+          <button type="button" className="ad-btn" onClick={onEdit}><PiPencilSimpleDuotone className="size-5" aria-hidden="true" />Modifier</button>
+          {!address.isDefault ? <button type="button" className="ad-btn" onClick={onSetDefault}><PiStarFill className="size-4" aria-hidden="true" />Par défaut</button> : null}
+          <button type="button" className="ad-btn is-danger" onClick={onAskDelete}><PiTrashDuotone className="size-5" aria-hidden="true" />Supprimer</button>
         </div>
       )}
     </article>
@@ -720,191 +634,66 @@ function AddressForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   isSaving: boolean;
-  onFieldChange: <K extends keyof AddressFormState>(
-    key: K,
-    value: AddressFormState[K],
-  ) => void;
+  onFieldChange: <K extends keyof AddressFormState>(key: K, value: AddressFormState[K]) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <TextField
-        id="address-label"
-        label="Nom de l'adresse"
-        value={form.label}
-        onChange={(value) => onFieldChange("label", value)}
-        icon={Mailbox}
-        required
-      />
+    <form onSubmit={onSubmit} className="ad-form" noValidate>
+      <div className="auth-scope ad-form">
+        <AuthField id="address-label" label="Nom de l’adresse" value={form.label} onChange={(value) => onFieldChange("label", value)} icon={PiTagDuotone} placeholder="Maison, Atelier, Bureau…" required />
 
-      <div className="space-y-2">
-        <Label htmlFor="address-kind">Type</Label>
-        <Select
+        <AuthChoice
+          label="Type"
           value={form.kind}
-          onValueChange={(value) => onFieldChange("kind", value as AddressKind)}>
-          <SelectTrigger id="address-kind" className="h-12 w-full bg-white">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="livraison">Livraison</SelectItem>
-            <SelectItem value="facturation">Facturation</SelectItem>
-            <SelectItem value="mixte">Livraison et facturation</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <TextField
-          id="address-first-name"
-          label="Prenom"
-          value={form.firstName}
-          onChange={(value) => onFieldChange("firstName", value)}
-          autoComplete="given-name"
-          icon={User}
-          required
+          onChange={(value) => onFieldChange("kind", value)}
+          options={[
+            { value: "livraison", label: "Livraison" },
+            { value: "facturation", label: "Facturation" },
+            { value: "mixte", label: "Les deux" },
+          ]}
         />
-        <TextField
-          id="address-last-name"
-          label="Nom"
-          value={form.lastName}
-          onChange={(value) => onFieldChange("lastName", value)}
-          autoComplete="family-name"
-          icon={User}
-          required
-        />
-      </div>
 
-      <TextField
-        id="address-street"
-        label="Adresse"
-        value={form.street}
-        onChange={(value) => onFieldChange("street", value)}
-        autoComplete="street-address"
-        icon={MapPin}
-        required
-      />
+        <div className="ad-row is-two">
+          <AuthField id="address-first-name" label="Prénom" value={form.firstName} onChange={(value) => onFieldChange("firstName", value)} autoComplete="given-name" icon={PiUserDuotone} required />
+          <AuthField id="address-last-name" label="Nom" value={form.lastName} onChange={(value) => onFieldChange("lastName", value)} autoComplete="family-name" icon={PiUserDuotone} required />
+        </div>
 
-      <TextField
-        id="address-apartment"
-        label="Complement d'adresse"
-        value={form.apartment}
-        onChange={(value) => onFieldChange("apartment", value)}
-        icon={Home}
-      />
+        <AuthField id="address-street" label="Adresse" value={form.street} onChange={(value) => onFieldChange("street", value)} autoComplete="street-address" icon={PiMapPinAreaDuotone} placeholder="Numéro et nom de la rue" required />
+        <AuthField id="address-apartment" label="Complément d’adresse" value={form.apartment} onChange={(value) => onFieldChange("apartment", value)} icon={PiBuildingsDuotone} placeholder="Bâtiment, étage, digicode…" optional />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <TextField
-          id="address-postal-code"
-          label="Code postal"
-          value={form.postalCode}
-          onChange={(value) => onFieldChange("postalCode", value)}
-          autoComplete="postal-code"
-          icon={Mailbox}
-        />
-        <TextField
-          id="address-city"
-          label="Ville"
-          value={form.city}
-          onChange={(value) => onFieldChange("city", value)}
-          autoComplete="address-level2"
-          icon={MapPin}
-          required
-        />
-      </div>
+        <div className="ad-row is-two">
+          <AuthField id="address-postal-code" label="Code postal" value={form.postalCode} onChange={(value) => onFieldChange("postalCode", value)} autoComplete="postal-code" icon={PiMailboxDuotone} />
+          <AuthField id="address-city" label="Ville" value={form.city} onChange={(value) => onFieldChange("city", value)} autoComplete="address-level2" icon={PiMapPinAreaDuotone} required />
+        </div>
 
-      <CountrySelect
-        value={form.country}
-        onChange={(value) => onFieldChange("country", value)}
-      />
+        <CountrySelect value={form.country} onChange={(value) => onFieldChange("country", value)} />
 
-      <label className="flex min-h-11 items-center gap-3 rounded-md border border-[#d8dde6] bg-white px-3 py-2 text-sm font-medium text-[#344054]">
-        <Checkbox
-          checked={form.isDefault}
-          onCheckedChange={(checked) =>
-            onFieldChange("isDefault", checked === true)
-          }
-        />
-        Utiliser comme adresse par defaut
-      </label>
+        <label className="ad-switch">
+          <input type="checkbox" checked={form.isDefault} onChange={(event) => onFieldChange("isDefault", event.target.checked)} />
+          <span className="ad-switch-track" aria-hidden="true" />
+          Utiliser comme adresse par défaut
+        </label>
 
-      <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-        <Button type="submit" className="h-11 flex-1" disabled={isSaving}>
-          <Save className="size-4" />
-          {isSaving ? "Enregistrement…" : editingId ? "Enregistrer" : "Ajouter"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 flex-1"
-          disabled={isSaving}
-          onClick={onCancel}>
-          Annuler
-        </Button>
+        <div className="ad-submit-row">
+          <button type="submit" className="ad-submit" disabled={isSaving}>
+            {isSaving ? <PiSpinnerGapBold className="size-5 animate-spin" aria-hidden="true" /> : <PiFloppyDiskBold className="size-5" aria-hidden="true" />}
+            {isSaving ? "Enregistrement…" : editingId ? "Enregistrer" : "Ajouter l’adresse"}
+          </button>
+          <button type="button" className="ad-cancel" disabled={isSaving} onClick={onCancel}>Annuler</button>
+        </div>
       </div>
     </form>
   );
 }
 
-function TextField({
-  id,
-  label,
-  value,
-  onChange,
-  icon: Icon,
-  type = "text",
-  required = false,
-  autoComplete,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  type?: string;
-  required?: boolean;
-  autoComplete?: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>
-        {label}
-        {required ? <span className="text-destructive">*</span> : null}
-      </Label>
-      <div className="relative">
-        <Icon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id={id}
-          type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          autoComplete={autoComplete}
-          required={required}
-          className="h-12 bg-white pl-10"
-        />
-      </div>
-    </div>
-  );
-}
+const COUNTRY_INPUT = "h-12 rounded-xl border-2 border-[var(--auth-line)] bg-white pr-12 pl-11 text-[15px] text-[var(--auth-ink)] shadow-none placeholder:text-[#8793aa] focus-visible:border-[var(--auth-blue)] focus-visible:ring-4 focus-visible:ring-[var(--auth-blue)]/15";
 
-function CountrySelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function CountrySelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const options =
-    value && !countryOptions.some((country) => country.name === value)
-      ? [{ code: "custom", name: value }, ...countryOptions]
-      : countryOptions;
+  const options = value && !countryOptions.some((country) => country.name === value) ? [{ code: "custom", name: value }, ...countryOptions] : countryOptions;
   const normalizedQuery = query.trim().toLocaleLowerCase("fr");
-  const filteredOptions = normalizedQuery
-    ? options.filter((country) =>
-        country.name.toLocaleLowerCase("fr").includes(normalizedQuery),
-      )
-    : options;
+  const filteredOptions = normalizedQuery ? options.filter((country) => country.name.toLocaleLowerCase("fr").includes(normalizedQuery)) : options;
 
   function selectCountry(countryName: string) {
     onChange(countryName);
@@ -917,11 +706,7 @@ function CountrySelect({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setIsOpen(true);
-      setActiveIndex((current) =>
-        filteredOptions.length === 0
-          ? 0
-          : Math.min(current + 1, filteredOptions.length - 1),
-      );
+      setActiveIndex((current) => (filteredOptions.length === 0 ? 0 : Math.min(current + 1, filteredOptions.length - 1)));
       return;
     }
 
@@ -945,10 +730,9 @@ function CountrySelect({
 
   return (
     <div
-      className="relative space-y-2"
+      className="ad-country"
       onBlur={(event) => {
-        const nextFocus =
-          event.relatedTarget instanceof Node ? event.relatedTarget : null;
+        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
 
         if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
           setIsOpen(false);
@@ -956,12 +740,11 @@ function CountrySelect({
           setActiveIndex(0);
         }
       }}>
-      <Label htmlFor="address-country">
-        Pays
-        <span className="text-destructive">*</span>
-      </Label>
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <label htmlFor="address-country" className="ad-label-strong">
+        Pays<span aria-hidden="true" style={{ color: "var(--ac-red)", marginLeft: 3 }}>*</span>
+      </label>
+      <div className="ad-country-box">
+        <PiGlobeHemisphereWestDuotone className="lead size-[18px]" aria-hidden="true" />
         <Input
           id="address-country"
           type="text"
@@ -983,13 +766,11 @@ function CountrySelect({
           }}
           onKeyDown={handleKeyDown}
           placeholder="Rechercher un pays"
-          className="h-12 bg-white pr-10 pl-10"
+          className={COUNTRY_INPUT}
         />
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground"
+          className="ad-country-toggle"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
             setIsOpen((open) => !open);
@@ -997,77 +778,35 @@ function CountrySelect({
             setActiveIndex(0);
           }}
           aria-label={isOpen ? "Fermer la liste des pays" : "Ouvrir la liste des pays"}>
-          <ChevronDown
-            className={
-              isOpen
-                ? "size-4 rotate-180 transition-transform"
-                : "size-4 transition-transform"
-            }
-          />
-        </Button>
+          <PiCaretDownBold className={isOpen ? "size-4 rotate-180 transition-transform" : "size-4 transition-transform"} aria-hidden="true" />
+        </button>
       </div>
 
       {isOpen ? (
-        <div
-          id="address-country-listbox"
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-[#d8dde6] bg-white p-1 shadow-lg">
+        <div id="address-country-listbox" role="listbox" className="ad-listbox">
           {filteredOptions.length > 0 ? (
             filteredOptions.map((country, index) => {
               const isSelected = country.name === value;
-              const isActive = index === activeIndex;
-
               return (
                 <button
                   key={country.code}
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  className={
-                    isActive
-                      ? "flex min-h-10 w-full items-center justify-between gap-3 rounded-sm bg-primary/10 px-3 py-2 text-left text-sm text-[#172033]"
-                      : "flex min-h-10 w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm text-[#172033] hover:bg-primary/5"
-                  }
+                  className={`ad-option ${index === activeIndex ? "is-active" : ""}`}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => selectCountry(country.name)}>
                   <span>{country.name}</span>
-                  {isSelected ? <Check className="size-4 text-primary" /> : null}
+                  {isSelected ? <PiCheckBold className="size-4" style={{ color: "var(--ac-blue)" }} aria-hidden="true" /> : null}
                 </button>
               );
             })
           ) : (
-            <div className="px-3 py-4 text-sm text-[#667085]">
-              Aucun pays trouve.
-            </div>
+            <div className="ad-none">Aucun pays trouvé.</div>
           )}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function StatusMessage({
-  children,
-  icon: Icon,
-  tone,
-}: {
-  children: ReactNode;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  tone: "error" | "success";
-}) {
-  const isError = tone === "error";
-
-  return (
-    <div
-      role={isError ? "alert" : "status"}
-      className={
-        isError
-          ? "mb-4 flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          : "mb-4 flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-      }>
-      <Icon className="mt-0.5 size-4 shrink-0" />
-      <span>{children}</span>
     </div>
   );
 }
