@@ -1,6 +1,8 @@
-import type { Config, Data, Slot } from "@puckeditor/core";
+import type { Config, Data, Fields, Slot } from "@puckeditor/core";
 
-import { dailyOffersBlock, featuredProductsBlock, heroBlock, imageMosaicBlock } from "@/components/puck-blocks";
+import { contactFormBlock, contactInfoBlock, dailyOffersBlock, faqBlock, featuredProductsBlock, headingBlock, heroBlock, hoursBlock, imageBlock, imageMosaicBlock, mapBlock, spacerBlock, textBlock } from "@/components/puck-blocks";
+import type { ContactFormProps, ContactInfoProps, HoursProps, MapProps } from "@/components/puck-blocks/contact/contact-blocks";
+import type { FaqProps, HeadingProps, ImageBlockProps, SpacerProps, TextProps } from "@/components/puck-blocks/content/content-blocks";
 import { colorField, yesNoOptions as yesNo } from "@/components/puck-blocks/fields";
 import type { DailyOffersProps } from "@/components/puck-blocks/daily-offers/daily-offers";
 import type { FeaturedProductsProps } from "@/components/puck-blocks/featured-products/featured-products";
@@ -12,6 +14,15 @@ type Props = {
   DailyOffers: DailyOffersProps;
   FeaturedProducts: FeaturedProductsProps;
   ImageMosaic: ImageMosaicProps;
+  Heading: HeadingProps;
+  Text: TextProps;
+  Image: ImageBlockProps;
+  Faq: FaqProps;
+  Spacer: SpacerProps;
+  ContactForm: ContactFormProps;
+  ContactInfo: ContactInfoProps;
+  Map: MapProps;
+  Hours: HoursProps;
   Container: {
     content: Slot;
     width: "boxed" | "full";
@@ -27,6 +38,8 @@ type Props = {
   };
   Grid: {
     content: Slot;
+    /** Side by side in columns (default), or stacked one under the other. Grids placed before it existed are horizontal. */
+    direction?: "horizontal" | "vertical";
     columns: 1 | 2 | 3 | 4 | 5 | 6;
     mobileColumns: 1 | 2;
     gap: number;
@@ -52,8 +65,38 @@ type Props = {
   };
 };
 
+const gridFields = {
+  content: { type: "slot" },
+  direction: {
+    type: "radio",
+    label: "Sens",
+    options: [
+      { label: "Horizontal (côte à côte)", value: "horizontal" },
+      { label: "Vertical (empilés)", value: "vertical" },
+    ],
+  },
+  columns: {
+    type: "select",
+    label: "Colonnes (ordinateur)",
+    options: [1, 2, 3, 4, 5, 6].map((n) => ({ label: String(n), value: n })),
+  },
+  mobileColumns: {
+    type: "radio",
+    label: "Colonnes (mobile)",
+    options: [
+      { label: "1", value: 1 },
+      { label: "2", value: 2 },
+    ],
+  },
+  gap: { type: "number", label: "Espacement (px)", min: 0, max: 200 },
+  background: colorField("Arrière-plan"),
+  padding: { type: "number", label: "Marge intérieure (px)", min: 0, max: 300 },
+} satisfies Fields<Props["Grid"]>;
+
 export const puckConfig: Config<Props> = {
   categories: {
+    content: { title: "Contenu", components: ["Heading", "Text", "Image", "Faq", "Spacer"] },
+    contact: { title: "Contact", components: ["ContactForm", "ContactInfo", "Map", "Hours"] },
     home: { title: "Accueil", components: ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic"] },
     layout: { title: "Mise en page", components: ["Container", "Grid"] },
     basic: { title: "Basique", components: ["Button", "Input"] },
@@ -71,6 +114,15 @@ export const puckConfig: Config<Props> = {
     DailyOffers: dailyOffersBlock,
     FeaturedProducts: featuredProductsBlock,
     ImageMosaic: imageMosaicBlock,
+    Heading: headingBlock,
+    Text: textBlock,
+    Image: imageBlock,
+    Faq: faqBlock,
+    Spacer: spacerBlock,
+    ContactForm: contactFormBlock,
+    ContactInfo: contactInfoBlock,
+    Map: mapBlock,
+    Hours: hoursBlock,
 
     /* ------------------------------------------------------------ Container */
     Container: {
@@ -163,41 +215,34 @@ export const puckConfig: Config<Props> = {
     /* ---------------------------------------------------------------- Grid */
     Grid: {
       label: "Grille",
-      defaultProps: { content: [], columns: 3, mobileColumns: 1, gap: 16, background: "", padding: 24 },
-      fields: {
-        content: { type: "slot" },
-        columns: {
-          type: "select",
-          label: "Colonnes (ordinateur)",
-          options: [1, 2, 3, 4, 5, 6].map((n) => ({ label: String(n), value: n })),
-        },
-        mobileColumns: {
-          type: "radio",
-          label: "Colonnes (mobile)",
-          options: [
-            { label: "1", value: 1 },
-            { label: "2", value: 2 },
-          ],
-        },
-        gap: { type: "number", label: "Espacement (px)", min: 0, max: 200 },
-        background: colorField("Arrière-plan"),
-        padding: { type: "number", label: "Marge intérieure (px)", min: 0, max: 300 },
+      defaultProps: { content: [], direction: "horizontal", columns: 3, mobileColumns: 1, gap: 16, background: "", padding: 24 },
+      fields: gridFields,
+      // Stacked blocks have no columns to choose.
+      resolveFields: (data) => {
+        if (data.props.direction !== "vertical") return gridFields;
+        const { columns: _columns, mobileColumns: _mobileColumns, ...stacked } = gridFields;
+        void _columns;
+        void _mobileColumns;
+        return stacked as typeof gridFields;
       },
-      render: ({ content: Content, columns, mobileColumns, gap, background, padding }) => (
-        <div style={{ background: background || undefined, padding }}>
-          <Content
-            minEmptyHeight={96}
-            className="mx-auto grid w-full max-w-[1200px] [grid-template-columns:repeat(var(--cols-sm),minmax(0,1fr))] md:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]"
-            style={
-              {
-                gap,
-                "--cols": columns,
-                "--cols-sm": mobileColumns,
-              } as React.CSSProperties
-            }
-          />
-        </div>
-      ),
+      render: ({ content: Content, direction = "horizontal", columns, mobileColumns, gap, background, padding }) => {
+        const vertical = direction === "vertical";
+        return (
+          <div style={{ background: background || undefined, padding }}>
+            <Content
+              minEmptyHeight={96}
+              className="mx-auto grid w-full max-w-[1200px] [grid-template-columns:repeat(var(--cols-sm),minmax(0,1fr))] md:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]"
+              style={
+                {
+                  gap,
+                  "--cols": vertical ? 1 : columns,
+                  "--cols-sm": vertical ? 1 : mobileColumns,
+                } as React.CSSProperties
+              }
+            />
+          </div>
+        );
+      },
     },
 
     /* -------------------------------------------------------------- Button */

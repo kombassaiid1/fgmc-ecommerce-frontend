@@ -2,24 +2,12 @@
 
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { ArrowUp, ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaLinkedinIn, FaPinterestP, FaSnapchat, FaTiktok, FaWhatsapp, FaXTwitter, FaYoutube } from "react-icons/fa6";
+import { PiArrowUpBold, PiArrowUpRightBold, PiEnvelopeSimpleDuotone, PiMapPinAreaDuotone, PiPhoneCallDuotone } from "react-icons/pi";
 
+import { SOCIAL_ICONS } from "./social-icons";
 import { type FooterConfig, type FooterLink, type FooterSite, SOCIAL_ORDER, fillCopyright } from "@/lib/footer";
 
 import "./footer.css";
-
-const SOCIAL_ICONS: Record<(typeof SOCIAL_ORDER)[number], { label: string; icon: React.ReactNode }> = {
-  facebook: { label: "Facebook", icon: <FaFacebookF className="size-[18px]" aria-hidden="true" /> },
-  instagram: { label: "Instagram", icon: <FaInstagram className="size-5" aria-hidden="true" /> },
-  x: { label: "X (Twitter)", icon: <FaXTwitter className="size-[18px]" aria-hidden="true" /> },
-  youtube: { label: "YouTube", icon: <FaYoutube className="size-5" aria-hidden="true" /> },
-  tiktok: { label: "TikTok", icon: <FaTiktok className="size-[18px]" aria-hidden="true" /> },
-  linkedin: { label: "LinkedIn", icon: <FaLinkedinIn className="size-[18px]" aria-hidden="true" /> },
-  pinterest: { label: "Pinterest", icon: <FaPinterestP className="size-[18px]" aria-hidden="true" /> },
-  whatsapp: { label: "WhatsApp", icon: <FaWhatsapp className="size-5" aria-hidden="true" /> },
-  snapchat: { label: "Snapchat", icon: <FaSnapchat className="size-5" aria-hidden="true" /> },
-};
 
 const isInternal = (url: string) => url.startsWith("/");
 
@@ -61,9 +49,9 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
               </div>
               {config.cta.buttonLabel ? (
                 isInternal(config.cta.buttonUrl) ? (
-                  <Link href={config.cta.buttonUrl} className="ft-cta-btn" onClick={stop}>{config.cta.buttonLabel}<ArrowUpRight className="size-4" aria-hidden="true" /></Link>
+                  <Link href={config.cta.buttonUrl} className="ft-cta-btn" onClick={stop}>{config.cta.buttonLabel}<PiArrowUpRightBold className="size-4" aria-hidden="true" /></Link>
                 ) : (
-                  <a href={config.cta.buttonUrl} className="ft-cta-btn" onClick={stop} target="_blank" rel="noopener noreferrer">{config.cta.buttonLabel}<ArrowUpRight className="size-4" aria-hidden="true" /></a>
+                  <a href={config.cta.buttonUrl} className="ft-cta-btn" onClick={stop} target="_blank" rel="noopener noreferrer">{config.cta.buttonLabel}<PiArrowUpRightBold className="size-4" aria-hidden="true" /></a>
                 )
               ) : null}
             </section>
@@ -84,9 +72,9 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
 
               {hasContact ? (
                 <ul className="ft-contact" aria-label="Coordonnées">
-                  {site.phoneNumber ? <li><Phone className="size-4" aria-hidden="true" /><a href={`tel:${site.phoneNumber.replace(/\s+/g, "")}`} onClick={stop}>{site.phoneNumber}</a></li> : null}
-                  {site.contactEmail ? <li><Mail className="size-4" aria-hidden="true" /><a href={`mailto:${site.contactEmail}`} onClick={stop}>{site.contactEmail}</a></li> : null}
-                  {address ? <li><MapPin className="size-4" aria-hidden="true" /><span>{address}</span></li> : null}
+                  {site.phoneNumber ? <li><PiPhoneCallDuotone className="size-5" aria-hidden="true" /><a href={`tel:${site.phoneNumber.replace(/\s+/g, "")}`} onClick={stop}>{site.phoneNumber}</a></li> : null}
+                  {site.contactEmail ? <li><PiEnvelopeSimpleDuotone className="size-5" aria-hidden="true" /><a href={`mailto:${site.contactEmail}`} onClick={stop}>{site.contactEmail}</a></li> : null}
+                  {address ? <li><PiMapPinAreaDuotone className="size-5" aria-hidden="true" /><span>{address}</span></li> : null}
                 </ul>
               ) : null}
 
@@ -127,7 +115,7 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
             {config.showBackToTop ? (
               <button type="button" className="ft-top" onClick={preview ? undefined : () => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}>
                 Haut de page
-                <span className="ft-top-knob"><ArrowUp className="size-5" aria-hidden="true" /></span>
+                <span className="ft-top-knob"><PiArrowUpBold className="size-5" aria-hidden="true" /></span>
               </button>
             ) : null}
           </div>

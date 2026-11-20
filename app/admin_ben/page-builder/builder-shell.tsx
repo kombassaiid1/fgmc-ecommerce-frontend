@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Check,
   ChevronLeft,
+  ChevronDown,
   Eye,
   EyeOff,
   Grip,
@@ -22,6 +23,7 @@ import {
   Undo2,
 } from "lucide-react";
 
+import { type PageSettings, pagePath } from "./pages-api";
 import { blockLabel } from "./puck-config";
 
 type LeftView = "widgets" | "navigator" | "page";
@@ -34,11 +36,13 @@ const DEVICES = [
 
 type ShellProps = {
   saved: boolean;
+  page: PageSettings;
+  onManagePages: () => void;
   onPublish: (data: unknown) => void;
   onReset: () => void;
 };
 
-export function BuilderShell({ saved, onPublish, onReset }: ShellProps) {
+export function BuilderShell({ saved, page, onManagePages, onPublish, onReset }: ShellProps) {
   const { appState, dispatch, history, selectedItem } = usePuck();
   const [view, setView] = useState<LeftView>("widgets");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -206,7 +210,7 @@ export function BuilderShell({ saved, onPublish, onReset }: ShellProps) {
             </button>
           </div>
           <button type="button" className="pb-publish" onClick={() => onPublish(appState.data)}>
-            Publier
+            {page.published ? "Enregistrer" : "Publier"}
           </button>
         </footer>
       </aside>
@@ -214,10 +218,11 @@ export function BuilderShell({ saved, onPublish, onReset }: ShellProps) {
       {/* ------------------------------------------------ stage */}
       <section className="pb-stage">
         <div className="pb-topbar">
-          <div className="pb-topbar-title">
-            <span className="pb-topbar-page">Page d&apos;accueil</span>
-            <span className="pb-topbar-path">/</span>
-          </div>
+          <button type="button" className="pb-topbar-title pb-topbar-switch" onClick={onManagePages} aria-haspopup="dialog" title="Pages et réglages de la page">
+            <span className="pb-topbar-page">{page.title}</span>
+            <span className="pb-topbar-path">{pagePath(page.slug)}</span>
+            <ChevronDown className="size-4" aria-hidden="true" />
+          </button>
 
           <div className="pb-devices" role="group" aria-label="Aperçu responsive">
             {DEVICES.map(({ id, label, width, Icon }) => (
@@ -238,7 +243,7 @@ export function BuilderShell({ saved, onPublish, onReset }: ShellProps) {
           <span className="pb-status" role="status" aria-live="polite">
             {saved ? (
               <>
-                <Check className="size-4" aria-hidden="true" /> Brouillon enregistré
+                <Check className="size-4" aria-hidden="true" /> {page.published ? "Enregistré, en ligne" : "Brouillon enregistré"}
               </>
             ) : (
               <>
@@ -295,6 +300,8 @@ const STYLE_FIELDS = new Set([
   "panelGap",
   "sliderRadius",
   "cardRadius",
+  "spaceTop",
+  "spaceBottom",
 ]);
 const ADVANCED_FIELDS = new Set(["id", "className", "anchor", "hidden", "visibility"]);
 

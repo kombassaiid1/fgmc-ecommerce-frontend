@@ -5,16 +5,26 @@ import type { HeroProps } from "@/components/puck-blocks/hero/hero";
 import { isUsableBuilderPage } from "@/lib/builder-blocks";
 import { getBackendBaseUrl } from "@/lib/backend-url";
 
-/** The page saved in the page builder for a slug, or null when nothing was saved there yet. */
-export async function getBuilderPage(slug: string): Promise<Data | null> {
+/** A page of the shop, as visitors may see it. */
+export type PublishedPage = { data: Data; title: string | null; metaTitle: string | null; metaDescription: string | null; ogImage: string | null };
+
+/** The published page with this address, or null when there is none, it is a draft, or it has nothing in it. */
+export async function getPublishedPage(slug: string): Promise<PublishedPage | null> {
   try {
     const response = await fetch(`${getBackendBaseUrl()}/pages?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
     if (!response.ok) return null;
-    const { data } = (await response.json()) as { data?: Data };
-    return isUsableBuilderPage(data) ? data : null;
+    const page = (await response.json()) as Partial<PublishedPage>;
+    return isUsableBuilderPage(page.data)
+      ? { data: page.data, title: page.title ?? null, metaTitle: page.metaTitle ?? null, metaDescription: page.metaDescription ?? null, ogImage: page.ogImage ?? null }
+      : null;
   } catch {
     return null;
   }
+}
+
+/** The content of the page saved in the page builder for a slug, or null. */
+export async function getBuilderPage(slug: string): Promise<Data | null> {
+  return (await getPublishedPage(slug))?.data ?? null;
 }
 
 /**

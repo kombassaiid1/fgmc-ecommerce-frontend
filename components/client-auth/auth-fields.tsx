@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Check, Circle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { PiCheckBold, PiCircleDuotone, PiEyeDuotone, PiEyeSlashDuotone, PiSpinnerGapBold, PiWarningCircleDuotone } from "react-icons/pi";
 import type { ComponentType, CSSProperties } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -110,7 +110,7 @@ export function AuthPasswordField({
           aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
           aria-pressed={visible}
           className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-[var(--auth-muted)] transition-colors hover:bg-[var(--auth-wash)] hover:text-[var(--auth-ink)] focus-visible:outline-2 focus-visible:outline-[var(--auth-blue)]">
-          {visible ? <EyeOff className="size-[18px]" aria-hidden="true" /> : <Eye className="size-[18px]" aria-hidden="true" />}
+          {visible ? <PiEyeSlashDuotone className="size-[18px]" aria-hidden="true" /> : <PiEyeDuotone className="size-[18px]" aria-hidden="true" />}
         </button>
       </div>
     </div>
@@ -187,7 +187,7 @@ export function StitchProgress({ done, total, label }: { done: number; total: nu
 export function AuthRule({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
     <li className={cn("flex items-center gap-2 text-sm", ok ? "text-[#17703a]" : "text-[var(--auth-muted)]")}>
-      {ok ? <Check className="size-4" aria-hidden="true" /> : <Circle className="size-4" aria-hidden="true" />}
+      {ok ? <PiCheckBold className="size-4" aria-hidden="true" /> : <PiCircleDuotone className="size-4" aria-hidden="true" />}
       <span>{children}</span>
       <span className="sr-only">{ok ? " : respecté" : " : pas encore respecté"}</span>
     </li>
@@ -198,7 +198,7 @@ export function AuthError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
     <div role="alert" className="flex items-start gap-3 rounded-xl border-2 border-[var(--auth-red)]/40 bg-[var(--auth-red)]/8 px-4 py-3 text-sm font-medium text-[#a3141d]">
-      <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      <PiWarningCircleDuotone className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <span>{message}</span>
     </div>
   );
@@ -212,7 +212,7 @@ export function AuthSubmit({ pending, pendingLabel, children }: { pending: boole
       className="flex h-13 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--auth-red)] px-6 text-base font-bold text-white shadow-[0_10px_24px_-10px_rgba(211,32,43,0.8)] transition-all hover:brightness-95 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--auth-red)]">
       {pending ? (
         <>
-          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          <PiSpinnerGapBold className="size-4 animate-spin" aria-hidden="true" />
           {pendingLabel}
         </>
       ) : (

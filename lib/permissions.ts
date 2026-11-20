@@ -24,6 +24,7 @@ const ROUTE_PERMISSIONS: Array<[prefix: string, permission: string]> = [
   ["/admin_ben/products", "products.view"],
   ["/admin_ben/orders", "orders.view"],
   ["/admin_ben/clients", "clients.view"],
+  ["/admin_ben/messages", "clients.view"],
   ["/admin_ben/reviews", "reviews.view"],
   ["/admin_ben/apparence", "appearance.view"],
   ["/admin_ben/page-builder", "appearance.view"],

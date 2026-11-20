@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { PiArrowRightBold, PiEnvelopeSimpleDuotone, PiLockKeyDuotone } from "react-icons/pi";
 
 import { AuthShell } from "@/components/client-auth/auth-shell";
 import { AuthError, AuthField, AuthPasswordField, AuthSubmit, StitchProgress } from "@/components/client-auth/auth-fields";
@@ -74,7 +74,7 @@ export function LoginForm() {
           onChange={setEmail}
           autoComplete="email"
           placeholder="vous@exemple.com"
-          icon={Mail}
+          icon={PiEnvelopeSimpleDuotone}
           required
         />
 
@@ -85,7 +85,7 @@ export function LoginForm() {
           onChange={setPassword}
           autoComplete="current-password"
           placeholder="Votre mot de passe"
-          icon={LockKeyhole}
+          icon={PiLockKeyDuotone}
           visible={showPassword}
           onToggle={() => setShowPassword((value) => !value)}
           aside={
@@ -99,7 +99,7 @@ export function LoginForm() {
 
         <AuthSubmit pending={isSubmitting} pendingLabel="Connexion…">
           Se connecter
-          <ArrowRight className="size-4" aria-hidden="true" />
+          <PiArrowRightBold className="size-4" aria-hidden="true" />
         </AuthSubmit>
       </form>
     </AuthShell>

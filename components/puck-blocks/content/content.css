@@ -1,0 +1,62 @@
+/* Content blocks of the page builder: title, text, image, questions, space. Shown in the editor and on the storefront. */
+.pc-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 16px;
+  max-width: var(--pc-width, 800px);
+}
+@media (min-width: 640px) { .pc-wrap { padding-inline: 24px; } }
+
+/* The site sets its own sizes on headings and paragraphs: these rules are made specific enough to win inside a block. */
+.pc-wrap .pc-heading { margin: 0; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; text-wrap: balance; }
+.pc-wrap h1.pc-heading { font-size: clamp(2rem, 5vw, 3.25rem); }
+.pc-wrap h2.pc-heading { font-size: clamp(1.6rem, 3.6vw, 2.25rem); }
+.pc-wrap h3.pc-heading { font-size: clamp(1.25rem, 2.6vw, 1.6rem); }
+
+/* Rich text */
+.pc-prose { font-size: 1.0625rem; line-height: 1.75; color: inherit; }
+.pc-prose.is-large { font-size: 1.25rem; line-height: 1.7; }
+.pc-prose > :first-child { margin-top: 0; }
+.pc-prose > :last-child { margin-bottom: 0; }
+.pc-prose p { margin: 0 0 1em; }
+.pc-prose h1, .pc-prose h2, .pc-prose h3, .pc-prose h4 { margin: 1.6em 0 0.5em; font-weight: 700; line-height: 1.2; }
+.pc-prose h1 { font-size: 2.1em; }
+.pc-prose h2 { font-size: 1.6em; }
+.pc-prose h3 { font-size: 1.3em; }
+.pc-prose h4 { font-size: 1.1em; }
+.pc-prose ul, .pc-prose ol { margin: 0 0 1em; padding-left: 1.4em; }
+.pc-prose ul { list-style: disc; }
+.pc-prose ol { list-style: decimal; }
+.pc-prose li { margin: 0.3em 0; }
+.pc-prose a { color: #0858b1; text-decoration: underline; text-underline-offset: 3px; }
+.pc-prose a:hover { color: #0b1f4d; }
+.pc-prose blockquote { margin: 1.2em 0; border-left: 4px solid #e2232d; padding: 0.2em 0 0.2em 1.1em; color: #34425f; font-style: italic; }
+.pc-prose hr { margin: 2em 0; border: 0; border-top: 2px dashed #cfd8e6; }
+.pc-prose strong { font-weight: 700; }
+.pc-prose code { border-radius: 4px; background: #eef2f8; padding: 0.1em 0.35em; font-size: 0.92em; }
+
+/* Image */
+.pc-figure { margin: 0; }
+.pc-figure img { display: block; width: 100%; height: auto; }
+.pc-figure figcaption { margin-top: 10px; font-size: 0.9rem; line-height: 1.5; color: #5b6b86; }
+
+/* Questions and answers */
+.pc-faq-title { margin: 0 0 20px; }
+.pc-faq { display: grid; gap: 10px; }
+.pc-faq details { border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px #d9e1ee; }
+.pc-faq details[open] { box-shadow: inset 0 0 0 2px #0858b1; }
+.pc-faq summary {
+  display: flex; min-height: 56px; cursor: pointer; list-style: none; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 18px; font-size: 1.0625rem; font-weight: 600; line-height: 1.35; color: #0b1f4d;
+}
+.pc-faq summary::-webkit-details-marker { display: none; }
+.pc-faq summary:focus-visible { outline: 2px solid #0858b1; outline-offset: 2px; border-radius: 14px; }
+.pc-faq summary::after {
+  content: ""; flex: none; width: 10px; height: 10px; margin-right: 4px;
+  border-right: 2px solid #e2232d; border-bottom: 2px solid #e2232d; transform: rotate(45deg); transition: transform 0.2s ease;
+}
+.pc-faq details[open] summary::after { transform: rotate(-135deg); }
+.pc-faq-answer { padding: 0 18px 18px; font-size: 1rem; line-height: 1.7; color: #34425f; white-space: pre-line; }
+
+@media (prefers-reduced-motion: reduce) { .pc-faq summary::after { transition: none; } }

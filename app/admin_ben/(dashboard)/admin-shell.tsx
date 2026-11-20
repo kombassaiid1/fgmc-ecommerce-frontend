@@ -16,6 +16,7 @@ import {
 import {
   AppsIcon,
   ColorIcon,
+  EmailIcon,
   DeliveryIcon,
   GlobeIcon,
   HomeIcon,
@@ -129,6 +130,7 @@ const NAV_ITEMS = [
   { label: "Modules", url: "/admin_ben/modules", icon: AppsIcon, permission: "modules.view" },
   { label: "Avis clients", url: "/admin_ben/reviews", icon: StarIcon, permission: "reviews.view" },
   { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon, permission: "clients.view" },
+  { label: "Messages", url: "/admin_ben/messages", icon: EmailIcon, permission: "clients.view" },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon, permission: "users.view" },
   {
     label: "Paramètres de la boutique",

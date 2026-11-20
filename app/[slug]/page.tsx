@@ -5,6 +5,9 @@ import {
   dehydrate,
 } from "@tanstack/react-query";
 import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
+import { BuilderHome } from "@/components/home/builder-home";
+import { getPublishedPage } from "@/lib/api/builder-page";
+import { pageMetadata } from "@/lib/page-metadata";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 import {
@@ -53,6 +56,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         limit: 1,
       }).catch(() => null),
     ]);
+
+    // Not a category: it may be a page built in the page builder (published pages live at /their-address).
+    if (filtersResult == null && productsResult == null) {
+      const page = await getPublishedPage(slugTrim);
+      if (page) return pageMetadata(page, slugTrim);
+    }
 
     const title =
       productsResult?.title || filtersResult?.categoryTitle || slugTrim;
@@ -146,6 +155,12 @@ export default async function CategoryProductPage({ params }: Props) {
         }).catch(() => null)
       : Promise.resolve(null),
   ]);
+
+  // Not a category: show the page built in the page builder with this address, when it is published.
+  if (slugTrim && filtersResult == null && productsResult == null) {
+    const page = await getPublishedPage(slugTrim);
+    if (page) return <main className="min-h-screen"><BuilderHome data={page.data} /></main>;
+  }
 
   const queryClient = new QueryClient();
   if (slugTrim && filtersResult != null) {

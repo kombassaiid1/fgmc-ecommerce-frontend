@@ -564,3 +564,20 @@
 .pb-left-body [class*="_SidebarSection-title_"] {
   display: none;
 }
+
+/* The page title in the top bar opens the pages dialog. */
+.pb-topbar-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 6px 10px;
+  margin-left: -10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.pb-topbar-switch:hover { background: var(--pb-panel-muted); }
+.pb-topbar-switch:focus-visible { outline: 2px solid var(--pb-accent); outline-offset: 2px; }

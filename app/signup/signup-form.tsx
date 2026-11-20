@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { ArrowRight, AtSign, Building2, CalendarDays, Fingerprint, LockKeyhole, Mail, User } from "lucide-react";
+import { PiArrowRightBold, PiAtDuotone, PiBuildingsDuotone, PiCalendarBlankDuotone, PiEnvelopeSimpleDuotone, PiFingerprintDuotone, PiLockKeyDuotone, PiUserDuotone } from "react-icons/pi";
 
 import { AuthShell } from "@/components/client-auth/auth-shell";
 import {
@@ -145,30 +145,30 @@ export function SignupForm() {
             ]}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <AuthField id="client-first-name" label="Prénom" value={form.firstName} onChange={(value) => updateField("firstName", value)} autoComplete="given-name" icon={User} required />
-            <AuthField id="client-last-name" label="Nom" value={form.lastName} onChange={(value) => updateField("lastName", value)} autoComplete="family-name" icon={User} required />
+            <AuthField id="client-first-name" label="Prénom" value={form.firstName} onChange={(value) => updateField("firstName", value)} autoComplete="given-name" icon={PiUserDuotone} required />
+            <AuthField id="client-last-name" label="Nom" value={form.lastName} onChange={(value) => updateField("lastName", value)} autoComplete="family-name" icon={PiUserDuotone} required />
           </div>
         </AuthGroup>
 
         <AuthGroup title="Vos coordonnées">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AuthField id="client-signup-email" label="Adresse e-mail" type="email" value={form.email} onChange={(value) => updateField("email", value)} autoComplete="email" placeholder="vous@exemple.com" icon={Mail} required />
-            <AuthField id="client-username" label="Nom d’utilisateur" value={form.username} onChange={(value) => updateField("username", value)} autoComplete="username" icon={AtSign} optional />
+            <AuthField id="client-signup-email" label="Adresse e-mail" type="email" value={form.email} onChange={(value) => updateField("email", value)} autoComplete="email" placeholder="vous@exemple.com" icon={PiEnvelopeSimpleDuotone} required />
+            <AuthField id="client-username" label="Nom d’utilisateur" value={form.username} onChange={(value) => updateField("username", value)} autoComplete="username" icon={PiAtDuotone} optional />
           </div>
         </AuthGroup>
 
         <AuthGroup title="Votre société">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AuthField id="client-company" label="Société" value={form.company} onChange={(value) => updateField("company", value)} autoComplete="organization" icon={Building2} optional />
-            <AuthField id="client-tax-id" label="Matricule fiscal" value={form.numberIdFiscale} onChange={(value) => updateField("numberIdFiscale", value)} icon={Fingerprint} optional />
+            <AuthField id="client-company" label="Société" value={form.company} onChange={(value) => updateField("company", value)} autoComplete="organization" icon={PiBuildingsDuotone} optional />
+            <AuthField id="client-tax-id" label="Matricule fiscal" value={form.numberIdFiscale} onChange={(value) => updateField("numberIdFiscale", value)} icon={PiFingerprintDuotone} optional />
           </div>
-          <AuthField id="client-birth-date" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={(value) => updateField("dateOfBirth", value)} autoComplete="bday" icon={CalendarDays} optional />
+          <AuthField id="client-birth-date" label="Date de naissance" type="date" value={form.dateOfBirth} onChange={(value) => updateField("dateOfBirth", value)} autoComplete="bday" icon={PiCalendarBlankDuotone} optional />
         </AuthGroup>
 
         <AuthGroup title="Votre mot de passe">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AuthPasswordField id="client-signup-password" label="Mot de passe" value={form.password} onChange={(value) => updateField("password", value)} autoComplete="new-password" icon={LockKeyhole} visible={showPassword} onToggle={() => setShowPassword((value) => !value)} />
-            <AuthPasswordField id="client-confirm-password" label="Confirmer" value={form.confirmPassword} onChange={(value) => updateField("confirmPassword", value)} autoComplete="new-password" icon={LockKeyhole} visible={showPassword} onToggle={() => setShowPassword((value) => !value)} />
+            <AuthPasswordField id="client-signup-password" label="Mot de passe" value={form.password} onChange={(value) => updateField("password", value)} autoComplete="new-password" icon={PiLockKeyDuotone} visible={showPassword} onToggle={() => setShowPassword((value) => !value)} />
+            <AuthPasswordField id="client-confirm-password" label="Confirmer" value={form.confirmPassword} onChange={(value) => updateField("confirmPassword", value)} autoComplete="new-password" icon={PiLockKeyDuotone} visible={showPassword} onToggle={() => setShowPassword((value) => !value)} />
           </div>
           <ul className="space-y-1" aria-label="Règles du mot de passe">
             <AuthRule ok={form.password.length >= 6}>6 caractères minimum</AuthRule>
@@ -181,7 +181,7 @@ export function SignupForm() {
         <div className="space-y-3">
           <AuthSubmit pending={isSubmitting} pendingLabel="Création…">
             Créer mon compte
-            <ArrowRight className="size-4" aria-hidden="true" />
+            <PiArrowRightBold className="size-4" aria-hidden="true" />
           </AuthSubmit>
           <p className="text-center text-sm text-[var(--auth-muted)]">
             En créant un compte, vous acceptez de recevoir les informations liées à vos commandes FGMC.

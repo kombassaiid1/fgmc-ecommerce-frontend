@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   createContext,
   useCallback,
@@ -21,6 +23,8 @@ import { BlockIcon } from "./block-icons";
 import { BuilderShell, TabbedFields } from "./builder-shell";
 import { isUsableBuilderPage } from "@/lib/builder-blocks";
 import { markMigrated, migrateSavedData } from "./migrate-data";
+import { HOME_SLUG, type PageSettings, getPage, savePage } from "./pages-api";
+import { PagesDialog } from "./pages-dialog";
 import { blockLabel, puckConfig, initialData } from "./puck-config";
 
 const DRAFT_KEY = "page-builder:home:draft:v2";
@@ -138,26 +142,20 @@ function readStored(key: string): Data | null {
   }
 }
 
-const PAGE_URL = "/frontend-api/admin/pages";
-const SLUG = "home";
-
-async function savePage(data: Data) {
-  const response = await fetch(PAGE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ slug: SLUG, title: "Accueil", data }),
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string | string[] };
-    throw new Error(Array.isArray(body.message) ? body.message.join(" ") : body.message || "Enregistrement impossible.");
-  }
+function Screen({ children }: { children: React.ReactNode }) {
+  return <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background px-6 text-center text-muted-foreground">{children}</div>;
 }
 
-export function PageBuilderClient() {
+export function PageBuilderClient({ slug }: { slug: string }) {
+  const router = useRouter();
+  const isHome = slug === HOME_SLUG;
   const [data, setData] = useState<Data | null>(null);
+  const [settings, setSettings] = useState<PageSettings | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
   const [editorKey, setEditorKey] = useState(0);
   const [query, setQuery] = useState("");
+  const [pagesOpen, setPagesOpen] = useState(false);
   // Nothing is saved until the page has been read: a failed read must never overwrite the stored page.
   const [canSave, setCanSave] = useState(false);
 
@@ -165,82 +163,101 @@ export function PageBuilderClient() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`${PAGE_URL}?slug=${SLUG}`, { cache: "no-store" });
-        if (!response.ok) throw new Error();
-        const body = (await response.json()) as { data?: Data };
-        let page = migrateSavedData(isUsableBuilderPage(body.data) ? body.data : null);
+        const page = await getPage(slug);
+        if (cancelled) return;
+        setSettings({ slug: page.slug, title: page.title, published: page.published, metaTitle: page.metaTitle, metaDescription: page.metaDescription, ogImage: page.ogImage });
+
+        if (!isHome) {
+          setData(Array.isArray(page.data?.content) ? page.data : initialData);
+          setCanSave(true);
+          return;
+        }
+
+        // The front page also takes over the draft this browser kept before pages were saved on the server.
+        let loaded = migrateSavedData(isUsableBuilderPage(page.data) ? page.data : null);
         let imported = false;
-        if (!page.data) {
-          // Nothing in the database yet: take the draft this browser kept before pages were saved there.
-          page = migrateSavedData(readStored(DRAFT_KEY) ?? readStored(PUBLISHED_KEY));
-          imported = Boolean(page.data);
+        if (!loaded.data) {
+          loaded = migrateSavedData(readStored(DRAFT_KEY) ?? readStored(PUBLISHED_KEY));
+          imported = Boolean(loaded.data);
         }
         markMigrated();
-        if (cancelled) return;
-        setData(page.data ?? initialData);
+        setData(loaded.data ?? initialData);
         setCanSave(true);
-        if (page.data && (page.changed || imported)) {
-          await savePage(page.data);
+        if (loaded.data && (loaded.changed || imported)) {
+          await savePage(slug, { data: loaded.data });
           if (imported && !cancelled) toast.success("Brouillon de ce navigateur enregistré en ligne.");
         }
-      } catch {
+      } catch (error) {
         if (cancelled) return;
-        toast.error("Impossible de charger la page : modifications désactivées. Rechargez la page.");
-        setData(initialData);
+        setLoadError(error instanceof Error ? error.message : "Impossible de charger la page.");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [slug, isHome]);
 
-  // Every change is saved (debounced) and goes live: there is no separate draft.
+  // Every change is saved (debounced). On a published page it is online straight away.
   const [pending, setPending] = useState<Data | null>(null);
   useEffect(() => {
     if (!pending || !canSave) return;
     const id = window.setTimeout(() => {
-      savePage(pending)
+      savePage(slug, { data: pending })
         .then(() => setSaved(true))
         .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Enregistrement impossible."));
     }, 600);
     return () => window.clearTimeout(id);
-  }, [pending, canSave]);
+  }, [pending, canSave, slug]);
 
   const handleChange = useCallback((next: Data) => {
     setSaved(false);
     setPending(next);
   }, []);
 
+  /** The Publier button: saves now, and puts a draft page online. */
   const handlePublish = useCallback(
     (next: Data) => {
       if (!canSave) {
         toast.error("La page n'a pas pu être chargée : rechargez avant d'enregistrer.");
         return;
       }
-      savePage(next)
+      const publishing = !isHome && settings !== null && !settings.published;
+      savePage(slug, publishing ? { data: next, published: true } : { data: next })
         .then(() => {
           setSaved(true);
           setPending(null);
-          toast.success("Page enregistrée : elle est en ligne.");
+          if (publishing) setSettings((current) => (current ? { ...current, published: true } : current));
+          toast.success(publishing ? "Page publiée : elle est en ligne." : isHome || settings?.published ? "Page enregistrée : elle est en ligne." : "Brouillon enregistré.");
         })
         .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Enregistrement impossible."));
     },
-    [canSave],
+    [canSave, isHome, settings, slug],
   );
 
   const handleReset = useCallback(() => {
-    if (!window.confirm("Vider la page ? La page d'accueil d'origine s'affichera à la place.")) return;
+    if (!window.confirm("Vider la page ? Tous ses blocs seront supprimés.")) return;
     setData(initialData);
     setEditorKey((k) => k + 1);
     setPending(initialData);
     setSaved(false);
   }, []);
 
-  if (!data) {
+  const openPage = useCallback((next: string) => router.push(`/admin_ben/page-builder?page=${encodeURIComponent(next)}`), [router]);
+
+  if (loadError) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background text-muted-foreground">
+      <Screen>
+        <p className="text-base font-semibold text-foreground">{loadError}</p>
+        <Link href="/admin_ben/page-builder" className="text-sm font-semibold text-primary underline underline-offset-4">Ouvrir la page d’accueil</Link>
+      </Screen>
+    );
+  }
+
+  if (!data || !settings) {
+    return (
+      <Screen>
         <Loader2 className="size-6 animate-spin" aria-label="Chargement" />
-      </div>
+      </Screen>
     );
   }
 
@@ -260,10 +277,24 @@ export function PageBuilderClient() {
         >
           <BuilderShell
             saved={saved}
+            page={settings}
+            onManagePages={() => setPagesOpen(true)}
             onPublish={(d) => handlePublish(d as Data)}
             onReset={handleReset}
           />
         </Puck>
+        {pagesOpen ? (
+          <PagesDialog
+            current={settings}
+            canSwitch={saved}
+            onClose={() => setPagesOpen(false)}
+            onOpenPage={(next) => {
+              setPagesOpen(false);
+              if (next !== slug) openPage(next);
+            }}
+            onSettingsSaved={(next) => setSettings({ slug: next.slug, title: next.title, published: next.published, metaTitle: next.metaTitle, metaDescription: next.metaDescription, ogImage: next.ogImage })}
+          />
+        ) : null}
       </div>
     </QueryContext.Provider>
   );

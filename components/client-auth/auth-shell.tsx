@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, PackageSearch, ReceiptText, ShieldCheck } from "lucide-react";
+import { PiArrowRightBold, PiPackageDuotone, PiReceiptDuotone, PiShieldCheckDuotone } from "react-icons/pi";
 
 import "./auth.css";
 
@@ -19,9 +19,9 @@ type AuthShellProps = {
 };
 
 const BENEFITS = [
-  { icon: PackageSearch, title: "Suivi de commandes", text: "Où en est votre colis, à tout moment." },
-  { icon: ReceiptText, title: "Devis et prix client", text: "Vos tarifs et vos documents au même endroit." },
-  { icon: ShieldCheck, title: "Espace sécurisé", text: "Vos informations restent chez FGMC." },
+  { icon: PiPackageDuotone, title: "Suivi de commandes", text: "Où en est votre colis, à tout moment." },
+  { icon: PiReceiptDuotone, title: "Devis et prix client", text: "Vos tarifs et vos documents au même endroit." },
+  { icon: PiShieldCheckDuotone, title: "Espace sécurisé", text: "Vos informations restent chez FGMC." },
 ];
 
 /** Shared frame of the client sign-in and sign-up pages. */
@@ -31,7 +31,7 @@ export function AuthShell({ title, subtitle, panelTitle, panelText, switchText, 
       {BENEFITS.map(({ icon: Icon, title: benefit, text }) => (
         <li key={benefit} className="flex items-start gap-4 border-t border-white/20 py-3.5 first:border-t-0">
           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/10">
-            <Icon className="size-5" aria-hidden="true" />
+            <Icon className="size-6" aria-hidden="true" />
           </span>
           <span>
             <span className="block text-[15px] font-semibold">{benefit}</span>
@@ -77,7 +77,7 @@ export function AuthShell({ title, subtitle, panelTitle, panelText, switchText, 
                 href={switchHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full border-2 border-[var(--auth-ink)] px-5 text-sm font-bold text-[var(--auth-ink)] transition-colors hover:bg-[var(--auth-ink)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--auth-blue)]">
                 {switchLabel}
-                <ArrowRight className="size-4" aria-hidden="true" />
+                <PiArrowRightBold className="size-4" aria-hidden="true" />
               </Link>
             </div>
 

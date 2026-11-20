@@ -2,17 +2,20 @@ import { cookies } from 'next/headers';
 import { ADMIN_TOKEN_COOKIE } from '@/lib/admin-auth';
 import { getBackendBaseUrl } from '@/lib/backend-url';
 
-/** Forwards the page builder's load and save to /pages on the backend, adding the admin token. */
-async function forward(request: Request) {
+type Context = { params: Promise<{ path?: string[] }> };
+
+/** Forwards the page builder's calls to /admin/pages/* on the backend, adding the admin token. */
+async function forward(request: Request, { params }: Context) {
   const token = (await cookies()).get(ADMIN_TOKEN_COOKIE)?.value;
   if (!token) return Response.json({ message: 'Authentification requise.' }, { status: 401 });
 
+  const { path = [] } = await params;
   const method = request.method;
   const body = method === 'GET' || method === 'DELETE' ? undefined : await request.text();
-  const query = new URL(request.url).search;
+  const suffix = path.map(encodeURIComponent).join('/');
 
   try {
-    const upstream = await fetch(`${getBackendBaseUrl()}/pages${query}`, {
+    const upstream = await fetch(`${getBackendBaseUrl()}/admin/pages${suffix ? `/${suffix}` : ''}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body,
@@ -29,3 +32,6 @@ async function forward(request: Request) {
 
 export const GET = forward;
 export const POST = forward;
+export const PUT = forward;
+export const PATCH = forward;
+export const DELETE = forward;
