@@ -4,18 +4,24 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft,
-  ChevronRight,
-  CreditCard,
-  LoaderCircle,
-  Minus,
-  Package,
-  Plus,
-  ShieldCheck,
-  ShoppingCart,
-  Star,
-  Truck,
-} from "lucide-react";
+  PiCaretLeftBold as ChevronLeft,
+  PiCaretRightBold as ChevronRight,
+  PiChatCircleDotsDuotone as ChatDots,
+  PiLockKeyDuotone as LockKey,
+  PiSealCheckDuotone as SealCheck,
+  PiCheckBold as Check,
+  PiMagnifyingGlassPlusBold as ZoomIn,
+  PiCreditCardDuotone as CreditCard,
+  PiMinusBold as Minus,
+  PiXBold as Close,
+  PiPackageDuotone as Package,
+  PiPlusBold as Plus,
+  PiShieldCheckDuotone as ShieldCheck,
+  PiShoppingCartSimpleDuotone as ShoppingCart,
+  PiSpinnerGapBold as LoaderCircle,
+  PiStarFill as Star,
+  PiTruckDuotone as Truck,
+} from "react-icons/pi";
 
 import { canClientReviewProduct, fetchProductReviews, getAttachmentAccess, submitProductReview, type ProductDetailsResponse, type ProductReviewsResponse } from "@/lib/product-details-api";
 import { getImageUrl } from "@/lib/api";
@@ -29,6 +35,8 @@ import { ProductCard, type ProductCardProduct } from "@/components/product-card"
 import { getProductById, getProducts } from "@/lib/api/products";
 import { toast } from "sonner";
 import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
+
+import "./product.css";
 
 function parsePrice(value: string | null | undefined): number {
   const n = parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
@@ -54,6 +62,12 @@ function parseQty(value: string | number | null | undefined): number | null {
   if (!Number.isFinite(n)) return null;
   if (n < 0) return 0;
   return n;
+}
+
+/** "574--fil-a-broder-poly-soft-1000m" -> "Fil a broder poly soft 1000m" */
+function prettySlug(slug: string): string {
+  const words = slug.replace(/^\d+-+/, "").replace(/-+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : slug;
 }
 
 type Props = {
@@ -103,6 +117,14 @@ function optionKey(options: Array<{ attributeId: string; termId: string }>) {
 export function ProductDetailClient({ categorySlug, product }: Props) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [justAdded, setJustAdded] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const lensRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [lightbox, setLightbox] = useState(false);
+  const [lightboxZoom, setLightboxZoom] = useState(false);
   const router = useRouter();
   const [productReviews, setProductReviews] = useState<ProductReviewsResponse | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
@@ -407,317 +429,296 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     ? `/${categorySlug}/${product.slug}.html`
     : `/${product.slug}.html`;
 
+  const unavailable = maxPurchasableQty != null && maxPurchasableQty <= 0;
+
+  // Hover zoom, as on the big marketplaces: a square on the photo, and the enlarged area shown beside it.
+  const ZOOM = 2.5;
+  const moveLens = (clientX: number, clientY: number) => {
+    const stage = stageRef.current;
+    const img = imgRef.current;
+    const lens = lensRef.current;
+    const pane = paneRef.current;
+    if (!stage || !img || !lens || !pane || !img.naturalWidth) return;
+    const box = stage.getBoundingClientRect();
+    const size = box.width / ZOOM;
+    const lx = Math.min(Math.max(clientX - box.left - size / 2, 0), box.width - size);
+    const ly = Math.min(Math.max(clientY - box.top - size / 2, 0), box.height - size);
+    const fit = Math.min(box.width / img.naturalWidth, box.height / img.naturalHeight);
+    const drawnW = img.naturalWidth * fit;
+    const drawnH = img.naturalHeight * fit;
+    const offsetX = (box.width - drawnW) / 2;
+    const offsetY = (box.height - drawnH) / 2;
+    lens.style.width = `${size}px`;
+    lens.style.height = `${size}px`;
+    lens.style.transform = `translate(${lx}px, ${ly}px)`;
+    lens.dataset.on = "1";
+    pane.style.backgroundSize = `${drawnW * ZOOM}px ${drawnH * ZOOM}px`;
+    pane.style.backgroundPosition = `${-(lx - offsetX) * ZOOM}px ${-(ly - offsetY) * ZOOM}px`;
+    pane.dataset.on = "1";
+  };
+  const hideLens = () => {
+    if (lensRef.current) lensRef.current.dataset.on = "0";
+    if (paneRef.current) paneRef.current.dataset.on = "0";
+  };
+
+  // Full view: Escape closes, arrows change photo, the page behind does not scroll.
+  useEffect(() => {
+    if (!lightbox) return;
+    const count = (product.images ?? []).length;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightbox(false);
+      if (count > 1 && event.key === "ArrowLeft") setSelectedImageIndex((i) => (i === 0 ? count - 1 : i - 1));
+      if (count > 1 && event.key === "ArrowRight") setSelectedImageIndex((i) => (i === count - 1 ? 0 : i + 1));
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+    closeRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [lightbox, product.images]);
+  const addToCart = () =>
+    addItem(
+      {
+        productId: product.id,
+        productSlug: product.slug,
+        title: product.title,
+        image: product.images?.[0] ?? null,
+        categorySlug: categorySlug ?? null,
+        variantId: selectedCombinaison?.id ?? null,
+        price: String(displayedHt),
+        taxRate: product.taxRelation?.rate ?? null,
+      },
+      effectiveQuantity,
+    );
+  const handleAdd = () => {
+    addToCart();
+    toast.success("Ajouté au panier", { description: `${effectiveQuantity} × ${product.title}` });
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 1800);
+  };
+  const inStock = stockBadgeLabel !== "Rupture de stock";
+
   return (
-    <main className="min-h-screen! bg-muted/30">
-      <div className="container mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <nav aria-label="Breadcrumb" className="mb-5">
-          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
-            <li>
-              <Link href="/" className="hover:text-slate-900">
-                Accueil
-              </Link>
-            </li>
-            {categorySlug ? (
-              <>
-                <li aria-hidden className="px-1">/</li>
-                <li>
-                  <Link href={`/${categorySlug}`} className="hover:text-slate-900">
-                    {categorySlug}
-                  </Link>
-                </li>
-                <li aria-hidden className="px-1">/</li>
-              </>
-            ) : null}
-            <li className="font-medium text-slate-900">{product.title}</li>
-          </ol>
+    <main className="pd">
+      <div className="pd-band">
+      <div className="pd-wrap">
+        <nav aria-label="Fil d’Ariane" className="pd-crumbs">
+          <Link href="/">Accueil</Link>
+          {categorySlug ? (
+            <>
+              <ChevronRight className="size-3.5" aria-hidden="true" />
+              <Link href={`/${categorySlug}`}>{prettySlug(categorySlug)}</Link>
+            </>
+          ) : null}
+          <ChevronRight className="size-3.5" aria-hidden="true" />
+          <span aria-current="page">{product.title}</span>
         </nav>
 
-        <section>
-          <div className="grid gap-5 lg:grid-cols-2">
-            {/* Product image gallery */}
-            <div className="lg:sticky lg:top-24 lg:self-start">
-              <div className="relative mx-auto w-full overflow-hidden rounded-2xl border border-slate-200 bg-[#f8fafc] shadow-sm lg:max-w-[680px]">
-                <div className="relative aspect-square w-full">
-                  {selectedImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={selectedImageUrl} alt={product.title} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-slate-400"><Package className="size-20" /></div>
-                  )}
+        <section className="pd-hero">
+          <div className="pd-gallery">
+            <div className="pd-mat">
+              <div className="pd-stage" ref={stageRef}>
+                <span className="pd-frame" aria-hidden="true" />
+                {selectedImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img ref={imgRef} src={selectedImageUrl} alt={product.title} />
+                ) : (
+                  <div className="pd-empty"><Package className="size-20" aria-hidden="true" /></div>
+                )}
+                {selectedImageUrl ? (
+                  <>
+                    <div ref={lensRef} className="pd-lens" aria-hidden="true" />
+                    <button
+                      type="button"
+                      className="pd-zone"
+                      aria-label="Agrandir la photo"
+                      onPointerMove={(event) => { if (event.pointerType === "mouse") moveLens(event.clientX, event.clientY); }}
+                      onPointerLeave={hideLens}
+                      onClick={() => { hideLens(); setLightboxZoom(false); setLightbox(true); }}
+                    />
+                    <span className="pd-hint" aria-hidden="true">
+                      <ZoomIn className="size-4" />
+                      <span className="pd-hint-mouse">Survolez pour zoomer, cliquez pour agrandir</span>
+                      <span className="pd-hint-touch">Touchez pour agrandir</span>
+                    </span>
+                  </>
+                ) : null}
+                {images.length > 1 ? (
+                  <>
+                    <span className="pd-count" aria-hidden="true">
+                      {String(selectedImageIndex + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}
+                    </span>
+                    <button type="button" className="pd-arrow is-prev" onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))} aria-label="Image précédente">
+                      <ChevronLeft className="size-5" aria-hidden="true" />
+                    </button>
+                    <button type="button" className="pd-arrow is-next" onClick={() => setSelectedImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))} aria-label="Image suivante">
+                      <ChevronRight className="size-5" aria-hidden="true" />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+              {selectedImageUrl ? <div ref={paneRef} className="pd-pane" aria-hidden="true" style={{ backgroundImage: `url("${selectedImageUrl}")` }} /> : null}
+            </div>
+            {images.length > 1 ? (
+              <ul className="pd-thumbs" aria-label="Photos du produit">
+                {images.map((img, idx) => (
+                  <li key={`${img}-${idx}`}>
+                    <button type="button" className="pd-thumb" onClick={() => setSelectedImageIndex(idx)} aria-label={`Afficher l’image ${idx + 1}`} aria-pressed={idx === selectedImageIndex}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={getImageUrl(img)} alt="" loading="lazy" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
-                  {images.length > 1 ? (
-                    <>
-                      <div className="absolute inset-x-4 top-4 z-10 flex gap-1.5" aria-hidden="true">
-                        {images.slice(0, 6).map((image, index) => (
-                          <span key={`${image}-indicator-${index}`} className={cn("h-1 flex-1 rounded-full", index === selectedImageIndex ? "bg-[#153675]" : "bg-slate-300/80")} />
+          <div className="pd-info">
+            {product.brand?.title ? <span className="pd-brand">{product.brand.title}</span> : null}
+            <h1 className="pd-title">{product.title}</h1>
+
+            <div className="pd-meta">
+              {product.reference || displayedSku ? (
+                <span className="pd-ref">{product.reference ? `Réf. ${product.reference}` : `SKU ${displayedSku}`}</span>
+              ) : null}
+              <span className={cn("pd-stock", inStock ? "is-in" : "is-out")}>
+                <i aria-hidden="true" />
+                {stockBadgeLabel}
+                {stockBadgeLabel === "En stock" ? <small>expédié sous 48–72 h</small> : null}
+              </span>
+              {typeof ratingScore === "number" && reviewCount != null && reviewCount > 0 ? (
+                <span className="pd-rating">
+                  <Star className="size-4" aria-hidden="true" />
+                  {ratingScore.toFixed(1)}
+                  <small>({reviewCount} avis)</small>
+                </span>
+              ) : null}
+            </div>
+
+            {product.shortDescription?.trim() ? (
+              <div className="pd-short" dangerouslySetInnerHTML={{ __html: product.shortDescription.trim() }} />
+            ) : null}
+
+            <div className="pd-price">
+              {hasDiscount ? (
+                <span className="pd-ribbon">Promo -{discountPercent}%</span>
+              ) : (
+                <span className="pd-ribbon is-plain">Prix</span>
+              )}
+              <div className="pd-price-row">
+                <div>
+                  <p className="pd-price-now">
+                    <strong>{formatEuroNumber(displayedTtc)} {"\u20ac"}</strong>
+                    <span>TTC</span>
+                  </p>
+                  <p className="pd-price-ht">
+                    soit <strong>{formatEuroNumber(displayedHt)} {"\u20ac"} HT</strong>
+                    {hasDiscount ? <span className="pd-price-old"> &nbsp; {formatEuroNumber(originalTtc)} {"\u20ac"} TTC</span> : null}
+                  </p>
+                </div>
+                {hasDiscount ? (
+                  <p className="pd-save">Vous économisez <strong>{formatEuroNumber(originalTtc - displayedTtc)} {"\u20ac"}</strong></p>
+                ) : null}
+              </div>
+            </div>
+
+            {hasCombinaisons && optionGroups.length > 0 ? (
+              <div className="pd-opts">
+                {optionGroups.map((group) => {
+                  const value = selectedOptionByAttributeId[group.attributeId] ?? group.terms[0]?.termId ?? "";
+                  return (
+                    <fieldset key={group.attributeId} className="pd-opt">
+                      <legend>{group.attributeName}</legend>
+                      <div className="pd-chips">
+                        {group.terms.map((term) => (
+                          <button
+                            key={term.termId}
+                            type="button"
+                            className="pd-chip"
+                            aria-pressed={value === term.termId}
+                            onClick={() => {
+                              setSelectedOptionByAttributeId((prev) => ({ ...prev, [group.attributeId]: term.termId }));
+                              setQuantity(1);
+                            }}>
+                            {term.termName}
+                          </button>
                         ))}
                       </div>
-                      <button type="button" onClick={() => setSelectedImageIndex((prev) => prev === 0 ? images.length - 1 : prev - 1)} className="absolute left-3 top-1/2 z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-white/90 text-slate-700 shadow-md transition hover:bg-white" aria-label="Image précédente">
-                        <ChevronLeft className="size-5" />
-                      </button>
-                      <button type="button" onClick={() => setSelectedImageIndex((prev) => prev === images.length - 1 ? 0 : prev + 1)} className="absolute right-3 top-1/2 z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-white/90 text-slate-700 shadow-md transition hover:bg-white" aria-label="Image suivante">
-                        <ChevronRight className="size-5" />
-                      </button>
-                      <span className="absolute right-4 top-4 rounded-full bg-slate-900/65 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                        {String(selectedImageIndex + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}
-                      </span>
-                      <div className="absolute inset-x-3 bottom-3 z-10 flex justify-center">
-                        <div className="max-w-full overflow-x-auto rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md">
-                          <div className="flex gap-2">
-                            {images.map((img, idx) => {
-                              const active = idx === selectedImageIndex;
-                              return (
-                                <button key={`${img}-${idx}`} type="button" onClick={() => setSelectedImageIndex(idx)} className={cn("size-16 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition sm:size-[76px]", active ? "border-[#2456b1] ring-2 ring-[#2456b1]/20" : "border-transparent opacity-75 hover:border-slate-300 hover:opacity-100")} aria-label={`Afficher l’image ${idx + 1}`} aria-pressed={active}>
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={getImageUrl(img)} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
+                    </fieldset>
+                  );
+                })}
               </div>
-            </div>
-            {/* Right: Info & actions */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-10">
-              <div className="mx-auto max-w-xl text-left">
-                {product.brand?.title ? <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#2456b1]">{product.brand.title}</p> : null}
-                <h1 className="text-2xl! font-semibold! tracking-tight! text-slate-900! sm:text-3xl!">
-                  {product.title}
-                </h1>
-                {product.reference || displayedSku ? (
-                  <div className="mt-2 text-xs font-medium text-slate-500">
-                    {product.reference
-                      ? `Réf. ${product.reference}`
-                      : `SKU: ${displayedSku}`}
-                  </div>
-                ) : null}
-                {product.shortDescription?.trim() ? (
-                  <div
-                    className="mt-3 max-w-prose text-sm text-slate-600"
-                    dangerouslySetInnerHTML={{
-                      __html: product.shortDescription.trim(),
-                    }}
-                  />
-                ) : null}
+            ) : null}
 
-                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                  {typeof ratingScore === "number" && reviewCount != null && reviewCount > 0 ? (
-                    <span className="inline-flex items-center gap-1.5 text-slate-700">
-                      <Star className="size-4 fill-amber-400 text-amber-400" />
-                      <span className="font-semibold">{ratingScore.toFixed(1)}</span>
-                      <span className="text-slate-500">({reviewCount} avis)</span>
-                    </span>
-                  ) : null}
-                  <span className={cn("inline-flex items-center gap-2", stockBadgeLabel === "Rupture de stock" ? "text-rose-700" : "text-emerald-700")}>
-                    <span className={cn("size-2 rounded-full", stockBadgeLabel === "Rupture de stock" ? "bg-rose-500" : "bg-emerald-500")} />
-                    <span className="font-medium">{stockBadgeLabel}</span>
-                    {stockBadgeLabel === "En stock" ? <span className="text-slate-500">— expédié sous 48–72 h</span> : null}
-                  </span>
-                </div>
-
-                <div className="mt-5 rounded-xl border border-[#dce5f2] bg-[#f7f9fd] p-4 text-left sm:p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e1e8f2] pb-3">
-                    {hasDiscount ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-md bg-[#d6202e] px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                        Promo <span>-{discountPercent}%</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold uppercase tracking-wide text-[#536784]">Prix du produit</span>
-                    )}
-                    {hasDiscount ? (
-                      <span className="text-sm text-slate-500 line-through">
-                        {formatEuroNumber(originalTtc)} {"\u20ac"} TTC
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-end justify-between gap-3 pt-3">
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold tracking-tight text-[#d6202e] sm:text-4xl">
-                          {formatEuroNumber(displayedTtc)} {"\u20ac"}
-                        </span>
-                        <span className="text-sm font-semibold text-[#536784]">TTC</span>
-                      </div>
-                      <p className="mt-1 text-sm text-[#536784]">
-                        soit <strong className="font-semibold text-[#142c5b]">{formatEuroNumber(displayedHt)} {"\u20ac"} HT</strong>
-                      </p>
-                    </div>
-                    {hasDiscount ? (
-                      <p className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-[#153675] ring-1 ring-[#e1e8f2]">
-                        Vous &eacute;conomisez <strong>{formatEuroNumber(originalTtc - displayedTtc)} {"\u20ac"} TTC</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                {hasCombinaisons && optionGroups.length > 0 ? (
-                  <div className="mt-5 space-y-4">
-                    {optionGroups.map((group) => {
-                      const value = selectedOptionByAttributeId[group.attributeId] ?? group.terms[0]?.termId ?? "";
-                      return (
-                        <fieldset key={group.attributeId}>
-                          <legend className="mb-2 text-sm font-medium text-slate-800">{group.attributeName}</legend>
-                          <div className="flex flex-wrap gap-2">
-                            {group.terms.map((term) => {
-                              const active = value === term.termId;
-                              return (
-                                <button key={term.termId} type="button" aria-pressed={active}
-                                  className={cn("min-h-10 rounded-full border px-4 text-sm transition", active ? "border-[#153675] bg-[#153675] text-white" : "border-slate-200 bg-white text-slate-700 hover:border-[#2456b1]")}
-                                  onClick={() => {
-                                    setSelectedOptionByAttributeId((prev) => ({ ...prev, [group.attributeId]: term.termId }));
-                                    setQuantity(1);
-                                  }}>
-                                  {term.termName}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </fieldset>
-                      );
-                    })}
-                  </div>
-                ) : null}
-
-                <div className="mt-5">
-                  <p className="mb-2 text-sm font-medium text-slate-800">Quantité</p>
-                  <div className="flex items-center justify-start gap-3">
-                  <div className="flex items-center rounded-md border border-slate-200 bg-white shadow-sm">
-                    <button
-                      type="button"
-                      className="grid h-11 w-11 place-items-center text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      disabled={effectiveQuantity <= 1}
-                      aria-label="Decrease quantity">
-                      <Minus className="size-5" />
-                    </button>
-                    <div className="grid h-11 w-12 place-items-center text-sm font-semibold text-slate-900">
-                      {effectiveQuantity}
-                    </div>
-                    <button
-                      type="button"
-                      className="grid h-11 w-11 place-items-center text-slate-600 hover:bg-slate-50"
-                      onClick={() => {
-                        setQuantity((q) => {
-                          const next = Math.max(1, q) + 1;
-                          if (maxPurchasableQty == null) return next;
-                          return Math.min(next, Math.max(1, maxPurchasableQty));
-                        });
-                      }}
-                      disabled={
-                        maxPurchasableQty != null &&
-                        (maxPurchasableQty <= 0 ||
-                          effectiveQuantity >= maxPurchasableQty)
-                      }
-                      aria-label="Increase quantity">
-                      <Plus className="size-5" />
-                    </button>
-                  </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="pd-buy">
+              <div>
+                <p className="pd-label" id="pd-qty-label">Quantité</p>
+                <div className="pd-qty" role="group" aria-labelledby="pd-qty-label">
+                  <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} disabled={effectiveQuantity <= 1} aria-label="Diminuer la quantité">
+                    <Minus className="size-5" aria-hidden="true" />
+                  </button>
+                  <output aria-live="polite">{effectiveQuantity}</output>
                   <button
                     type="button"
-                    disabled={maxPurchasableQty != null && maxPurchasableQty <= 0}
                     onClick={() => {
-                      addItem(
-                        {
-                          productId: product.id,
-                          productSlug: product.slug,
-                          title: product.title,
-                          image: product.images?.[0] ?? null,
-                          categorySlug: categorySlug ?? null,
-                          variantId: selectedCombinaison?.id ?? null,
-                          price: String(displayedHt),
-                          taxRate: product.taxRelation?.rate ?? null,
-                        },
-                        effectiveQuantity,
-                      );
-                      toast.success("Ajouté au panier", {
-                        description: `${effectiveQuantity} × ${product.title}`,
+                      setQuantity((q) => {
+                        const next = Math.max(1, q) + 1;
+                        if (maxPurchasableQty == null) return next;
+                        return Math.min(next, Math.max(1, maxPurchasableQty));
                       });
                     }}
-                    className="inline-flex h-12 min-w-[180px] flex-1 items-center justify-center gap-2 rounded-full bg-[#153675] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2456b1] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
-                    <ShoppingCart className="size-5" />
-                    Ajouter au panier
+                    disabled={maxPurchasableQty != null && (maxPurchasableQty <= 0 || effectiveQuantity >= maxPurchasableQty)}
+                    aria-label="Augmenter la quantité">
+                    <Plus className="size-5" aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    disabled={maxPurchasableQty != null && maxPurchasableQty <= 0}
-                    onClick={() => {
-                      addItem(
-                        {
-                          productId: product.id,
-                          productSlug: product.slug,
-                          title: product.title,
-                          image: product.images?.[0] ?? null,
-                          categorySlug: categorySlug ?? null,
-                          variantId: selectedCombinaison?.id ?? null,
-                          price: String(displayedHt),
-                          taxRate: product.taxRelation?.rate ?? null,
-                        },
-                        effectiveQuantity,
-                      );
-                      router.push("/checkout");
-                    }}
-                    className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:border-[#153675] hover:text-[#153675] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
-                    Acheter maintenant
-                  </button>
-                  </div>
-                </div>
-                <div className="mt-6 grid gap-3 border-t border-slate-200 pt-5 text-xs text-slate-600 sm:grid-cols-3">
-                  <div className="flex items-start gap-2"><Truck className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Livraison France &amp; Europe<br /><strong className="font-semibold text-slate-800">48-72 h</strong></span></div>
-                  <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Garantie &amp; SAV<br /><strong className="font-semibold text-slate-800">Atelier agr&eacute;&eacute;</strong></span></div>
-                  <div className="flex items-start gap-2"><CreditCard className="mt-0.5 size-4 shrink-0 text-[#2456b1]" /><span>Paiement s&eacute;curis&eacute;<br /><strong className="font-semibold text-slate-800">Options au panier</strong></span></div>
                 </div>
               </div>
+
+              <div className="pd-actions">
+                <button type="button" className={cn("pd-add", justAdded && "is-done")} disabled={unavailable} onClick={handleAdd}>
+                  {justAdded ? <Check className="size-6" aria-hidden="true" /> : <ShoppingCart className="size-6" aria-hidden="true" />}
+                  {justAdded ? "Ajouté au panier" : "Ajouter au panier"}
+                </button>
+                <button
+                  type="button"
+                  className="pd-now"
+                  disabled={unavailable}
+                  onClick={() => {
+                    addToCart();
+                    router.push("/checkout");
+                  }}>
+                  Acheter maintenant
+                </button>
+              </div>
             </div>
+
+            <ul className="pd-trust">
+              <li><span className="ico"><Truck className="size-6" aria-hidden="true" /></span><span>Livraison France &amp; Europe<b>48-72 h</b></span></li>
+              <li><span className="ico"><ShieldCheck className="size-6" aria-hidden="true" /></span><span>Garantie &amp; SAV<b>Atelier agréé</b></span></li>
+              <li><span className="ico"><CreditCard className="size-6" aria-hidden="true" /></span><span>Paiement sécurisé<b>Options au panier</b></span></li>
+            </ul>
           </div>
         </section>
 
-        <hr className="my-12 border-slate-200" />
+      </div>
+      </div>
 
-        <section className="grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]" id="product-reviews">
+      <div className="pd-wrap">
+        <section className="pd-below" id="product-reviews">
         <div>
         {/* Product information */}
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setTab("description")}
-              className={cn(
-                "rounded-t-xl border border-transparent px-4 py-2 text-sm font-semibold transition",
-                tab === "description"
-                  ? "border-slate-200 bg-white text-slate-900"
-                  : "text-slate-500 hover:text-slate-900",
-              )}>
-              Description
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("details")}
-              className={cn(
-                "rounded-t-xl border border-transparent px-4 py-2 text-sm font-semibold transition",
-                tab === "details"
-                  ? "border-slate-200 bg-white text-slate-900"
-                  : "text-slate-500 hover:text-slate-900",
-              )}>
-              Détail de produit
-            </button>
-            {(product.attachments ?? []).map((file, index) => (
-              <button
-                key={`att-tab-${index}`}
-                type="button"
-                onClick={() => setTab(`attachment-${index}`)}
-                className={cn(
-                  "rounded-t-xl border border-transparent px-4 py-2 text-sm font-semibold transition",
-                  tab === `attachment-${index}`
-                    ? "border-slate-200 bg-white text-slate-900"
-                    : "text-slate-500 hover:text-slate-900",
-                )}>
-                {file.name}
+        <section className="pd-card">
+          <div className="pd-tabs" role="tablist" aria-label="Informations produit">
+            {[
+              { id: "description", label: "Description" },
+              { id: "details", label: "Détail de produit" },
+              ...(product.attachments ?? []).map((file, index) => ({ id: `attachment-${index}`, label: file.name })),
+            ].map((item) => (
+              <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)} className="pd-tab">
+                {item.label}
               </button>
             ))}
           </div>
@@ -728,7 +729,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 <div>
                     <RichTextDisplay
                       content={product.description}
-                      className="text-slate-600"
+                      className="pd-rich"
                     />
                 </div>
               ) : (
@@ -738,24 +739,16 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
 
             {tab === "details" ? (
               displayAttributes.length > 0 ? (
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                    <tbody className="divide-y divide-slate-100">
-                      {displayAttributes.map((a, i) => (
-                        <tr
-                          key={i}
-                          className={cn(i % 2 === 0 && "bg-slate-50")}>
-                          <th className="py-3 px-4 font-medium text-slate-900 w-1/3">
-                            {a.attribute?.name ?? "—"}
-                          </th>
-                          <td className="py-3 px-4 text-slate-600">
-                            {a.term?.name ?? "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <table className="pd-spec">
+                  <tbody>
+                    {displayAttributes.map((a, i) => (
+                      <tr key={i}>
+                        <th scope="row">{a.attribute?.name ?? "—"}</th>
+                        <td>{a.term?.name ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               ) : (
                 <p className="text-sm text-slate-500">
                   Aucun détail technique.
@@ -790,44 +783,70 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
         </section>
         </div>
 
-        <aside className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <h2 className="border-b border-slate-200 px-5 py-4 text-base font-semibold text-slate-900">Avis clients</h2>
-          <div className="grid grid-cols-[auto_1fr] gap-5 p-5">
-            <div className="min-w-24 text-center">
-              <div className="text-5xl font-semibold tracking-tight text-slate-900">{productReviews?.total ? productReviews.avgRating.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "—"}<span className="text-lg font-normal text-slate-400">/5</span></div>
-              <p className="mt-1 text-xs text-slate-500">({productReviews?.total ?? 0} avis)</p>
-            </div>
-            <div className="space-y-2 pt-1">
-              {[5, 4, 3, 2, 1].map((star) => {
-                const count = productReviews?.distribution[star as 1 | 2 | 3 | 4 | 5] ?? 0;
-                const percentage = productReviews?.total ? (count / productReviews.total) * 100 : 0;
-                return <div key={star} className="flex items-center gap-2 text-xs"><span className="flex w-7 items-center gap-1 text-slate-600">{star}<Star className="size-3 fill-amber-400 text-amber-400" /></span><span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-amber-400" style={{ width: `${percentage}%` }} /></span><span className="w-5 text-right text-slate-500">{count}</span></div>;
-              })}
-            </div>
+        <aside className="pd-card">
+          <div className="pd-head">
+            <h2 className="pd-h2">Avis clients</h2>
+            {productReviews?.total ? <span className="pd-rv-count">{productReviews.total} avis</span> : null}
           </div>
-          <div className="max-h-[460px] divide-y divide-slate-200 overflow-y-auto px-5">
+          {productReviews?.total ? (
+            <div className="pd-rv-sum">
+              <div className="pd-rv-score">
+                <p><strong>{productReviews.avgRating.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}</strong><span>/5</span></p>
+                <div className="pd-rv-stars" aria-hidden="true">
+                  {[1, 2, 3, 4, 5].map((star) => <Star key={star} className={cn("size-5", Math.round(productReviews.avgRating) >= star ? "is-on" : "is-off")} />)}
+                </div>
+              </div>
+              <div className="pd-rv-bars">
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count = productReviews.distribution[star as 1 | 2 | 3 | 4 | 5] ?? 0;
+                  const percentage = (count / productReviews.total) * 100;
+                  return (
+                    <div key={star} className="pd-rv-bar">
+                      <span>{star}<Star className="size-3.5" aria-hidden="true" /></span>
+                      <i><b style={{ width: `${percentage}%` }} /></i>
+                      <em>{count}</em>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="pd-rv-empty">
+              <span className="pd-rv-icon"><ChatDots className="size-9" aria-hidden="true" /></span>
+              <h3>Pas encore d’avis</h3>
+              <p>Les avis sont publiés par les clients qui ont acheté ce produit. Soyez le premier à partager votre expérience.</p>
+              <div className="pd-rv-ghost" aria-hidden="true">
+                {[1, 2, 3, 4, 5].map((star) => <Star key={star} className="size-6" />)}
+              </div>
+            </div>
+          )}
+          <div className={cn("pd-rv-list", !productReviews?.reviews.length && "hidden")}>
             {productReviews?.reviews.length ? productReviews.reviews.map((review) => (
               <article key={review.id} className="py-4">
                 <div className="flex items-center gap-1 text-amber-400" aria-label={`${review.rating} sur 5`}>{[1, 2, 3, 4, 5].map((star) => <Star key={star} className={cn("size-4", review.rating >= star ? "fill-current" : "text-slate-200")} />)}</div>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{review.review}</p>
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-500"><span className="font-medium text-slate-700">{review.name}</span><time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString("fr-FR")}</time></div>
               </article>
-            )) : <p className="py-5 text-sm text-slate-500">Aucun avis client pour le moment.</p>}
+            )) : null}
           </div>
-          <div className="border-t border-slate-200 p-5">
+          <div className="pd-rv-foot">
             {reviewAccess === "loading" ? (
               <p className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="size-4 animate-spin" />Vérification de votre éligibilité…</p>
             ) : reviewAccess === "login" ? (
-              <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-800">Connectez-vous pour laisser un avis après votre achat.</p>
-                <Link
-                  href={`/login?returnTo=${encodeURIComponent(`${detailHref}#product-reviews`)}`}
-                  className="mt-3 inline-flex min-h-10 items-center justify-center rounded-md bg-[#153675] px-4 text-sm font-semibold text-white hover:bg-[#0a224f]">
-                  Se connecter
-                </Link>
+              <div className="pd-rv-note">
+                <span className="pd-rv-note-icon"><LockKey className="size-6" aria-hidden="true" /></span>
+                <div>
+                  <p><b>Un avis ? Connectez-vous d’abord.</b> Vous pourrez le publier après votre achat.</p>
+                  <Link href={`/login?returnTo=${encodeURIComponent(`${detailHref}#product-reviews`)}`} className="pd-rv-link">
+                    Se connecter
+                  </Link>
+                </div>
               </div>
             ) : reviewAccess === "not-purchased" ? (
-              <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">L’avis est réservé aux clients ayant acheté ce produit.</p>
+              <div className="pd-rv-note">
+                <span className="pd-rv-note-icon"><SealCheck className="size-6" aria-hidden="true" /></span>
+                <p><b>Avis réservés aux acheteurs.</b> Commandez ce produit pour pouvoir donner votre avis.</p>
+              </div>
             ) : reviewAccess === "error" ? (
               <p role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Impossible de vérifier votre accès aux avis pour le moment. Veuillez réessayer plus tard.</p>
             ) : reviewAccess === "submitted" ? (
@@ -877,23 +896,20 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
         </aside>
         </section>
 
-        <section className="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
-            <h2 className="text-lg font-semibold text-slate-900">À découvrir aussi</h2>
-            <div className="flex rounded-full bg-slate-100 p-1" role="tablist" aria-label="Produits associés">
+        <section className="pd-card mt-10">
+          <div className="pd-head">
+            <h2 className="pd-h2">À découvrir aussi</h2>
+            <div className="pd-reco-tabs" role="tablist" aria-label="Produits associés">
               <button type="button" role="tab" aria-selected={recommendationTab === "similar"}
-                onClick={() => setRecommendationTab("similar")}
-                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "similar" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                onClick={() => setRecommendationTab("similar")}>
                 Produits similaires
               </button>
               <button type="button" role="tab" aria-selected={recommendationTab === "spareParts"}
-                onClick={() => setRecommendationTab("spareParts")}
-                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "spareParts" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                onClick={() => setRecommendationTab("spareParts")}>
                 Pièces de rechange
               </button>
               <button type="button" role="tab" aria-selected={recommendationTab === "associated"}
-                onClick={() => setRecommendationTab("associated")}
-                className={cn("rounded-full px-4 py-2 text-sm font-medium transition", recommendationTab === "associated" ? "bg-white text-[#153675] shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                onClick={() => setRecommendationTab("associated")}>
                 Associées
               </button>
             </div>
@@ -912,6 +928,53 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
             )}
           </div>
         </section>
+      </div>
+
+      {lightbox && selectedImageUrl ? (
+        <div className="pd-lb" role="dialog" aria-modal="true" aria-label={`Photos de ${product.title}`}>
+          <div className="pd-lb-top">
+            <p>{product.title}{images.length > 1 ? <span> · {selectedImageIndex + 1} / {images.length}</span> : null}</p>
+            <button ref={closeRef} type="button" onClick={() => setLightbox(false)} aria-label="Fermer">
+              <Close className="size-6" aria-hidden="true" />
+            </button>
+          </div>
+          <div className={cn("pd-lb-view", lightboxZoom && "is-zoomed")} onClick={(event) => { if (event.target === event.currentTarget) setLightbox(false); }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={selectedImageUrl} alt={product.title} onClick={() => setLightboxZoom((value) => !value)} />
+          </div>
+          {images.length > 1 ? (
+            <>
+              <button type="button" className="pd-lb-arrow is-prev" onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))} aria-label="Image précédente">
+                <ChevronLeft className="size-6" aria-hidden="true" />
+              </button>
+              <button type="button" className="pd-lb-arrow is-next" onClick={() => setSelectedImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))} aria-label="Image suivante">
+                <ChevronRight className="size-6" aria-hidden="true" />
+              </button>
+              <ul className="pd-lb-thumbs">
+                {images.map((img, idx) => (
+                  <li key={`${img}-lb-${idx}`}>
+                    <button type="button" aria-pressed={idx === selectedImageIndex} aria-label={`Afficher l’image ${idx + 1}`} onClick={() => setSelectedImageIndex(idx)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={getImageUrl(img)} alt="" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          <p className="pd-lb-hint">{lightboxZoom ? "Cliquez sur la photo pour réduire" : "Cliquez sur la photo pour zoomer"}</p>
+        </div>
+      ) : null}
+
+      <div className="pd-bar">
+        <div className="pd-bar-price">
+          <strong>{formatEuroNumber(displayedTtc)} {"\u20ac"}</strong>
+          <small>TTC</small>
+        </div>
+        <button type="button" className="pd-add" disabled={unavailable} onClick={handleAdd}>
+          <ShoppingCart className="size-5" aria-hidden="true" />
+          Ajouter au panier
+        </button>
       </div>
     </main>
   );

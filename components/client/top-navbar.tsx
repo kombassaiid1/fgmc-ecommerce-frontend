@@ -894,10 +894,10 @@ function MobileMenu({
         onClick={onClose}
         aria-hidden
       />
-      <div className="fixed top-0 right-0 z-[10001] h-full w-80 overflow-y-auto border-l border-border bg-background shadow-xl lg:hidden">
+      <div className="fixed top-0 right-0 z-[10001] h-full w-[min(20rem,88vw)] overflow-y-auto border-l border-border bg-white text-[#142c5b] shadow-xl lg:hidden">
         <div className="p-6">
           <div className="mb-6 flex items-center justify-between border-b-2 border-dashed border-[#d3202b]/40 pb-3">
-            <h2 className="text-xl font-bold text-[#153675]">Menu</h2>
+            <h2 className="!text-2xl font-bold text-[#153675]">Menu</h2>
             <Button
               type="button"
               variant="ghost"
@@ -972,7 +972,7 @@ function MobileMenu({
           </div>
 
           <div className="mb-6">
-            <h3 className="mb-3 font-semibold text-muted-foreground">
+            <h3 className="mb-3 !text-lg font-semibold text-[#153675]">
               Catégories
             </h3>
             <div className="space-y-2">
@@ -981,7 +981,7 @@ function MobileMenu({
                   key={category.id}
                   href={`/${category.slug}`}
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted">
+                  className="flex items-center gap-3 rounded-lg p-2 font-medium text-[#142c5b] hover:bg-[#153675]/8">
                   {category.image ? (
                     <img
                       src={getImageUrl(category.image)}
@@ -1037,7 +1037,7 @@ function MobileNavLink({
     <Link
       href={href}
       onClick={onClick}
-      className="block rounded-lg p-3 font-medium hover:bg-muted">
+      className="block rounded-lg p-3 font-medium text-[#142c5b] hover:bg-[#153675]/8">
       {children}
     </Link>
   );
