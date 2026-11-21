@@ -1,0 +1,117 @@
+/* E-mail settings. Builds on the shop information page (site-settings.css: cards, header, save bar); these are the parts only this page has. */
+.es-page { max-width: none; }
+.es-grid { display: grid; gap: 24px; align-items: start; }
+.es-error { grid-column: 1 / -1; }
+@media (min-width: 1100px) {
+  .es-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  .es-area-account { grid-column: 1; grid-row: 1 / span 2; }
+  .es-area-check { grid-column: 2; grid-row: 1; }
+  .es-area-sender { grid-column: 2; grid-row: 2; }
+}
+/* In the narrower right column the path of the e-mail stacks tighter. */
+@media (min-width: 1100px) and (max-width: 1500px) {
+  .es-area-check .es-route { padding-inline: 8px; }
+}
+
+/* ------------------------------------------------------------ header: the on/off switch */
+.es-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.es-switch-row { display: inline-flex; align-items: center; gap: 12px; border-radius: 14px; background: #fff; padding: 10px 14px; box-shadow: 0 0 0 1px var(--ss-line); }
+.es-switch-text { display: grid; line-height: 1.25; }
+.es-switch-text strong { font-size: 14px; color: var(--ss-ink); }
+.es-switch-text span { font-size: 12px; color: var(--ss-muted); }
+.es-switch { position: relative; width: 44px; height: 26px; flex: none; cursor: pointer; border: 0; border-radius: 999px; background: #cfd6de; transition: background 0.2s; }
+.es-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.3); transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+.es-switch[aria-checked="true"] { background: var(--ss-green); }
+.es-switch[aria-checked="true"]::after { transform: translateX(18px); }
+.es-switch:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 3px; }
+
+/* ------------------------------------------------------------ the path of an e-mail */
+.es-route {
+  --es-bg: #eaf2ff; --es-fg: var(--ss-blue); --es-wire: #b7cdf0; --es-wire2: #b7cdf0; --es-end-bg: #eaf2ff; --es-end-fg: var(--ss-blue);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(40px, 0.8fr) minmax(0, 1fr) minmax(40px, 0.8fr) minmax(0, 1fr); align-items: start; padding: 26px 22px 20px;
+}
+.es-route[data-state="off"] { --es-bg: #f1f3f5; --es-fg: #8a94a0; --es-wire: #d0d5dd; --es-wire2: #d0d5dd; --es-end-bg: #f1f3f5; --es-end-fg: #8a94a0; }
+.es-route[data-state="incomplete"] { --es-bg: #fff4e5; --es-fg: var(--ss-amber); --es-wire: #f1d3a6; --es-wire2: #e3e7ec; --es-end-bg: #f1f3f5; --es-end-fg: #8a94a0; }
+.es-route[data-state="ok"] { --es-bg: #e7f7ef; --es-fg: var(--ss-green); --es-wire: var(--ss-green); --es-wire2: var(--ss-green); --es-end-bg: #e7f7ef; --es-end-fg: var(--ss-green); }
+.es-route[data-state="fail"] { --es-bg: #eaf2ff; --es-fg: var(--ss-blue); --es-wire: #b7cdf0; --es-wire2: #e5a39c; --es-end-bg: #fdecea; --es-end-fg: #b42318; }
+
+.es-node { display: grid; justify-items: center; gap: 8px; text-align: center; min-width: 0; }
+.es-node-icon { display: grid; width: 56px; height: 56px; place-items: center; border-radius: 16px; background: var(--es-bg); color: var(--es-fg); transition: background 0.3s, color 0.3s; }
+.es-node.is-end .es-node-icon { background: var(--es-end-bg); color: var(--es-end-fg); }
+.es-node-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; color: var(--ss-ink); }
+.es-node-sub { font-size: 12px; line-height: 1.4; color: var(--ss-muted); }
+
+/* the wire between two nodes: dashes, which march while a message is being sent */
+.es-wire { height: 56px; display: grid; align-items: center; }
+.es-wire::before {
+  content: ""; display: block; height: 3px; border-radius: 2px;
+  background: repeating-linear-gradient(90deg, var(--es-wire) 0 7px, transparent 7px 13px);
+  background-size: 13px 3px;
+}
+.es-wire.is-second::before { background: repeating-linear-gradient(90deg, var(--es-wire2) 0 7px, transparent 7px 13px); background-size: 13px 3px; }
+.es-route[data-state="ok"] .es-wire::before { background: var(--es-wire); }
+.es-route[data-state="sending"] .es-wire::before { animation: es-march 0.55s linear infinite; }
+@keyframes es-march { to { background-position: 13px 0; } }
+
+.es-route-status { display: flex; align-items: flex-start; gap: 10px; margin: 0 22px 22px; border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+.es-route-status.is-ok { background: #e7f7ef; color: #11613d; }
+.es-route-status.is-fail { background: #fdecea; color: #912018; }
+.es-route-status.is-hint { background: var(--ss-wash); color: var(--ss-muted); }
+.es-route-status svg { flex: none; margin-top: 2px; }
+
+.es-test { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 0 22px 22px; }
+.es-test > .es-test-field { flex: 1 1 260px; max-width: 380px; }
+
+@media (max-width: 640px) {
+  .es-route { grid-template-columns: 1fr; justify-items: center; padding-top: 22px; }
+  .es-wire { width: 3px; height: 30px; }
+  .es-wire::before { width: 3px; height: 100%; background: repeating-linear-gradient(180deg, var(--es-wire) 0 7px, transparent 7px 13px); background-size: 3px 13px; }
+  .es-wire.is-second::before { background: repeating-linear-gradient(180deg, var(--es-wire2) 0 7px, transparent 7px 13px); background-size: 3px 13px; }
+  .es-route[data-state="ok"] .es-wire::before { background: var(--es-wire); }
+  @keyframes es-march { to { background-position: 0 13px; } }
+}
+
+/* ------------------------------------------------------------ messaging providers */
+.es-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ss-ink); }
+.es-providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; border: 0; }
+@media (min-width: 720px) { .es-providers { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.es-provider { position: relative; display: grid; gap: 2px; min-height: 64px; cursor: pointer; border: 0; border-radius: 12px; background: #fff; padding: 12px 14px; text-align: left; font: inherit; color: var(--ss-ink); box-shadow: inset 0 0 0 1px var(--ss-line); transition: box-shadow 0.15s, background 0.15s; }
+.es-provider:hover { background: #f8fafd; }
+.es-provider strong { font-size: 14px; }
+.es-provider span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ss-muted); }
+.es-provider[aria-checked="true"] { background: #f3f7fe; box-shadow: inset 0 0 0 2px var(--ss-blue); }
+.es-provider:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 2px; }
+.es-hint { display: flex; gap: 10px; margin: 12px 0 0; border-radius: 12px; background: #eef4fd; padding: 12px 14px; font-size: 13px; line-height: 1.5; color: #1c3f7a; }
+.es-hint svg { flex: none; margin-top: 2px; }
+
+/* encryption: two choices that must match the port */
+.es-seg { display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; border-radius: 12px; background: var(--ss-wash); padding: 4px; box-shadow: inset 0 0 0 1px #e8edf2; }
+.es-seg button { min-height: 44px; cursor: pointer; border: 0; border-radius: 9px; background: transparent; padding: 6px 14px; font: inherit; font-size: 13px; color: var(--ss-muted); text-align: left; }
+.es-seg button strong { display: block; font-size: 14px; color: var(--ss-ink); }
+.es-seg button[aria-checked="true"] { background: #fff; box-shadow: 0 0 0 1px var(--ss-line), 0 1px 2px rgba(16, 24, 40, 0.08); }
+.es-seg button:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 2px; }
+
+.es-reveal { display: grid; width: 32px; height: 32px; place-items: center; cursor: pointer; border: 0; border-radius: 8px; background: transparent; color: var(--ss-muted); }
+.es-reveal:hover { background: #eef2f7; color: var(--ss-ink); }
+.es-reveal:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 1px; }
+
+/* ------------------------------------------------------------ what the customer sees */
+.es-mail { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: start; border-radius: 14px; background: #fff; padding: 16px; box-shadow: 0 0 0 1px var(--ss-line), 0 6px 18px -12px rgba(16, 24, 40, 0.25); }
+.es-avatar { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--ss-blue); font-size: 18px; font-weight: 700; color: #fff; }
+.es-mail-from { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--ss-ink); }
+.es-mail-from strong { font-weight: 700; }
+.es-mail-from span { margin-left: 6px; font-size: 13px; color: var(--ss-muted); }
+.es-mail-subject { margin: 2px 0 0; font-size: 14px; font-weight: 600; color: var(--ss-ink); }
+.es-mail-line { margin: 2px 0 0; font-size: 13px; color: var(--ss-muted); }
+.es-mail-time { font-size: 12px; color: var(--ss-muted); font-variant-numeric: tabular-nums; }
+.es-placeholder { color: #98a2b3; font-weight: 500; }
+
+/* what the account is used for */
+.es-uses { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.es-uses li { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--ss-wash); padding: 6px 12px; font-size: 13px; color: var(--ss-ink); box-shadow: inset 0 0 0 1px #e8edf2; }
+.es-uses svg { color: var(--ss-green); }
+
+@media (prefers-reduced-motion: reduce) {
+  .es-route[data-state="sending"] .es-wire::before { animation: none; }
+  .es-switch, .es-switch::after, .es-node-icon { transition: none; }
+}

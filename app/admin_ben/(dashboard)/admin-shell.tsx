@@ -139,6 +139,8 @@ const NAV_ITEMS = [
     permission: "settings.view",
     subNavigationItems: [
       { label: "Commandes", url: "/admin_ben/settings/orders" },
+      { label: "E-mails", url: "/admin_ben/settings/email" },
+      { label: "Thème des e-mails", url: "/admin_ben/settings/theme-email" },
       { label: "États de commandes", url: "/admin_ben/settings/order-states" },
       { label: "Factures pro-forma", url: "/admin_ben/settings/pro-forma" },
       { label: "Bons de livraison", url: "/admin_ben/settings/delivery-slips" },
