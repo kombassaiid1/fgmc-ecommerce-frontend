@@ -23,7 +23,7 @@ import {
 } from "react-icons/pi";
 
 import { getImageUrl } from "@/lib/api";
-import { getMyOrders, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
+import { getMyOrders, openMyOrderDocument, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
 import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
 
 import "../account.css";
@@ -392,10 +392,18 @@ function OrderCard({ order, defaultOpen }: { order: OrderListItem; defaultOpen: 
                   order.dolibarrInvoice ? (
                     <>
                       {order.dolibarrInvoice.reference} · {sentence(readableStatus(order.dolibarrInvoice.status ?? "validated"))}
-                      {order.dolibarrInvoice.invoiceUrl ? (
+                      {!/^\(?PROV/i.test(order.dolibarrInvoice.reference) ? (
                         <>
                           <br />
-                          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer">Télécharger la facture PDF</a>
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() => {
+                              const token = getClientSession()?.token;
+                              if (token) void openMyOrderDocument(token, order.id, "invoice").catch(() => undefined);
+                            }}>
+                            Télécharger la facture PDF
+                          </button>
                         </>
                       ) : null}
                     </>

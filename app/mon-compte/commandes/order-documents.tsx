@@ -6,7 +6,7 @@ import { PiArrowSquareOutBold, PiFilePdfDuotone, PiSpinnerGapBold } from "react-
 import { getMyOrderDocuments, openMyOrderDocument, type MyOrderDocuments, type OrderListItem } from "@/lib/api/orders";
 import { getClientSession } from "@/lib/client-auth";
 
-type Kind = "pro-forma" | "delivery-slip";
+type Kind = "pro-forma" | "delivery-slip" | "invoice";
 
 const invoiceNumber = (reference: string) => (/^N[°º]/i.test(reference) ? reference : `N°${reference}`);
 
@@ -71,7 +71,12 @@ export function OrderDocuments({ order }: { order: OrderListItem }) {
             onOpen={loaded?.deliverySlip ? () => void open("delivery-slip") : undefined}
           />
           {invoice ? (
-            <DocRow title="Facture" text={invoiceNumber(invoice.reference)} href={invoice.invoiceUrl ?? undefined} soon={!invoice.invoiceUrl ? "PDF bientôt disponible" : undefined} />
+            // Opened through the shop, with the customer's sign-in: it does not depend on a share link made in Dolibarr.
+            loaded?.invoice ? (
+              <DocRow title="Facture" text={invoiceNumber(loaded.invoice.reference)} busy={opening === "invoice"} onOpen={() => void open("invoice")} />
+            ) : (
+              <DocRow title="Facture" text={invoiceNumber(invoice.reference)} soon={docs === "failed" ? undefined : "En attente de validation"} />
+            )
           ) : null}
         </ul>
       )}

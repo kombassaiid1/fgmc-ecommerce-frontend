@@ -248,14 +248,14 @@ export type OrdersResponse = {
 };
 
 /** The documents a customer may open for one of their orders. */
-export type MyOrderDocuments = { proForma: { reference: string | null }; deliverySlip: { reference: string | null } | null };
+export type MyOrderDocuments = { proForma: { reference: string | null }; deliverySlip: { reference: string | null } | null; /** The invoice, once Dolibarr has validated it. */ invoice: { reference: string } | null };
 
 export function getMyOrderDocuments(token: string, orderId: string): Promise<MyOrderDocuments> {
   return apiRequest<MyOrderDocuments>({ path: `/my/orders/${encodeURIComponent(orderId)}/documents`, method: "GET", headers: authHeaders(token) });
 }
 
 /** Opens one of the customer's documents (a PDF) in a new tab. It is fetched with their sign-in, so only they can read it. */
-export async function openMyOrderDocument(token: string, orderId: string, kind: "pro-forma" | "delivery-slip"): Promise<void> {
+export async function openMyOrderDocument(token: string, orderId: string, kind: "pro-forma" | "delivery-slip" | "invoice"): Promise<void> {
   // The tab is opened at once, from the click, so the browser does not block it while the PDF downloads.
   const tab = window.open("", "_blank");
   try {
