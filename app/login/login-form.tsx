@@ -89,7 +89,7 @@ export function LoginForm() {
           visible={showPassword}
           onToggle={() => setShowPassword((value) => !value)}
           aside={
-            <Link href="#" className="text-sm font-semibold text-[var(--auth-blue)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--auth-blue)]">
+            <Link href="/forgot-password" className="text-sm font-semibold text-[var(--auth-blue)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--auth-blue)]">
               Mot de passe oublié ?
             </Link>
           }

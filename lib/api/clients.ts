@@ -155,3 +155,30 @@ export async function loginClient(
     body: JSON.stringify(payload),
   });
 }
+
+/** Password reset, step 1: a 6-digit code is e-mailed. The answer is the same whether or not the address has an account. */
+export async function requestPasswordResetCode(email: string): Promise<{ message: string; resendAfterSeconds: number }> {
+  return apiRequest({
+    path: "/auth/client/forgot-password",
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Step 2: the code is checked and swapped for a one-time token. */
+export async function verifyPasswordResetCode(email: string, code: string): Promise<{ resetToken: string; expiresInSeconds: number }> {
+  return apiRequest({
+    path: "/auth/client/verify-reset-code",
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
+}
+
+/** Step 3: the new password, with the token from step 2. */
+export async function resetClientPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+  return apiRequest({
+    path: "/auth/client/reset-password",
+    method: "POST",
+    body: JSON.stringify({ resetToken, newPassword }),
+  });
+}
