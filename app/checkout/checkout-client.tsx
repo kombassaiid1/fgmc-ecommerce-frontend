@@ -1500,9 +1500,9 @@ export function CheckoutClient() {
                       <p className="line-clamp-2 text-sm! font-semibold!">
                         {item.title}
                       </p>
-                      {item.variantId ? (
+                      {item.variantLabel ? (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Variante: {item.variantId}
+                          {item.variantLabel}
                         </p>
                       ) : null}
                       <div className="mt-2 flex items-end justify-between gap-3">

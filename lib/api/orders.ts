@@ -21,6 +21,7 @@ export type OrderItemPayload = {
 export type CartQuoteLine = {
   id: string;
   variantId: string | null;
+  variantLabel?: string | null;
   title: string;
   slug: string;
   image: string | null;
@@ -163,6 +164,7 @@ export type StoredOrderProduct = {
   slug?: string;
   image?: string | null;
   variantId?: string | null;
+  variantLabel?: string | null;
   quantity?: number;
   unitPrice?: number;
   totalPrice?: number;

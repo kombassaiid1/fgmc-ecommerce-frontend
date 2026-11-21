@@ -322,28 +322,81 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     return map;
   }, [normalizedCombinaisons]);
 
-  const selectedCombinaison = useMemo(() => {
+  // Options that stand alone (a model, and a separate extra) are combinations of one choice each. Picking one choice per
+  // group adds their price differences to the product's price; a combination that holds several choices is used as it is.
+  const singleByChoice = useMemo(() => {
+    const map = new Map<string, Combinaison>();
+    for (const combo of normalizedCombinaisons) {
+      if (combo.isActive === false) continue;
+      const opts = (combo.options as CombinaisonOption[]).filter((o) => o.attributeId && o.termId);
+      if (opts.length === 1) map.set(`${opts[0].attributeId}:${opts[0].termId}`, combo);
+    }
+    return map;
+  }, [normalizedCombinaisons]);
+
+  const baseHt = parsePrice(product.price);
+
+  // What a group shows before anything is picked: the choice that costs least (no extra), else the first.
+  const defaultTermId = (group: { attributeId: string; terms: Array<{ termId: string }> }) => {
+    let best: { termId: string; price: number } | null = null;
+    for (const term of group.terms) {
+      const combo = singleByChoice.get(`${group.attributeId}:${term.termId}`);
+      const price = combo ? parsePrice(combo.price ?? product.price) : Number.POSITIVE_INFINITY;
+      if (best == null || price < best.price) best = { termId: term.termId, price };
+    }
+    return best?.termId ?? group.terms[0]?.termId ?? "";
+  };
+  const chosenTermId = (group: { attributeId: string; terms: Array<{ termId: string }> }) =>
+    selectedOptionByAttributeId[group.attributeId] ?? defaultTermId(group);
+
+  type Resolved = {
+    /** Several combinations are joined with "+", in a fixed order: the server reads it the same way. */
+    variantId: string;
+    priceHt: number;
+    qty: string | null | undefined;
+    stockStatus: string | null | undefined;
+    sku: string | null | undefined;
+    label: string | null;
+  };
+  const describe = (combos: Combinaison[]) =>
+    combos
+      .flatMap((c) => (c.options as CombinaisonOption[]).map((o) => (o.termName ? (o.attributeName ? `${o.attributeName} : ${o.termName}` : o.termName) : "")))
+      .filter(Boolean)
+      .join(" · ") || null;
+  const fromOne = (combo: Combinaison): Resolved => ({ variantId: combo.id, priceHt: parsePrice(combo.price ?? product.price), qty: combo.qty, stockStatus: combo.stockStatus, sku: combo.sku, label: describe([combo]) });
+
+  const resolved = useMemo<Resolved | null>(() => {
     if (!hasCombinaisons) return null;
-    const key = optionKey(
-      optionGroups
-        .map((g) => ({
-          attributeId: g.attributeId,
-          termId: selectedOptionByAttributeId[g.attributeId],
-        }))
-        .filter((x) => x.termId),
-    );
-    return comboByKey.get(key) ?? defaultCombinaison;
-  }, [
-    comboByKey,
-    defaultCombinaison,
-    hasCombinaisons,
-    optionGroups,
-    selectedOptionByAttributeId,
-  ]);
+    if (optionGroups.length === 0) return defaultCombinaison ? fromOne(defaultCombinaison) : null;
+    const choices = optionGroups
+      .map((g) => ({ attributeId: g.attributeId, termId: selectedOptionByAttributeId[g.attributeId] ?? defaultTermId(g) }))
+      .filter((x) => x.termId);
+    // A combination that holds exactly these choices.
+    const exact = comboByKey.get(optionKey(choices));
+    if (exact) return fromOne(exact);
+    // Otherwise one stand-alone combination per group, added up.
+    if (choices.length < 2) return null;
+    const parts = choices.map((c) => singleByChoice.get(`${c.attributeId}:${c.termId}`));
+    if (parts.some((part) => !part)) return null;
+    const combos = parts as Combinaison[];
+    const quantities = combos.map((c) => parseQty(c.qty)).filter((n): n is number => n != null);
+    return {
+      variantId: combos.map((c) => c.id).sort().join("+"),
+      priceHt: combos.reduce((sum, c) => sum + (parsePrice(c.price ?? product.price) - baseHt), baseHt),
+      qty: quantities.length ? String(Math.min(...quantities)) : null,
+      stockStatus: combos.some((c) => String(c.stockStatus ?? "").toLowerCase() === "outofstock") ? "outofstock" : combos[0]?.stockStatus,
+      sku: product.sku,
+      label: describe(combos),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the helpers above only read these same inputs
+  }, [baseHt, comboByKey, defaultCombinaison, hasCombinaisons, optionGroups, selectedOptionByAttributeId, singleByChoice]);
+
+  // No combination holds these choices: nothing is sold at another combination's price.
+  const combinationMissing = hasCombinaisons && optionGroups.length > 0 && !resolved;
 
   const originalHt = hasCombinaisons
-    ? parsePrice(selectedCombinaison?.price ?? product.price)
-    : parsePrice(product.price);
+    ? (resolved?.priceHt ?? baseHt)
+    : baseHt;
   const vat = rateToFraction(product.taxRelation?.rate);
   const originalTtc = originalHt * (1 + vat);
   const displayedTtc = resolveSpecificPrice(product.specificPrices, originalHt, vat, quantity).saleTtc;
@@ -354,19 +407,19 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     : 0;
 
   const displayedStockStatus = hasCombinaisons
-    ? (selectedCombinaison?.stockStatus ?? product.stockStatus)
+    ? (resolved?.stockStatus ?? product.stockStatus)
     : product.stockStatus;
 
   const displayedSku = hasCombinaisons
-    ? (selectedCombinaison?.sku ?? product.sku)
+    ? (resolved?.sku ?? product.sku)
     : product.sku;
 
   const maxPurchasableQty = useMemo(() => {
-    const raw = hasCombinaisons ? selectedCombinaison?.qty : product.qty;
+    const raw = hasCombinaisons ? resolved?.qty : product.qty;
     const n = parseQty(raw);
     if (n == null) return null;
     return Math.max(0, n);
-  }, [hasCombinaisons, product.qty, selectedCombinaison?.qty]);
+  }, [hasCombinaisons, product.qty, resolved?.qty]);
 
   const stockBadgeLabel = useMemo(() => {
     const status = String(displayedStockStatus ?? "").toLowerCase();
@@ -429,7 +482,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     ? `/${categorySlug}/${product.slug}.html`
     : `/${product.slug}.html`;
 
-  const unavailable = maxPurchasableQty != null && maxPurchasableQty <= 0;
+  const unavailable = combinationMissing || (maxPurchasableQty != null && maxPurchasableQty <= 0);
 
   // Hover zoom, as on the big marketplaces: a square on the photo, and the enlarged area shown beside it.
   const ZOOM = 2.5;
@@ -487,7 +540,8 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
         title: product.title,
         image: product.images?.[0] ?? null,
         categorySlug: categorySlug ?? null,
-        variantId: selectedCombinaison?.id ?? null,
+        variantId: resolved?.variantId ?? null,
+        variantLabel: resolved?.label ?? null,
         price: String(displayedHt),
         taxRate: product.taxRelation?.rate ?? null,
       },
@@ -628,7 +682,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
             {hasCombinaisons && optionGroups.length > 0 ? (
               <div className="pd-opts">
                 {optionGroups.map((group) => {
-                  const value = selectedOptionByAttributeId[group.attributeId] ?? group.terms[0]?.termId ?? "";
+                  const value = chosenTermId(group);
                   return (
                     <fieldset key={group.attributeId} className="pd-opt">
                       <legend>{group.attributeName}</legend>
@@ -650,6 +704,9 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                     </fieldset>
                   );
                 })}
+                {combinationMissing ? (
+                  <p role="alert" className="pd-opt-missing">Cette combinaison n’est pas proposée. Choisissez d’autres options.</p>
+                ) : null}
               </div>
             ) : null}
 

@@ -440,7 +440,7 @@ function ProductLine({ product }: { product: StoredOrderProduct }) {
       </span>
       <div className="oc-line-body">
         <p className="oc-line-title">{title}</p>
-        {product.variantId ? <p className="oc-line-meta"><span>Variante : {product.variantId}</span></p> : null}
+        {product.variantLabel ? <p className="oc-line-meta"><span>{product.variantLabel}</span></p> : null}
         <p className="oc-line-meta">
           <span>{String(quantity)} pièce{quantity > 1 ? "s" : ""}</span>
           <strong>{formatEuro(product.totalPrice ?? product.unitPrice ?? 0)}</strong>

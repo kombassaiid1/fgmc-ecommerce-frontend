@@ -273,8 +273,8 @@ export default function CartPage() {
                           className="line-clamp-2 text-base font-medium leading-snug transition-colors duration-200 hover:text-[var(--cart-royal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:text-lg">
                           {item.title}
                         </Link>
-                        {item.variantId ? (
-                          <p className="mt-1 text-sm text-[var(--cart-muted)]">Variante : {item.variantId}</p>
+                        {item.variantLabel ? (
+                          <p className="mt-1 text-sm text-[var(--cart-muted)]">{item.variantLabel}</p>
                         ) : null}
                         <p className="mt-1 text-sm tabular-nums text-[var(--cart-muted)]">
                           {formatEuro(unitTtc)} TTC · {formatEuro(unitHt)} HT l’unité

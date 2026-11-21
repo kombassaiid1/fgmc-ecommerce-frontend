@@ -161,6 +161,7 @@
 
 /* options */
 .pd-opts { display: grid; gap: 18px; margin: 24px 0 0; padding: 0; border: 0; }
+.pd-opt-missing { margin: 0; border-radius: 10px; background: #fdecea; padding: 10px 14px; font-size: 14px; line-height: 1.5; color: #912018; }
 .pd-opt { margin: 0; padding: 0; border: 0; min-width: 0; }
 .pd-opt legend { margin: 0 0 9px; padding: 0; font-size: 1.0625rem; font-weight: 700; color: var(--pd-ink); }
 .pd-chips { display: flex; flex-wrap: wrap; gap: 10px; }

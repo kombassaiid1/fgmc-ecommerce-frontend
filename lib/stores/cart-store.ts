@@ -12,6 +12,8 @@ export type CartItem = {
   categorySlug?: string | null;
   /** Selected variant/combinaison id (if any). */
   variantId?: string | null;
+  /** The choices made, in words, for display ("Option 2 : 4 X Roulettes"). The server works out its own. */
+  variantLabel?: string | null;
   /**
    * Unit price before tax. This is what the shop showed when the product was added, and a display aid only:
    * the server prices every order itself, and replaces this with its own price when the cart is opened.
