@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Banner, BlockStack, Button, Card, InlineGrid, Spinner, Text } from "@shopify/polaris";
 import { useAdminSession } from "@/components/admin/admin-session";
 import { openClientAccount } from "@/lib/api/admin-clients";
-import { getAdminOrder, getDeliverySlipUrl, getOrderPreview, getProFormaUrl, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview } from "@/lib/api/orders";
+import { getInvoicePdfUrl, getAdminOrder, getDeliverySlipUrl, getOrderPreview, getProFormaUrl, updateOrderPaymentStatus, updateOrderStatus, type OrderDetail, type OrderPreview } from "@/lib/api/orders";
 import { useOrderStates } from "@/lib/use-order-states";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronDown, File, History, Printer, ReceiptText, RotateCcw, Truck } from "lucide-react";
@@ -178,7 +178,8 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
   const refunding = refundOrderId === orderId;
   const refundContext = refunds?.orderId === orderId ? refunds.context : null;
   const orderRefunds = refundContext?.refunds ?? [];
-  const invoiceUrl = order.dolibarrInvoice?.invoiceUrl;
+  // The validated Dolibarr invoice, opened through the shop (it does not need a public link made in Dolibarr).
+  const invoiceUrl = order.dolibarrInvoice && !/^\(?PROV/i.test(order.dolibarrInvoice.reference) ? getInvoicePdfUrl(order.id) : undefined;
 
   function updateRefund(refund: OrderRefund) {
     setRefunds((current) => {
@@ -220,8 +221,8 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
         ) : (
           <p className="text-sm text-[#667085]">Aucune facture Dolibarr n’est encore liée à cette commande.</p>
         )}
-        {order.dolibarrInvoice?.invoiceUrl ? (
-          <a href={order.dolibarrInvoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
+        {order.dolibarrInvoice && !/^\(?PROV/i.test(order.dolibarrInvoice.reference) ? (
+          <a href={getInvoicePdfUrl(order.id)} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-md border border-[#cbd6de] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#f7f8f9]">
             Ouvrir le PDF
           </a>
         ) : null}
@@ -332,7 +333,6 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
         </div>
 
         <BlockStack gap="300">
-          {!refunding ? invoiceCard : null}
           {!refunding ? (
             <OrderProductsCard key={`products-${order.id}`} order={order} preview={currentPreview}
               canEdit={canEditOrder && order.paymentStatus !== "Payé"}
@@ -473,7 +473,7 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
               </div>
             }
           />
-          {refunding ? invoiceCard : null}
+          {invoiceCard}
 
           <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400" alignItems="start">
             <GlsShippingCard order={order} disabledReason={currentPreview?.carrierKind === "COLISSIMO" ? "Cette commande a été passée avec un transporteur Colissimo : l’expédition GLS est désactivée." : undefined} />

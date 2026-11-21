@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { getCreditNoteUrl, type OrderRefund } from "@/lib/api/order-refunds";
-import { getDeliverySlipUrl, getProFormaUrl, regenerateOrderProForma, saveProFormaComment, type OrderDetail, type OrderPreview, type ProFormaDocument } from "@/lib/api/orders";
+import { getInvoicePdfUrl, getDeliverySlipUrl, getProFormaUrl, regenerateOrderProForma, saveProFormaComment, type OrderDetail, type OrderPreview, type ProFormaDocument } from "@/lib/api/orders";
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeZone: "Europe/Paris" });
 const linkStyle = "text-[#087e9a] hover:underline";
@@ -174,8 +174,8 @@ export function OrderDocuments({
                 <td className="whitespace-nowrap">{dateLabel(invoice.date)}</td>
                 <td>Facture</td>
                 <td>
-                  {invoice.invoiceUrl ? (
-                    <a href={invoice.invoiceUrl} target="_blank" rel="noopener noreferrer" className={linkStyle}>
+                  {!/^\(?PROV/i.test(invoice.reference) ? (
+                    <a href={getInvoicePdfUrl(order.id)} target="_blank" rel="noopener noreferrer" className={linkStyle}>
                       {invoiceNumber(invoice.reference)}
                     </a>
                   ) : invoiceNumber(invoice.reference)}

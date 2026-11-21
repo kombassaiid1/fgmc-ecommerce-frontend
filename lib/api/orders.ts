@@ -433,6 +433,11 @@ export function getDeliverySlipUrl(id: string): string {
   return `/frontend-api/admin/orders/${encodeURIComponent(id)}/delivery-slip`;
 }
 
+/** The PDF of the order's Dolibarr invoice (opens in the browser for a signed-in admin). */
+export function getInvoicePdfUrl(id: string): string {
+  return `/frontend-api/admin/orders/${encodeURIComponent(id)}/invoice`;
+}
+
 export function getProFormaUrl(id: string): string {
   return `/frontend-api/admin/orders/${encodeURIComponent(id)}/pro-forma`;
 }
