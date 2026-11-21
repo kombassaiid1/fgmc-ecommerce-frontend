@@ -4,14 +4,16 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import countries from "world-countries";
-import {
+import { ChevronRight,
   AlertCircle,
   Building2,
   Check,
   CheckCircle2,
   ChevronDown,
   CreditCard,
+  DoorOpen,
   Fingerprint,
+  Hash,
   Home,
   Landmark,
   LockKeyhole,
@@ -73,8 +75,6 @@ import {
 import { useCartStore, type CartItem } from "@/lib/stores/cart-store";
 import { trackRecoPurchase } from "@/lib/reco/events";
 import { cn } from "@/lib/utils";
-
-const SHIPPING_PRICE = 8;
 
 type CheckoutForm = {
   firstName: string;
@@ -542,7 +542,7 @@ export function CheckoutClient() {
         if (!cancelled) setQuoteState({ key: quoteKey, quote });
       })
       .catch(() => {
-        // Quote unavailable: checkout falls back to the flat rate instead of blocking the order.
+        // Quote unavailable: checkout does not block the order; shipping stays « à confirmer ».
         if (!cancelled) setQuoteState({ key: quoteKey, quote: null });
       });
     return () => {
@@ -570,14 +570,8 @@ export function CheckoutClient() {
       (sum, item) => sum + itemTotals(item).lineHt,
       0,
     );
-    const shipping =
-      items.length === 0
-        ? 0
-        : carrierMode
-          ? (chosenOption?.total ?? 0)
-          : visibleForm.deliveryMethod === "standard"
-            ? SHIPPING_PRICE
-            : 0;
+    // Only a real carrier quote is ever charged: no flat rate.
+    const shipping = items.length > 0 && carrierMode ? (chosenOption?.total ?? 0) : 0;
 
     return {
       productsHt,
@@ -585,7 +579,9 @@ export function CheckoutClient() {
       shipping,
       subtotalTtc: items.length > 0 ? productsTtc + shipping : 0,
     };
-  }, [items, visibleForm.deliveryMethod, carrierMode, chosenOption?.total]);
+  }, [items, carrierMode, chosenOption?.total]);
+  /** Standard delivery without a carrier quote: the price is not known yet. */
+  const shippingPending = items.length > 0 && !carrierMode && visibleForm.deliveryMethod === "standard";
 
   function updateField<K extends keyof CheckoutForm>(
     key: K,
@@ -824,7 +820,7 @@ export function CheckoutClient() {
         const place = chosenOption.colissimoType === "RELAY" ? colissimoRelay?.name : chosenOption.glsType === "RELAY" ? glsRelay?.name : "";
         return [chosenOption.name, place, chosenOption.free ? "Gratuit" : formatEuro(chosenOption.total)].filter(Boolean).join(" · ");
       }
-      return visibleForm.deliveryMethod === "pickup" ? "Retrait magasin · Gratuit" : `Livraison standard · ${formatEuro(SHIPPING_PRICE)}`;
+      return visibleForm.deliveryMethod === "pickup" ? "Retrait magasin · Gratuit" : "Livraison standard · tarif à confirmer";
     }
     return "";
   };
@@ -976,37 +972,41 @@ export function CheckoutClient() {
 
   if (completedOrderId) {
     return (
-      <main className="min-h-[calc(100dvh-5rem)] bg-muted px-4 py-12">
-        <div className="mx-auto flex max-w-xl flex-col items-center rounded-lg border border-border bg-background px-6 py-12 text-center shadow-sm">
-          <div className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
-            <CheckCircle2 className="size-7" />
-          </div>
-          <h1 className="mt-5 text-2xl font-bold text-foreground">
-            Commande confirmee
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Votre commande a ete enregistree avec succes.
+      <main className="min-h-[calc(100dvh-5rem)] bg-[#f2f5fa] px-4 py-16 text-[#0f1f45]">
+        <div className="mx-auto max-w-xl text-center">
+          <CheckCircle2 className="mx-auto size-10 text-[#153675]" aria-hidden="true" />
+          <h1 className="mt-5! text-3xl! font-semibold!">Commande confirmée</h1>
+          <p className="mt-3! text-base! leading-6 text-[#5b6b8a]">
+            Votre commande a bien été enregistrée.
           </p>
-          <p className="mt-4 rounded-md bg-muted px-4 py-2 text-sm font-semibold text-foreground">
+          <p className="mx-auto mt-6! w-fit rounded-[4px] border border-dashed border-[#b4c2dc] bg-white px-5 py-3 text-base font-medium tabular-nums">
             Référence : {completedReference ?? completedOrderId}
           </p>
           {paymentNotice ? (
-            <p role="alert" className="mt-4 max-w-md text-sm leading-6 text-destructive">
+            <p role="alert" className="mx-auto mt-4! max-w-md text-sm leading-6 text-destructive">
               {paymentNotice}
             </p>
           ) : null}
           {accountCreationNotice ? (
-            <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
+            <p className="mx-auto mt-4! max-w-md text-sm leading-6 text-[#5b6b8a]">
               {accountCreationNotice}
             </p>
           ) : null}
-          <Button asChild className="mt-6 bg-destructive hover:bg-destructive/90">
-            <Link href="/">Continuer mes achats</Link>
-          </Button>
+          <Link
+            href="/categorie-produit"
+            className="mt-8 inline-flex min-h-12 items-center rounded-[4px] bg-[#153675] px-8 text-base font-medium text-white transition-colors duration-200 hover:bg-[#0f1f45] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            Continuer mes achats
+          </Link>
         </div>
       </main>
     );
   }
+
+  const progress = Math.round((Math.min(doneUpTo, 3) / 3) * 100);
+  const progressLabel =
+    doneUpTo >= 3
+      ? "Dernière étape : le paiement"
+      : `Étape ${doneUpTo + 1} sur 4 : ${["vos coordonnées", "l’adresse", "la livraison"][doneUpTo]}`;
 
   if (items.length === 0) {
     return (
@@ -1030,24 +1030,61 @@ export function CheckoutClient() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-5rem)] bg-muted text-foreground">
+    <main
+      className="min-h-[calc(100dvh-5rem)] bg-[var(--co-linen)] text-[var(--co-ink)]"
+      style={
+        {
+          "--co-ink": "#0f1f45",
+          "--co-royal": "#153675",
+          "--co-thread": "#d6202e",
+          "--co-linen": "#f2f5fa",
+          "--co-seam": "#b4c2dc",
+          "--co-line": "#d5deee",
+          "--co-muted": "#5b6b8a",
+        } as React.CSSProperties
+      }>
+      {/* Same tailor's tape as the cart: the red pin slides along it as the steps are confirmed. */}
+      <header className="relative bg-[var(--co-ink)] text-white">
+        <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
+          <nav aria-label="Breadcrumb">
+            <ol className="flex items-center gap-1.5 text-sm text-white/70">
+              <li>
+                <Link href="/" className="-mx-1 rounded px-1 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Accueil
+                </Link>
+              </li>
+              <li aria-hidden className="flex items-center"><ChevronRight className="size-3.5" /></li>
+              <li>
+                <Link href="/cart" className="-mx-1 rounded px-1 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Panier
+                </Link>
+              </li>
+              <li aria-hidden className="flex items-center"><ChevronRight className="size-3.5" /></li>
+              <li aria-current="page" className="font-medium text-white">Commande</li>
+            </ol>
+          </nav>
+          <h1 className="mt-6 text-5xl! font-semibold! leading-[0.95]! tracking-tight sm:text-6xl!">
+            Finaliser la commande
+          </h1>
+        </div>
+        <div className="cat-tape absolute inset-x-0 bottom-0" aria-hidden="true" />
+        <div className="absolute inset-x-4 bottom-2.5 h-7 sm:inset-x-6 lg:inset-x-8">
+          <p
+            className="absolute bottom-0 whitespace-nowrap rounded-[3px] bg-[var(--co-thread)] px-3 py-1 text-sm font-medium text-white shadow-[0_2px_0_rgba(15,31,69,0.35)] transition-[left,transform] duration-500 ease-out motion-reduce:transition-none"
+            style={{ left: `${progress}%`, transform: `translateX(-${progress}%)` }}
+            aria-live="polite">
+            {progressLabel}
+          </p>
+        </div>
+      </header>
       <form
         onSubmit={handleSubmit}
         className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-8">
         <section className="min-w-0 space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="text-4xl! font-bold! leading-none tracking-tight sm:text-5xl!">
-                Finaliser la commande
-              </h1>
-              <p className="mt-3! max-w-xl text-base! leading-6 text-muted-foreground">
-                Trois étapes : vos coordonnées, l&apos;adresse, puis la livraison
-                et le paiement.
-              </p>
-            </div>
+          <div className="flex justify-end">
             <Link
               href="/cart"
-              className="inline-flex min-h-11 items-center rounded-md px-1 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              className="inline-flex min-h-11 items-center rounded-md px-1 text-base font-medium text-[var(--co-royal)] underline decoration-2 underline-offset-[6px] hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--co-royal)]">
               Modifier le panier
             </Link>
           </div>
@@ -1137,7 +1174,7 @@ export function CheckoutClient() {
             </div>
           )}
 
-          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
+          <div className="divide-y divide-dashed divide-[var(--co-seam)] overflow-hidden rounded-[4px] border border-[var(--co-line)] bg-white">
           <CheckoutPanel
             step={1}
             icon={User}
@@ -1151,7 +1188,7 @@ export function CheckoutClient() {
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 id="checkout-first-name"
-                label="Prenom"
+                label="Prénom"
                 value={visibleForm.firstName}
                 onChange={(value) => updateField("firstName", value)}
                 autoComplete="given-name"
@@ -1177,7 +1214,7 @@ export function CheckoutClient() {
               />
               <TextField
                 id="checkout-phone"
-                label="Telephone"
+                label="Téléphone"
                 type="tel"
                 value={visibleForm.phone}
                 onChange={(value) => updateField("phone", value)}
@@ -1187,7 +1224,7 @@ export function CheckoutClient() {
               />
               <TextField
                 id="checkout-client-company"
-                label="Societe"
+                label="Société"
                 value={visibleForm.company}
                 onChange={(value) => updateField("company", value)}
                 autoComplete="organization"
@@ -1203,7 +1240,7 @@ export function CheckoutClient() {
               {!session?.token ? (
                 <TextField
                   id="checkout-account-password"
-                  label="Mot de passe pour creer votre compte"
+                  label="Mot de passe pour créer votre compte"
                   type="password"
                   value={accountPassword}
                   onChange={setAccountPassword}
@@ -1348,7 +1385,7 @@ export function CheckoutClient() {
                   updateField("deliveryMethod", value as CheckoutForm["deliveryMethod"])
                 }
                 options={[
-                  { value: "standard", label: "Livraison standard", hint: "À l'adresse indiquée", icon: Truck, aside: formatEuro(SHIPPING_PRICE) },
+                  { value: "standard", label: "Livraison standard", hint: "À l'adresse indiquée", icon: Truck, aside: "À confirmer" },
                   { value: "pickup", label: "Retrait magasin", hint: "Vous venez récupérer la commande", icon: Store, aside: "Gratuit" },
                 ]}
               />
@@ -1411,10 +1448,10 @@ export function CheckoutClient() {
         </section>
 
         <aside className="lg:sticky lg:top-28 lg:self-start">
-          <div className="rounded-t-xl border border-b-0 border-border bg-background">
+          <div className="rounded-t-[4px] border border-b-0 border-[var(--co-line)] bg-white">
             <div className="border-b border-dashed border-border p-5">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-2xl! font-bold!">Votre commande</h2>
+                <h2 className="text-2xl! font-semibold!">Votre commande</h2>
                 <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                   <PackageCheck className="size-4" aria-hidden="true" />
                   {items.reduce((sum, item) => sum + item.qty, 0)} article
@@ -1487,12 +1524,12 @@ export function CheckoutClient() {
                       ? "Retrait magasin"
                       : "Livraison"
                 }
-                value={formatEuro(totals.shipping)}
+                value={shippingPending ? "À confirmer" : formatEuro(totals.shipping)}
               />
               <div className="border-t border-border pt-4">
                 <div className="flex items-baseline justify-between gap-4">
                   <span className="text-lg font-semibold">Total TTC</span>
-                  <span className="text-4xl font-bold leading-none tabular-nums text-foreground">
+                  <span className="text-4xl font-semibold leading-none tabular-nums text-[var(--co-ink)]">
                     {formatEuro(totals.subtotalTtc)}
                   </span>
                 </div>
@@ -1514,7 +1551,7 @@ export function CheckoutClient() {
               <Button
                 type="submit"
                 disabled={isSubmitting || isRedirecting || (carrierMode && (quoteLoading || !chosenOption))}
-                className="h-14 w-full bg-destructive text-base font-bold tracking-wide hover:bg-destructive/90 focus-visible:ring-destructive/40">
+                className="h-14 w-full rounded-[4px] bg-[#153675] text-lg font-medium text-white hover:bg-[#0f1f45] focus-visible:ring-[#153675]/40">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
@@ -1543,7 +1580,7 @@ export function CheckoutClient() {
             className="h-2 w-full"
             style={{
               background:
-                "radial-gradient(circle at 8px 0, var(--muted) 5px, var(--background) 5.5px) 0 0 / 16px 8px repeat-x",
+                "radial-gradient(circle at 8px 0, #f2f5fa 5px, #fff 5.5px) 0 0 / 16px 8px repeat-x",
             }}
           />
         </aside>
@@ -1662,7 +1699,7 @@ function CheckoutPanel({
   if (status === "done") {
     return (
       <section aria-labelledby={`checkout-step-${step}`} className="flex items-center gap-4 p-5 sm:px-7">
-        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-green-100 text-green-700">
+        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-[#153675] text-white">
           <Check className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -1699,7 +1736,7 @@ function CheckoutPanel({
       className="grid gap-5 p-5 sm:p-7 md:grid-cols-[3rem_minmax(0,1fr)]">
       <span
         aria-hidden="true"
-        className="text-5xl font-bold leading-none text-primary/25 tabular-nums">
+        className="text-5xl font-semibold leading-none text-[#b4c2dc] tabular-nums">
         {step}
       </span>
       <div className="min-w-0">
@@ -1711,7 +1748,7 @@ function CheckoutPanel({
         {error ? <p role="alert" className="mt-4! rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm! leading-6 text-destructive">{error}</p> : null}
         {onContinue ? (
           <div className="mt-5">
-            <Button type="button" onClick={onContinue}>Continuer</Button>
+            <Button type="button" onClick={onContinue} className="h-12 rounded-[4px] bg-[#153675] px-8 text-base text-white hover:bg-[#0f1f45]">Continuer</Button>
           </div>
         ) : null}
       </div>
@@ -1833,13 +1870,12 @@ function SavedAddressPicker({
   onDelete: (addressId: string) => void;
 }) {
   return (
-    <div className="space-y-5">
-      <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        L&apos;adresse selectionnee sera utilisee pour la facturation et la
-        livraison.
-      </div>
+    <div className="space-y-4">
+      <p className="text-base! leading-6 text-[#5b6b8a]">
+        L&apos;adresse choisie sert à la facturation et à la livraison.
+      </p>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div role="radiogroup" aria-label="Adresses enregistrées" className="grid gap-4 md:grid-cols-2">
         {addresses.map((address) => (
           <SavedAddressCard
             key={address.id}
@@ -1850,20 +1886,26 @@ function SavedAddressPicker({
             onDelete={() => onDelete(address.id)}
           />
         ))}
-      </div>
 
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-10 justify-start px-0 text-sm font-semibold text-foreground hover:bg-transparent hover:text-primary"
-        onClick={onCreate}>
-        <Plus className="size-4" />
-        Ajouter une nouvelle adresse
-      </Button>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="flex min-h-[170px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[4px] border-2 border-dashed border-[#b4c2dc] bg-transparent px-4 py-6 text-base font-medium text-[#153675] transition-colors duration-200 hover:border-[#153675] hover:bg-[#f2f5fa] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153675]">
+          <Plus className="size-6" aria-hidden="true" />
+          Ajouter une adresse
+        </button>
+      </div>
     </div>
   );
 }
 
+const ADDRESS_KIND_LABEL: Record<AddressKind, string> = {
+  livraison: "Livraison",
+  facturation: "Facturation",
+  mixte: "Livraison et facturation",
+};
+
+/** A saved address, laid out like the label on a parcel. */
 function SavedAddressCard({
   address,
   isSelected,
@@ -1879,68 +1921,78 @@ function SavedAddressCard({
 }) {
   const inputId = `checkout-address-${address.id}`;
   const fullName = [address.firstName, address.lastName].filter(Boolean).join(" ");
-  const lines = [
-    address.company,
-    address.street,
-    address.apartment,
-    [address.postalCode, address.city].filter(Boolean).join(" "),
-    address.country,
-    address.phone,
-  ].filter(Boolean);
+  const cityLine = [address.postalCode, address.city].filter(Boolean).join(" ");
+  const streetLines = [address.street, address.apartment].filter(Boolean);
+  const title = address.label.trim() || "Mon adresse";
 
   return (
     <article
       className={cn(
-        "flex min-h-[210px] flex-col border bg-[#f4f4f4] transition-[border-color,box-shadow,background-color]",
+        "relative flex flex-col rounded-[4px] bg-white transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[#153675]",
         isSelected
-          ? "border-2 border-destructive bg-background shadow-sm"
-          : "border border-transparent hover:border-border",
+          ? "border-2 border-[#153675] shadow-[0_2px_0_rgba(15,31,69,0.12)]"
+          : "border border-[#d5deee] hover:border-[#153675]/60",
       )}>
-      <label
-        htmlFor={inputId}
-        className="flex flex-1 cursor-pointer items-start gap-3 px-4 pt-4 pb-5">
+      {isSelected ? (
+        <span className="absolute -top-2.5 right-3 rounded-[3px] bg-[#153675] px-2 py-0.5 text-xs font-medium text-white">
+          Livraison ici
+        </span>
+      ) : null}
+
+      <label htmlFor={inputId} className="flex flex-1 cursor-pointer items-start gap-3 px-4 pb-4 pt-4">
         <input
           id={inputId}
           type="radio"
           name="checkout-saved-address"
           checked={isSelected}
           onChange={onSelect}
-          className="mt-1 size-5 accent-destructive"
+          className="mt-1 size-5 shrink-0 accent-[#153675]"
         />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-bold text-foreground">
-              {address.label.trim() || "Mon adresse"}
-            </h3>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-lg! font-semibold! leading-tight! text-[#0f1f45]">{title}</h3>
             {address.isDefault ? (
-              <span className="rounded-sm bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                Defaut
+              <span className="rounded-[3px] bg-[#eef2f9] px-2 py-0.5 text-xs font-medium text-[#153675]">
+                Par défaut
               </span>
             ) : null}
           </div>
-          <div className="mt-2 space-y-0.5 text-sm leading-5 text-foreground">
-            {fullName ? <p>{fullName}</p> : null}
-            {lines.map((line) => (
+          <p className="mt-0.5! text-sm! text-[#5b6b8a]">{ADDRESS_KIND_LABEL[address.kind] ?? ADDRESS_KIND_LABEL.mixte}</p>
+
+          <address className="mt-3 space-y-0.5 text-[15px] not-italic leading-snug text-[#0f1f45]">
+            {fullName ? <p className="font-medium">{fullName}</p> : null}
+            {address.company ? <p>{address.company}</p> : null}
+            {streetLines.map((line) => (
               <p key={line}>{line}</p>
             ))}
-          </div>
+            {cityLine ? <p>{cityLine}</p> : null}
+            {address.country ? <p>{address.country}</p> : null}
+          </address>
+
+          {address.phone ? (
+            <p className="mt-3 flex items-center gap-2 text-sm text-[#5b6b8a]">
+              <Phone className="size-4 shrink-0" aria-hidden="true" />
+              <span className="tabular-nums">{address.phone}</span>
+            </p>
+          ) : null}
         </div>
-        <Home className="ml-auto hidden size-5 shrink-0 text-muted-foreground sm:block" />
       </label>
 
-      <div className="mt-auto flex min-h-11 items-center justify-center gap-6 border-t border-border px-4 py-2 text-sm">
+      <div className="flex items-center gap-2 border-t border-dashed border-[#b4c2dc] px-2 py-1">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex min-h-10 items-center gap-1.5 font-medium text-foreground hover:text-primary hover:underline">
-          <Pencil className="size-4" />
+          aria-label={`Modifier l’adresse ${title}`}
+          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded px-3 text-sm font-medium text-[#153675] transition-colors duration-200 hover:bg-[#f2f5fa] focus-visible:outline focus-visible:outline-2">
+          <Pencil className="size-4" aria-hidden="true" />
           Modifier
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex min-h-10 items-center gap-1.5 font-medium text-foreground hover:text-destructive hover:underline">
-          <Trash2 className="size-4" />
+          aria-label={`Supprimer l’adresse ${title}`}
+          className="ml-auto inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded px-3 text-sm font-medium text-[#5b6b8a] transition-colors duration-200 hover:bg-[#fdecee] hover:text-[#d6202e] focus-visible:outline focus-visible:outline-2">
+          <Trash2 className="size-4" aria-hidden="true" />
           Supprimer
         </button>
       </div>
@@ -1969,24 +2021,24 @@ function CheckoutAddressEditor({
   onCancel: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-primary/20 bg-background p-4 shadow-sm sm:p-5">
+    <div className="rounded-[4px] border-2 border-dashed border-[#b4c2dc] bg-white p-4 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase text-primary">
-            {mode === "edit" ? "Modifier l'adresse" : "Nouvelle adresse"}
-          </p>
-          <h3 className="mt-1 text-lg font-bold text-foreground">
-            {mode === "edit"
-              ? "Mettre a jour l'adresse"
-              : "Ajouter une adresse de livraison"}
+          <h3 className="text-xl! font-semibold! leading-tight! text-[#0f1f45]">
+            {mode === "edit" ? "Modifier l’adresse" : "Nouvelle adresse"}
           </h3>
+          <p className="mt-1! text-sm! text-[#5b6b8a]">
+            {mode === "edit"
+              ? "Corrigez les champs puis enregistrez."
+              : "Elle sera enregistrée dans votre compte."}
+          </p>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           onClick={onCancel}
-          aria-label="Fermer l'editeur d'adresse">
+          aria-label="Fermer l’éditeur d’adresse">
           <X className="size-4" />
         </Button>
       </div>
@@ -2032,7 +2084,7 @@ function CheckoutAddressEditor({
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             id="checkout-address-first-name"
-            label="Prenom"
+            label="Prénom"
             value={form.firstName}
             onChange={(value) => onFieldChange("firstName", value)}
             autoComplete="given-name"
@@ -2059,11 +2111,11 @@ function CheckoutAddressEditor({
         />
         <TextField
           id="checkout-address-apartment"
-          label="Appartement, batiment, details"
+          label="Appartement, bâtiment, détails (facultatif)"
           value={form.apartment}
           onChange={(value) => onFieldChange("apartment", value)}
           autoComplete="address-line2"
-          icon={MapPin}
+          icon={DoorOpen}
         />
 
         <div className="grid gap-4 sm:grid-cols-[1fr_150px_170px]">
@@ -2073,6 +2125,7 @@ function CheckoutAddressEditor({
             value={form.city}
             onChange={(value) => onFieldChange("city", value)}
             autoComplete="address-level2"
+            icon={Building2}
             required
           />
           <TextField
@@ -2081,6 +2134,7 @@ function CheckoutAddressEditor({
             value={form.postalCode}
             onChange={(value) => onFieldChange("postalCode", value)}
             autoComplete="postal-code"
+            icon={Hash}
           />
           <CountrySelect
             id="checkout-address-country"
@@ -2091,7 +2145,7 @@ function CheckoutAddressEditor({
 
         <label
           htmlFor="checkout-address-default"
-          className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium">
+          className="flex min-h-12 cursor-pointer items-center gap-3 rounded-[4px] border border-[#d5deee] bg-[#f2f5fa] px-3 py-2 text-[15px] font-medium text-[#0f1f45]">
           <input
             id="checkout-address-default"
             type="checkbox"
@@ -2099,19 +2153,19 @@ function CheckoutAddressEditor({
             onChange={(event) =>
               onFieldChange("isDefault", event.target.checked)
             }
-            className="size-4 accent-primary"
+            className="size-5 accent-[#153675]"
           />
-          Utiliser comme adresse par defaut
+          Utiliser comme adresse par défaut
         </label>
       </div>
 
       <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} className="h-12 rounded-[4px] px-6 text-base">
           Annuler
         </Button>
-        <Button type="button" onClick={onSave} disabled={saving}>
-          <Save className="size-4" />
-          {saving ? "Enregistrement..." : "Enregistrer l&apos;adresse"}
+        <Button type="button" onClick={onSave} disabled={saving} className="h-12 rounded-[4px] bg-[#153675] px-6 text-base text-white hover:bg-[#0f1f45]">
+          <Save className="size-4" aria-hidden="true" />
+          {saving ? "Enregistrement…" : "Enregistrer l’adresse"}
         </Button>
       </div>
     </div>
@@ -2136,7 +2190,7 @@ function ManualAddressFields({
     <div className="grid gap-4">
       {showAddressBookActions ? (
         <div className="flex flex-col gap-3 rounded-md border border-dashed border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>Aucune adresse enregistree pour ce compte.</span>
+          <span>Aucune adresse enregistrée pour ce compte.</span>
           <button
             type="button"
             onClick={onCreateAddress}
@@ -2162,6 +2216,7 @@ function ManualAddressFields({
           value={form.city}
           onChange={(value) => onFieldChange("city", value)}
           autoComplete="address-level2"
+          icon={Building2}
           required
         />
         <TextField
@@ -2170,6 +2225,7 @@ function ManualAddressFields({
           value={form.postalCode}
           onChange={(value) => onFieldChange("postalCode", value)}
           autoComplete="postal-code"
+          icon={Hash}
         />
         <CountrySelect
           id="checkout-country"

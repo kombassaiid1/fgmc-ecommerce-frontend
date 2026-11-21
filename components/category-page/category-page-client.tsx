@@ -2,19 +2,12 @@
 
 import { ProductCard } from "@/components/product-card";
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
-import { cn } from "@/lib/utils";
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,10 +52,8 @@ import type {
 import {
   ChevronRight,
   Filter,
-  Grid3X3,
   LayoutGrid,
   List,
-  Loader2,
   Package,
   Search,
   X,
@@ -235,7 +226,6 @@ export function CategoryPageClient({ slug }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("newest");
   const [searchQuery, setSearchQuery] = useState("");
-  const [mobileSections, setMobileSections] = useState<Set<string>>(new Set());
   const [hasInitializedFromUrl, setHasInitializedFromUrl] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -542,15 +532,6 @@ export function CategoryPageClient({ slug }: Props) {
       handleAttributeFilter(attrSlug, slug, false);
   };
 
-  const toggleMobileSection = (id: string) => {
-    setMobileSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const renderActiveFilters = () => {
     const els: React.ReactNode[] = [];
     if (priceFilterActive) {
@@ -647,6 +628,244 @@ export function CategoryPageClient({ slug }: Props) {
     return els;
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Filters: one panel, shared by the desktop sidebar and the phone sheet */
+  /* ------------------------------------------------------------------ */
+
+  const filterSectionTitle = (label: string, count: number) => (
+    <span className="flex items-center gap-2">
+      {label}
+      {count > 0 && (
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--cat-royal)] px-1.5 text-xs font-semibold text-white">
+          {count}
+        </span>
+      )}
+    </span>
+  );
+
+  const filterOptionList = (
+    idPrefix: string,
+    options: {
+      key: string;
+      label: string;
+      checked: boolean;
+      onChange: (checked: boolean) => void;
+    }[],
+    emptyLabel: string,
+  ) =>
+    options.length === 0 ? (
+      <p className="text-sm text-[var(--cat-muted)]">{emptyLabel}</p>
+    ) : (
+      <ul className="-mx-2 max-h-64 overflow-y-auto pr-1 [scrollbar-width:thin]">
+        {options.map((option) => (
+          <li key={option.key}>
+            <label
+              className={cn(
+                "flex min-h-10 cursor-pointer items-center gap-3 rounded px-2 py-1.5 text-[15px] transition-colors duration-150 hover:bg-[var(--cat-linen)]",
+                option.checked && "font-medium text-[var(--cat-royal)]",
+              )}>
+              <Checkbox
+                id={`${idPrefix}-${option.key}`}
+                checked={option.checked}
+                onCheckedChange={(c) => option.onChange(c === true)}
+              />
+              <span>{option.label}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    );
+
+  const filterPriceInput = (id: string, label: string, index: 0 | 1) => (
+    <div className="relative flex-1">
+      <Label htmlFor={id} className="sr-only">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={minPrice}
+        max={maxPrice}
+        value={selectedPriceRange[index]}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n)) return;
+          setSelectedPriceRange(
+            index === 0
+              ? [n, selectedPriceRange[1]]
+              : [selectedPriceRange[0], n],
+          );
+        }}
+        onBlur={() => {
+          const [a, b] = selectedPriceRange;
+          setSelectedPriceRange([
+            Math.max(minPrice, Math.min(a, b)),
+            Math.min(maxPrice, Math.max(a, b)),
+          ]);
+        }}
+        className="h-10 rounded-[4px] border-[var(--cat-line)] pr-8 text-base tabular-nums"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--cat-muted)]">
+        €
+      </span>
+    </div>
+  );
+
+  const filterTriggerClass =
+    "py-4 text-base font-medium text-[var(--cat-ink)] hover:no-underline";
+  const filterItemClass =
+    "border-0 border-b border-dashed border-[var(--cat-seam)] last:border-b-0";
+
+  const renderFilterPanel = (idp: string, openSections: string[]) => (
+    <div className="space-y-2">
+      <div className="relative">
+        <Label htmlFor={`${idp}-search`} className="sr-only">
+          Rechercher dans cette catégorie
+        </Label>
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cat-muted)]"
+          aria-hidden
+        />
+        <Input
+          id={`${idp}-search`}
+          placeholder="Rechercher dans cette catégorie"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="h-11 rounded-[4px] border-[var(--cat-line)] bg-[var(--cat-linen)] pl-9 pr-9 text-[15px]"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            aria-label="Effacer la recherche"
+            className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded text-[var(--cat-muted)] hover:text-[var(--cat-ink)] focus-visible:outline focus-visible:outline-2">
+            <X className="size-4" aria-hidden />
+          </button>
+        )}
+      </div>
+
+      {loadingFilters ? (
+        <div className="space-y-3 pt-4" role="status" aria-label="Chargement des filtres">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-10 animate-pulse rounded bg-[var(--cat-linen)] motion-reduce:animate-none"
+            />
+          ))}
+        </div>
+      ) : (
+        <Accordion type="multiple" defaultValue={openSections}>
+          <AccordionItem value="categories" className={filterItemClass}>
+            <AccordionTrigger className={filterTriggerClass}>
+              {filterSectionTitle("Sous-catégories", selectedCategories.size)}
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-0">
+              {filterOptionList(
+                `${idp}-cat`,
+                subcategories.map((cat: CategoryFilterSubcategory) => ({
+                  key: cat.slug,
+                  label: cat.title,
+                  checked: selectedCategories.has(cat.slug),
+                  onChange: (c) => handleCategoryFilter(cat.slug, c),
+                })),
+                "Aucune sous-catégorie",
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="brands" className={filterItemClass}>
+            <AccordionTrigger className={filterTriggerClass}>
+              {filterSectionTitle("Marques", selectedBrands.size)}
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-0">
+              {filterOptionList(
+                `${idp}-brand`,
+                brands.map((brand: CategoryFilterBrand) => ({
+                  key: brand.slug,
+                  label: brand.title,
+                  checked: selectedBrands.has(brand.slug),
+                  onChange: (c) => handleBrandFilter(brand.slug, c),
+                })),
+                "Aucune marque",
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="price" className={filterItemClass}>
+            <AccordionTrigger className={filterTriggerClass}>
+              {filterSectionTitle("Prix", priceFilterActive ? 1 : 0)}
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-0">
+              <div className="space-y-4 px-1">
+                <Slider
+                  className="w-full"
+                  min={minPrice}
+                  max={maxPrice}
+                  step={1}
+                  value={selectedPriceRange}
+                  onValueChange={setSelectedPriceRange}
+                  aria-label="Fourchette de prix"
+                />
+                <div className="flex items-center gap-2">
+                  {filterPriceInput(`${idp}-price-min`, "Prix minimum", 0)}
+                  <span aria-hidden className="text-[var(--cat-muted)]">
+                    –
+                  </span>
+                  {filterPriceInput(`${idp}-price-max`, "Prix maximum", 1)}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="h-10 flex-1 rounded-[4px] bg-[var(--cat-royal)] text-white hover:bg-[var(--cat-ink)]"
+                    onClick={applyPriceFilter}>
+                    Appliquer le prix
+                  </Button>
+                  {priceFilterActive && (
+                    <Button
+                      variant="outline"
+                      className="h-10 rounded-[4px]"
+                      onClick={() => removeFilter("price")}>
+                      Réinitialiser
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {attributes.map((attr: CategoryFilterAttribute) => (
+            <AccordionItem
+              key={attr.id}
+              value={attr.slug}
+              className={filterItemClass}>
+              <AccordionTrigger className={filterTriggerClass}>
+                {filterSectionTitle(
+                  attr.name,
+                  selectedAttributes.get(attr.slug)?.size ?? 0,
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="pb-4 pt-0">
+                {filterOptionList(
+                  `${idp}-${attr.slug}`,
+                  attr.terms.map((t: CategoryFilterTerm) => ({
+                    key: t.slug,
+                    label: t.name,
+                    checked:
+                      selectedAttributes.get(attr.slug)?.has(t.slug) ?? false,
+                    onChange: (c) => handleAttributeFilter(attr.slug, t.slug, c),
+                  })),
+                  "Aucune option",
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      )}
+    </div>
+  );
+
   if (error && !filterData) {
     return (
       <main className="flex min-h-[50vh] items-center justify-center bg-muted/30 px-4">
@@ -667,15 +886,28 @@ export function CategoryPageClient({ slug }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-muted/30">
-      <div className="border-b border-border/50 bg-card shadow-sm">
-        <div className="container mx-auto max-w-450 px-4 py-6 sm:px-6 lg:px-8">
-          <nav aria-label="Breadcrumb" className="mb-4">
-            <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+    <main
+      className="min-h-screen bg-[var(--cat-linen)]"
+      style={
+        {
+          "--cat-ink": "#0f1f45",
+          "--cat-royal": "#153675",
+          "--cat-thread": "#d6202e",
+          "--cat-linen": "#f2f5fa",
+          "--cat-seam": "#b4c2dc",
+          "--cat-line": "#d5deee",
+          "--cat-muted": "#5b6b8a",
+        } as React.CSSProperties
+      }>
+      {/* The category opens on a tailor's tape: the product count is pinned to it. */}
+      <header className="relative bg-[var(--cat-ink)] text-white">
+        <div className="container mx-auto max-w-450 px-4 pb-20 pt-6 sm:px-6 lg:px-8 lg:pb-24">
+          <nav aria-label="Breadcrumb">
+            <ol className="flex flex-wrap items-center gap-1.5 text-sm text-white/70">
               <li>
                 <Link
                   href="/"
-                  className="transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 -mx-1">
+                  className="-mx-1 rounded px-1 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                   Accueil
                 </Link>
               </li>
@@ -703,13 +935,13 @@ export function CategoryPageClient({ slug }: Props) {
                     </span>
                     <span>
                       {isLast ? (
-                        <span className="font-medium text-foreground">
+                        <span aria-current="page" className="font-medium text-white">
                           {c.title}
                         </span>
                       ) : (
                         <Link
                           href={`/${c.slug}`}
-                          className="transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 -mx-1">
+                          className="-mx-1 rounded px-1 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                           {c.title}
                         </Link>
                       )}
@@ -719,249 +951,62 @@ export function CategoryPageClient({ slug }: Props) {
               })}
             </ol>
           </nav>
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl">
-              {categoryTitle || slug}
-            </h1>
-          </div>
+          <h1 className="mt-8 max-w-5xl text-5xl! font-semibold! leading-[0.95]! tracking-tight text-balance sm:text-6xl! lg:text-7xl!">
+            {categoryTitle || slug}
+          </h1>
         </div>
-      </div>
+
+        <div className="cat-tape absolute inset-x-0 bottom-0" aria-hidden="true" />
+        <p className="absolute bottom-2.5 left-4 rounded-[3px] bg-[var(--cat-thread)] px-3 py-1 text-sm font-medium tabular-nums text-white shadow-[0_2px_0_rgba(15,31,69,0.35)] sm:left-6 lg:left-8">
+          {loadingProducts
+            ? "Chargement"
+            : `${totalCount} produit${totalCount !== 1 ? "s" : ""}`}
+        </p>
+      </header>
 
       <div className="container mx-auto max-w-450 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:w-full">
           <aside className="hidden w-72 shrink-0 lg:block xl:w-80">
-            <div className="sticky top-6 space-y-4 rounded-xl border border-border/80 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-border/60 pb-4">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                  <Filter className="text-primary size-4" />
-                </div>
-                <h2 className="text-base font-semibold">Filtres</h2>
+            <div className="sticky top-6 rounded-[4px] border border-[var(--cat-line)] bg-white p-5">
+              <div className="flex items-center gap-2 border-b border-dashed border-[var(--cat-seam)] pb-4">
+                <Filter className="size-4 text-[var(--cat-royal)]" aria-hidden />
+                <h2 className="text-xl! font-semibold! text-[var(--cat-ink)]">Filtres</h2>
                 {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {activeFilterCount}
-                  </Badge>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="ml-auto rounded px-1 text-sm font-medium text-[var(--cat-royal)] underline underline-offset-4 hover:text-[var(--cat-ink)] focus-visible:outline focus-visible:outline-2">
+                    Tout effacer
+                  </button>
                 )}
               </div>
 
               {activeFilterCount > 0 && (
-                <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Filtres actifs
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={resetFilters}>
-                      Tout effacer
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {renderActiveFilters()}
-                  </div>
+                <div className="flex flex-wrap gap-1.5 border-b border-dashed border-[var(--cat-seam)] py-4">
+                  {renderActiveFilters()}
                 </div>
               )}
 
-              <div>
-                <Label htmlFor="category-search" className="sr-only">
-                  Rechercher dans cette catégorie
-                </Label>
-                <div className="relative">
-                  <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-                  <Input
-                    id="category-search"
-                    placeholder="Rechercher dans cette catégorie..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-9 rounded-lg border-border/80 bg-background pl-9 text-sm focus-visible:ring-2"
-                  />
-                </div>
-              </div>
-
-              {loadingFilters ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2
-                    className="text-primary size-6 animate-spin"
-                    aria-hidden
-                  />
-                </div>
-              ) : (
-                <Accordion
-                  type="multiple"
-                  defaultValue={["categories", "brands", "price", "attributes"]}
-                  className="space-y-0">
-                  <AccordionItem value="categories" className="border-none">
-                    <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
-                      <div className="flex items-center gap-2">
-                        <Grid3X3 className="text-primary size-4 shrink-0" />
-                        <span>Sous-catégories</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-3 pt-0">
-                      {subcategories.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">
-                          Aucune sous-catégorie
-                        </p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {subcategories.map(
-                            (cat: CategoryFilterSubcategory) => (
-                              <label
-                                key={cat.id}
-                                className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 transition-colors hover:bg-muted/50">
-                                <Checkbox
-                                  id={cat.slug}
-                                  checked={selectedCategories.has(cat.slug)}
-                                  onCheckedChange={(c) =>
-                                    handleCategoryFilter(cat.slug, c === true)
-                                  }
-                                />
-                                <span className="text-sm">{cat.title}</span>
-                              </label>
-                            ),
-                          )}
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="brands" className="border-none">
-                    <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
-                      Marques
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-3 pt-0">
-                      {brands.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">
-                          Aucune marque
-                        </p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {brands.map((brand: CategoryFilterBrand) => (
-                            <label
-                              key={brand.id}
-                              className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 transition-colors hover:bg-muted/50">
-                              <Checkbox
-                                id={`brand-${brand.slug}`}
-                                checked={selectedBrands.has(brand.slug)}
-                                onCheckedChange={(c) =>
-                                  handleBrandFilter(brand.slug, c === true)
-                                }
-                              />
-                              <span className="text-sm">{brand.title}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="price" className="border-none">
-                    <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
-                      Prix (EUR)
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-3 pt-0">
-                      <Slider
-                        className="mt-2 w-full"
-                        min={minPrice}
-                        max={maxPrice}
-                        step={1}
-                        value={selectedPriceRange}
-                        onValueChange={setSelectedPriceRange}
-                      />
-                      <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                        <span>{selectedPriceRange[0]} €</span>
-                        <span>{selectedPriceRange[1]} €</span>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 rounded-lg"
-                          onClick={applyPriceFilter}>
-                          Appliquer
-                        </Button>
-                        {priceFilterActive && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 rounded-lg"
-                            onClick={() => {
-                              setPriceFilterActive(false);
-                              setSelectedPriceRange([minPrice, maxPrice]);
-                              setAppliedPriceRange([minPrice, maxPrice]);
-                              setCurrentPage(1);
-                            }}>
-                            Réinitialiser
-                          </Button>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {attributes.map((attr: CategoryFilterAttribute) => (
-                    <AccordionItem
-                      key={attr.id}
-                      value={attr.slug}
-                      className="border-none">
-                      <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline data-[state=open]:text-foreground">
-                        {attr.name}
-                      </AccordionTrigger>
-                      <AccordionContent className="pb-3 pt-0">
-                        {attr.terms.length === 0 ? (
-                          <p className="text-muted-foreground text-sm">
-                            Aucune option
-                          </p>
-                        ) : (
-                          <div className="flex flex-col gap-2">
-                            {attr.terms.map((t: CategoryFilterTerm) => (
-                              <label
-                                key={t.id}
-                                className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 transition-colors hover:bg-muted/50">
-                                <Checkbox
-                                  id={`${attr.slug}-${t.slug}`}
-                                  checked={
-                                    selectedAttributes
-                                      .get(attr.slug)
-                                      ?.has(t.slug) ?? false
-                                  }
-                                  onCheckedChange={(c) =>
-                                    handleAttributeFilter(
-                                      attr.slug,
-                                      t.slug,
-                                      c === true,
-                                    )
-                                  }
-                                />
-                                <span className="text-sm">{t.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              )}
+              <div className="pt-4">{renderFilterPanel("d", ["categories", "brands", "price"])}</div>
             </div>
           </aside>
 
           <div className="min-w-0 flex-1 space-y-4 w-full">
-            <div className="flex flex-col gap-4 rounded-xl border border-border/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 border-b border-dashed border-[var(--cat-seam)] pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Package className="size-4 shrink-0" />
-                  <span>
-                    {totalCount} produit{totalCount !== 1 ? "s" : ""}
-                  </span>
-                </div>
+                <p className="text-base text-[var(--cat-muted)]" aria-live="polite">
+                  {loadingProducts
+                    ? "Chargement…"
+                    : `${totalCount} produit${totalCount !== 1 ? "s" : ""} dans cette catégorie`}
+                </p>
 
                 <Sheet>
                   <SheetTrigger asChild>
                     <button
                       type="button"
-                      className="fixed left-0 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-black px-1.5 py-3 text-white shadow-lg lg:hidden">
+                      className="fixed left-0 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-[var(--cat-royal)] px-1.5 py-3 text-white shadow-lg lg:hidden">
                       <Filter className="size-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest [writing-mode:vertical-lr]">
+                      <span className="text-[11px] font-medium tracking-widest [writing-mode:vertical-lr]">
                         Filtrer
                       </span>
                       {activeFilterCount > 0 && (
@@ -1004,194 +1049,25 @@ export function CategoryPageClient({ slug }: Props) {
                         </div>
                       )}
                     </div>
-                    <div className="space-y-0">
-                      <div className="border-b border-border/60 p-4">
-                        <h3 className="mb-3 text-sm font-medium">Rechercher</h3>
-                        <div className="relative">
-                          <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-                          <Input
-                            placeholder="Rechercher..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-9 rounded-lg pl-9 text-sm"
-                          />
-                        </div>
-                      </div>
-                      {loadingFilters ? (
-                        <div className="flex justify-center py-10">
-                          <Loader2 className="text-primary size-6 animate-spin" />
-                        </div>
-                      ) : (
-                        <>
-                          <div className="border-b border-border/60">
-                            <button
-                              type="button"
-                              onClick={() => toggleMobileSection("categories")}
-                              className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50">
-                              <div className="flex items-center gap-2">
-                                <Grid3X3 className="text-primary size-4 shrink-0" />
-                                <span className="font-medium text-sm">
-                                  Sous-catégories
-                                </span>
-                              </div>
-                              <ChevronRight
-                                className={`size-4 shrink-0 transition-transform ${
-                                  mobileSections.has("categories")
-                                    ? "rotate-90"
-                                    : ""
-                                }`}
-                              />
-                            </button>
-                            {mobileSections.has("categories") && (
-                              <div className="space-y-2 px-4 pb-4">
-                                {subcategories.map(
-                                  (cat: CategoryFilterSubcategory) => (
-                                    <label
-                                      key={cat.id}
-                                      className="flex cursor-pointer items-center gap-2 rounded-md py-2 pr-2">
-                                      <Checkbox
-                                        id={`m-${cat.slug}`}
-                                        checked={selectedCategories.has(
-                                          cat.slug,
-                                        )}
-                                        onCheckedChange={(c) =>
-                                          handleCategoryFilter(
-                                            cat.slug,
-                                            c === true,
-                                          )
-                                        }
-                                      />
-                                      <span className="text-sm">
-                                        {cat.title}
-                                      </span>
-                                    </label>
-                                  ),
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="border-b border-border/60">
-                            <div className="p-4">
-                              <h3 className="mb-3 text-sm font-medium">
-                                Prix (EUR)
-                              </h3>
-                              <Slider
-                                className="w-full"
-                                min={minPrice}
-                                max={maxPrice}
-                                step={1}
-                                value={selectedPriceRange}
-                                onValueChange={setSelectedPriceRange}
-                              />
-                              <div className="mt-2 flex justify-between text-muted-foreground text-xs">
-                                <span>{selectedPriceRange[0]} €</span>
-                                <span>{selectedPriceRange[1]} €</span>
-                              </div>
-                              <Button
-                                className="mt-3 w-full rounded-lg"
-                                size="sm"
-                                onClick={applyPriceFilter}>
-                                Appliquer
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="border-b border-border/60">
-                            <button
-                              type="button"
-                              onClick={() => toggleMobileSection("brands")}
-                              className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50">
-                              <span className="font-medium text-sm">
-                                Marques
-                              </span>
-                              <ChevronRight
-                                className={`size-4 shrink-0 transition-transform ${
-                                  mobileSections.has("brands")
-                                    ? "rotate-90"
-                                    : ""
-                                }`}
-                              />
-                            </button>
-                            {mobileSections.has("brands") && (
-                              <div className="space-y-2 px-4 pb-4">
-                                {brands.length === 0 ? (
-                                  <p className="text-muted-foreground text-sm">
-                                    Aucune marque
-                                  </p>
-                                ) : (
-                                  brands.map((brand: CategoryFilterBrand) => (
-                                    <label
-                                      key={brand.id}
-                                      className="flex cursor-pointer items-center gap-2 rounded-md py-2 pr-2">
-                                      <Checkbox
-                                        id={`m-brand-${brand.slug}`}
-                                        checked={selectedBrands.has(
-                                          brand.slug,
-                                        )}
-                                        onCheckedChange={(c) =>
-                                          handleBrandFilter(
-                                            brand.slug,
-                                            c === true,
-                                          )
-                                        }
-                                      />
-                                      <span className="text-sm">
-                                        {brand.title}
-                                      </span>
-                                    </label>
-                                  ))
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          {attributes.map((attr: CategoryFilterAttribute) => (
-                            <div
-                              key={attr.id}
-                              className="border-b border-border/60">
-                              <button
-                                type="button"
-                                onClick={() => toggleMobileSection(attr.slug)}
-                                className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50">
-                                <span className="font-medium text-sm">
-                                  {attr.name}
-                                </span>
-                                <ChevronRight
-                                  className={`size-4 shrink-0 transition-transform ${
-                                    mobileSections.has(attr.slug)
-                                      ? "rotate-90"
-                                      : ""
-                                  }`}
-                                />
-                              </button>
-                              {mobileSections.has(attr.slug) && (
-                                <div className="space-y-2 px-4 pb-4">
-                                  {attr.terms.map((t: CategoryFilterTerm) => (
-                                    <label
-                                      key={t.id}
-                                      className="flex cursor-pointer items-center gap-2 rounded-md py-2 pr-2">
-                                      <Checkbox
-                                        id={`m-${attr.slug}-${t.slug}`}
-                                        checked={
-                                          selectedAttributes
-                                            .get(attr.slug)
-                                            ?.has(t.slug) ?? false
-                                        }
-                                        onCheckedChange={(c) =>
-                                          handleAttributeFilter(
-                                            attr.slug,
-                                            t.slug,
-                                            c === true,
-                                          )
-                                        }
-                                      />
-                                      <span className="text-sm">{t.name}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </>
+                    <div className="px-4 pb-4 pt-4">
+                      {renderFilterPanel("m", ["price"])}
+                    </div>
+                    <div className="sticky bottom-0 flex gap-3 border-t border-[var(--cat-line)] bg-white p-4">
+                      {activeFilterCount > 0 && (
+                        <Button
+                          variant="outline"
+                          className="h-12 rounded-[4px]"
+                          onClick={resetFilters}>
+                          Tout effacer
+                        </Button>
                       )}
+                      <SheetClose asChild>
+                        <Button className="h-12 flex-1 rounded-[4px] bg-[var(--cat-royal)] text-base text-white hover:bg-[var(--cat-ink)]">
+                          {loadingProducts
+                            ? "Voir les produits"
+                            : `Voir ${totalCount} produit${totalCount !== 1 ? "s" : ""}`}
+                        </Button>
+                      </SheetClose>
                     </div>
                   </SheetContent>
                 </Sheet>
@@ -1242,64 +1118,47 @@ export function CategoryPageClient({ slug }: Props) {
             </div>
 
             {subcategories.length > 0 && (
-              <section className="rounded-xl border border-border/80 bg-white px-4 py-3 shadow-sm">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#0858B1]">
-                    Sous catégories
-                  </h3>
-                </div>
-                <Carousel
-                  opts={{ align: "start", dragFree: true }}
-                  className="w-full">
-                  <CarouselContent className="-ml-3">
-                    {subcategories.map((sc: CategoryFilterSubcategory) => {
-                      const imgUrl = sc.image?.trim()
-                        ? getImageUrl(sc.image)
-                        : null;
-                      return (
-                        <CarouselItem
-                          key={sc.id}
-                          className="basis-[140px] pl-3 sm:basis-[160px] lg:basis-[180px]">
-                          <Link
-                            href={`/${sc.slug}`}
-                            title={sc.title}
-                            className={cn(
-                              "group w-full overflow-hidden rounded-xl  bg-white text-left shadow-sm transition hover:shadow-md",
-                              "border-border/70 hover:border-[#0858B1]/50",
-                            )}>
-                            <div className="relative h-16 w-full bg-muted/40">
-                              {imgUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={imgUrl}
-                                  alt={sc.title}
-                                  loading="lazy"
-                                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                                  <Package className="size-6 opacity-50" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="px-3 py-2">
-                              <p className="line-clamp-2 text-center text-xs font-semibold text-foreground">
-                                {sc.title}
-                              </p>
-                            </div>
-                          </Link>
-                        </CarouselItem>
-                      );
-                    })}
-                  </CarouselContent>
-                  <CarouselPrevious className="-left-3 hidden sm:inline-flex" />
-                  <CarouselNext className="-right-3 hidden sm:inline-flex" />
-                </Carousel>
-              </section>
+              <nav aria-label="Sous-catégories">
+                <ul className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+                  {subcategories.map((sc: CategoryFilterSubcategory) => {
+                    const imgUrl = sc.image?.trim()
+                      ? getImageUrl(sc.image)
+                      : null;
+                    return (
+                      <li key={sc.id} className="shrink-0">
+                        <Link
+                          href={`/${sc.slug}`}
+                          title={sc.title}
+                          className="group flex min-h-12 items-center gap-3 rounded-full border border-[var(--cat-line)] bg-white py-1.5 pl-1.5 pr-5 text-[var(--cat-ink)] transition-colors duration-200 hover:border-[var(--cat-royal)] hover:text-[var(--cat-royal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 active:bg-[var(--cat-linen)]">
+                          <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--cat-linen)]">
+                            {imgUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={imgUrl}
+                                alt=""
+                                loading="lazy"
+                                className="size-full object-contain"
+                              />
+                            ) : (
+                              <Package
+                                className="size-4 text-[var(--cat-muted)]"
+                                aria-hidden
+                              />
+                            )}
+                          </span>
+                          <span className="whitespace-nowrap text-sm font-medium">
+                            {sc.title}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
             )}
 
             {activeFilterCount > 0 && (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 rounded-[4px] border border-[var(--cat-line)] bg-white px-4 py-3">
                 <span className="text-muted-foreground text-xs font-medium">
                   Filtres actifs
                 </span>
@@ -1314,26 +1173,22 @@ export function CategoryPageClient({ slug }: Props) {
               </div>
             )}
 
-            <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm sm:p-6">
+            <div>
               {loadingProducts ? (
-                <div className="flex min-h-[320px] flex-col items-center justify-center py-16">
-                  <Loader2
-                    className="text-primary size-10 animate-spin"
-                    aria-hidden
-                  />
-                  <p className="text-muted-foreground mt-4 text-sm">
-                    Chargement des produits…
-                  </p>
+                <div
+                  className="grid w-full grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-5 xl:grid-cols-4 xl:gap-6 2xl:grid-cols-5"
+                  role="status"
+                  aria-label="Chargement des produits">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <div
+                      key={i}
+                      className="h-[430px] animate-pulse rounded-[4px] border border-[var(--cat-line)] bg-white motion-reduce:animate-none"
+                    />
+                  ))}
                 </div>
               ) : products.length === 0 ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center py-16 text-center">
-                  <div className="rounded-full bg-muted/80 p-6">
-                    <Package
-                      className="text-muted-foreground size-12"
-                      aria-hidden
-                    />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold">
+                  <h3 className="text-2xl! font-semibold! text-[var(--cat-ink)]">
                     Aucun produit trouvé
                   </h3>
                   <p className="text-muted-foreground mt-1 max-w-sm text-sm">

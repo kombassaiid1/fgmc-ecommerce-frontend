@@ -1,16 +1,98 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type MouseEvent } from "react";
 import Link from "next/link";
 import { Minus, Package, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getImageUrl } from "@/lib/api";
-import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
 import { toast } from "sonner";
-import { resolveSpecificPrice, type StorefrontSpecificPrice } from "@/lib/specific-pricing";
 
-function parsePrice(value: string): number {
-  const n = parseFloat(String(value).replace(/[^0-9.,-]/g, "").replace(",", "."));
+import { getImageUrl } from "@/lib/api";
+import { resolveSpecificPrice, type StorefrontSpecificPrice } from "@/lib/specific-pricing";
+import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
+import { cn } from "@/lib/utils";
+
+/**
+ * THE standard product card of the storefront (category, brand, search, home,
+ * product page, Puck blocks). One design, one place to change it.
+ *
+ * Layout: image, brand, title, big TTC price, HT price, − / qty / + stepper
+ * (no « Ajouter au panier » button: + adds the product).
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Tokens                                                                     */
+/* -------------------------------------------------------------------------- */
+
+const INK = "#0f1f45";
+const MUTED = "#5b6b8a";
+const LINE = "#d5deee";
+const SURFACE = "#eef2f9";
+const PLACEHOLDER = "#9fb0cc";
+
+// Literal class names so Tailwind can see them.
+const RATIO_CLASS = {
+  "1/1": "aspect-square",
+  "5/4": "aspect-[5/4]",
+  "4/3": "aspect-[4/3]",
+} as const;
+
+export type ProductCardStyle = {
+  /** Promotion colour (discount label and discounted price). */
+  accentColor: string;
+  /** Hover border, stepper border and stepper icons. */
+  buttonColor: string;
+  cardRadius: number;
+  imageFit: "cover" | "contain";
+  imageRatio: keyof typeof RATIO_CLASS;
+};
+
+export const DEFAULT_PRODUCT_CARD_STYLE: ProductCardStyle = {
+  accentColor: "#d6202e",
+  buttonColor: "#153675",
+  cardRadius: 4,
+  imageFit: "cover",
+  imageRatio: "1/1",
+};
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type ProductCardProduct = {
+  id: string;
+  slug: string;
+  title: string;
+  price: string;
+  specificPrices?: StorefrontSpecificPrice[] | null;
+  taxRelation?: { rate: number } | null;
+  mainCategoryId?: string | null;
+  images?: string[];
+  brand?: { title?: string | null } | null;
+  categories?: unknown[] | null;
+  createdAt?: string;
+};
+
+/** "grid": vertical card · "list": horizontal card · "featured": vertical, fills its slot. */
+export type ProductCardVariant = "grid" | "list" | "featured";
+
+export type ProductCardProps = {
+  product: ProductCardProduct;
+  variant?: ProductCardVariant;
+  /** Fallback category for the product URL when the product carries none. */
+  categorySlug?: string;
+  /** Overrides of the default look (used by the page builder blocks). */
+  style?: Partial<ProductCardStyle>;
+  /** Page-builder preview: links are inert and the real cart is never touched. */
+  isEditing?: boolean;
+  onLinkClick?: (event: MouseEvent) => void;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function parsePrice(value: string | null | undefined): number {
+  const n = Number.parseFloat(String(value ?? "").replace(/[^0-9.,-]/g, "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -29,20 +111,14 @@ function formatEur(value: number): string {
   }).format(value);
 }
 
-export type ProductCardProduct = {
-  id: string;
-  slug: string;
-  title: string;
-  price: string;
-  specificPrices?: StorefrontSpecificPrice[] | null;
-  taxRelation?: { rate: number } | null;
-  mainCategoryId?: string | null;
-  images?: string[];
-  categories?: unknown[] | null;
-  createdAt?: string;
-};
-
-export type ProductCardVariant = "grid" | "list" | "featured";
+/** Splits a price into euros ("1 026") and cents ("96") for typographic display. */
+function splitPrice(value: number) {
+  const totalCents = Math.round(value * 100);
+  return {
+    euros: new Intl.NumberFormat("fr-FR").format(Math.floor(totalCents / 100)),
+    cents: String(totalCents % 100).padStart(2, "0"),
+  };
+}
 
 function buildProductHref(categorySlug: string | undefined, productSlug: string): string {
   const cat = (categorySlug ?? "").trim().replace(/^\/+|\/+$/g, "");
@@ -51,208 +127,205 @@ function buildProductHref(categorySlug: string | undefined, productSlug: string)
   return `/${cat}/${prod}.html`;
 }
 
-function pickProductCategoryLabel(
+type CategoryInfo = { title: string | null; slug: string | null };
+
+/** Category of the product: the main one when known, else the first. */
+function pickProductCategory(
   categories: unknown[] | null | undefined,
   mainCategoryId?: string | null,
-): string | null {
-  if (!Array.isArray(categories) || categories.length === 0) return null;
+): CategoryInfo {
+  const empty: CategoryInfo = { title: null, slug: null };
+  if (!Array.isArray(categories) || categories.length === 0) return empty;
 
-  const first = mainCategoryId
-    ? categories.find((item) => {
-        if (item == null || typeof item !== "object") return false;
-        const record = item as Record<string, unknown>;
-        const category = record.category as Record<string, unknown> | null | undefined;
-        return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
-      }) ?? categories[0]
-    : categories[0];
-  if (first == null || typeof first !== "object") return null;
+  const asRecord = (item: unknown) =>
+    item != null && typeof item === "object" ? (item as Record<string, unknown>) : null;
+  const isMain = (item: unknown) => {
+    const record = asRecord(item);
+    if (!record || !mainCategoryId) return false;
+    const category = asRecord(record.category);
+    return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
+  };
+  const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
 
-  const firstRecord = first as Record<string, unknown>;
-  const candidateRaw =
-    (firstRecord["category"] as unknown) ?? (firstRecord as unknown);
-
-  if (candidateRaw == null || typeof candidateRaw !== "object") return null;
-  const candidate = candidateRaw as Record<string, unknown>;
-
-  const title =
-    typeof candidate["title"] === "string"
-      ? (candidate["title"] as string)
-      : typeof candidate["name"] === "string"
-        ? (candidate["name"] as string)
-        : null;
-
-  if (!title?.trim()) return null;
-  return title.trim();
-}
-
-function pickProductCategorySlug(
-  categories: unknown[] | null | undefined,
-  mainCategoryId?: string | null,
-): string | null {
-  if (!Array.isArray(categories) || categories.length === 0) return null;
-
-  const ordered = mainCategoryId
-    ? [...categories].sort((left, right) => {
-        const isMain = (item: unknown) => {
-          if (item == null || typeof item !== "object") return false;
-          const record = item as Record<string, unknown>;
-          const category = record.category as Record<string, unknown> | null | undefined;
-          return record.categoryId === mainCategoryId || category?.id === mainCategoryId;
-        };
-        return Number(isMain(right)) - Number(isMain(left));
-      })
-    : categories;
+  const ordered = mainCategoryId ? [...categories].sort((a, b) => Number(isMain(b)) - Number(isMain(a))) : categories;
+  const title = (() => {
+    const first = asRecord(ordered[0]);
+    const candidate = asRecord(first?.category) ?? first;
+    return text(candidate?.title) ?? text(candidate?.name);
+  })();
   for (const item of ordered) {
-    if (item == null || typeof item !== "object") continue;
-    const itemRecord = item as Record<string, unknown>;
-    const candidateRaw =
-      (itemRecord["category"] as unknown) ?? (itemRecord as unknown);
-    if (candidateRaw == null || typeof candidateRaw !== "object") continue;
-    const candidate = candidateRaw as Record<string, unknown>;
-    const slug =
-      typeof candidate["slug"] === "string" ? (candidate["slug"] as string) : null;
-    if (slug && slug.trim()) return slug.trim();
+    const record = asRecord(item);
+    const candidate = asRecord(record?.category) ?? record;
+    const slug = text(candidate?.slug);
+    if (slug) return { title, slug };
   }
-
-  return null;
+  return { title, slug: null };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
 
 export function ProductCard({
   product,
   variant = "grid",
   categorySlug,
-}: {
-  product: ProductCardProduct;
-  variant?: ProductCardVariant;
-  categorySlug?: string;
-}) {
+  style,
+  isEditing = false,
+  onLinkClick,
+}: ProductCardProps) {
+  const { accentColor, buttonColor, cardRadius, imageFit, imageRatio } = { ...DEFAULT_PRODUCT_CARD_STYLE, ...style };
+  const isList = variant === "list";
+
   const key = useMemo(() => cartItemKey(product.id, null), [product.id]);
-  const qtyInCart = useCartStore((s) => s.items[key]?.qty ?? 0);
-  const addItem = useCartStore((s) => s.addItem);
-  const setItemQty = useCartStore((s) => s.setItemQty);
-  const imageUrl = product.images?.[0] ? getImageUrl(product.images[0]) : null;
-  const ht = parsePrice(product.price);
+  const quantity = useCartStore((state) => state.items[key]?.qty ?? 0);
+  const addItem = useCartStore((state) => state.addItem);
+  const setItemQty = useCartStore((state) => state.setItemQty);
+
   const vat = rateToFraction(product.taxRelation?.rate);
-  const originalTtc = ht * (1 + vat);
-  const resolvedPrice = resolveSpecificPrice(product.specificPrices, ht, vat, Math.max(1, qtyInCart));
-  const ttc = resolvedPrice.saleTtc;
-  const hasDiscount = ttc < originalTtc;
-  const displayedHt = ttc / (1 + vat);
-  const discountPercent = originalTtc > 0
-    ? Math.min(100, Math.max(1, Math.round(((originalTtc - ttc) / originalTtc) * 100)))
+  const basePrice = parsePrice(product.price);
+  const regularTtc = basePrice * (1 + vat);
+  const resolved = resolveSpecificPrice(product.specificPrices, basePrice, vat, Math.max(1, quantity));
+  const priceTtc = resolved.saleTtc;
+  const priceHt = priceTtc / (1 + vat);
+  const hasDiscount = regularTtc > 0 && priceTtc < regularTtc;
+  const percentOff = hasDiscount
+    ? Math.min(99, Math.max(1, Math.round(((regularTtc - priceTtc) / regularTtc) * 100)))
     : 0;
-  const productCategorySlug = pickProductCategorySlug(product.categories, product.mainCategoryId);
-  const href = buildProductHref(productCategorySlug ?? categorySlug, product.slug);
-  const categoryLabel = pickProductCategoryLabel(product.categories, product.mainCategoryId) ?? null;
+  const { euros, cents } = splitPrice(priceTtc);
+
+  const category = pickProductCategory(product.categories, product.mainCategoryId);
+  const image = product.images?.[0] ? getImageUrl(product.images[0]) : null;
+  const href = buildProductHref(category.slug ?? categorySlug, product.slug);
+  const eyebrow = product.brand?.title?.trim() || category.title;
+
+  const increase = () => {
+    if (isEditing) return; // never touch the real cart from the editor
+    if (quantity <= 0) {
+      addItem(
+        {
+          productId: product.id,
+          productSlug: product.slug,
+          title: product.title,
+          image: product.images?.[0] ?? null,
+          categorySlug: category.slug ?? categorySlug ?? null,
+          variantId: null,
+          price: String(priceHt),
+          taxRate: product.taxRelation?.rate ?? null,
+        },
+        1,
+      );
+      toast.success("Ajouté au panier", { description: product.title });
+      return;
+    }
+    setItemQty(key, quantity + 1);
+    toast.success("Panier mis à jour", { description: `${product.title} × ${quantity + 1}` });
+  };
+
+  const decrease = () => {
+    if (isEditing || quantity <= 0) return;
+    setItemQty(key, quantity - 1);
+  };
 
   return (
     <article
       className={cn(
-        "group overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all duration-300 hover:border-primary/20 hover:shadow-md",
-        variant === "list" && "flex",
-        variant === "featured" && "flex h-full flex-col",
-      )}>
+        "group w-full overflow-hidden border bg-white transition-colors duration-200 hover:border-[var(--card-hover)] motion-reduce:transition-none",
+        isList ? "flex flex-row" : "flex h-full flex-col",
+      )}
+      style={{ borderRadius: cardRadius, borderColor: LINE, color: INK, ["--card-hover" as string]: buttonColor }}>
       <Link
         href={href}
+        onClick={onLinkClick}
+        aria-label={product.title}
         className={cn(
-          "block",
-          variant === "list" ? "h-28 w-28 shrink-0 sm:h-32 sm:w-32" : "",
-        )}>
-        <div
-          className={cn(
-            "relative overflow-hidden bg-muted/50",
-          variant === "list" ? "h-full w-full" : "aspect-square",
-          )}>
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageUrl}
-              alt={product.title}
-              loading="lazy"
-              className={cn(
-                "h-full w-full transition-transform duration-300 group-hover:scale-[1.02]",
-                variant === "featured" ? "bg-white object-cover" : "object-cover",
-              )}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-              <Package className="size-8 opacity-40" />
-            </div>
-          )}
-        </div>
+          "relative block shrink-0 overflow-hidden focus-visible:outline-offset-[-3px]",
+          isList ? "w-32 self-stretch sm:w-44" : RATIO_CLASS[imageRatio],
+        )}
+        style={{ background: SURFACE }}>
+        {image ? (
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            className={cn(
+              "size-full transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100",
+              imageFit === "cover" ? "object-cover" : "object-contain",
+            )}
+          />
+        ) : (
+          <span className="grid size-full min-h-28 place-items-center" style={{ color: PLACEHOLDER }}>
+            <Package className="size-12" aria-hidden="true" />
+          </span>
+        )}
+
+        {/* A discount is a label sewn onto the corner. */}
+        {hasDiscount ? (
+          <span
+            className="absolute left-0 top-3 p-[3px] pr-1.5 text-white sm:top-4"
+            style={{ background: accentColor, borderTopRightRadius: 3, borderBottomRightRadius: 3 }}>
+            <span className="block border border-dashed border-white/70 px-2 py-0.5 text-base font-semibold leading-tight tabular-nums sm:px-2.5 sm:text-xl">
+              −{percentOff}%
+            </span>
+          </span>
+        ) : null}
       </Link>
 
-      <div className={cn(
-        "p-4",
-        variant === "list" && "min-w-0 flex-1",
-        variant === "featured" && "flex flex-1 flex-col",
-      )}>
-        <Link href={href} className="block">
-          {categoryLabel ? (
-            <p className={cn("mb-1 line-clamp-1 text-xs font-medium text-muted-foreground", variant === "featured" && "min-h-4")}>
-              {categoryLabel}
-            </p>
-          ) : variant === "featured" ? <p className="mb-1 min-h-4" aria-hidden="true" /> : null}
-          <h3 className={cn("line-clamp-2 text-sm font-semibold leading-tight transition-colors group-hover:text-primary sm:text-base", variant === "featured" && "min-h-10")}>
+      <div className="flex min-w-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-4">
+        <p className="mb-1 line-clamp-1 min-h-5 text-xs sm:text-sm" style={{ color: MUTED }}>
+          {eyebrow ?? " "}
+        </p>
+        <h3 className="min-h-[2.75rem] sm:min-h-[3.1rem]">
+          <Link
+            href={href}
+            onClick={onLinkClick}
+            className="line-clamp-2 cursor-pointer text-base font-medium leading-snug transition-colors duration-200 hover:text-[var(--card-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:text-lg">
             {product.title}
-          </h3>
-          {hasDiscount ? (
-            <div className={cn("mt-2 flex flex-wrap items-center gap-2", variant === "featured" && "min-h-5")}>
-              <span className="rounded bg-[#d6202e] px-1.5 py-0.5 text-[10px] font-bold text-white">-{discountPercent}%</span>
-              <span className="text-xs text-muted-foreground line-through">{formatEur(originalTtc)} TTC</span>
-            </div>
-          ) : variant === "featured" ? <div className="mt-2 min-h-5" aria-hidden="true" /> : null}
-          <p className={cn("mt-1 text-sm font-semibold tabular-nums sm:text-base", variant === "featured" && "whitespace-nowrap text-[13px]")}>
-            <span className={hasDiscount ? "text-[#d6202e]" : "text-foreground"}>{formatEur(ttc)} TTC</span>
-            <span className="text-muted-foreground"> - </span>
-            <span className="text-[#0858B1]">{formatEur(displayedHt)} HT</span>
-          </p>
-        </Link>
+          </Link>
+        </h3>
 
-        <div className="mt-3 flex items-center justify-center">
-          <div className="inline-flex items-stretch overflow-hidden rounded-md border border-border/80 bg-white shadow-sm">
+        <div className="mt-auto pt-3 sm:pt-4">
+          <div className="flex items-baseline gap-x-2">
+            <span
+              className="whitespace-nowrap font-semibold leading-none tracking-tight tabular-nums"
+              style={{ color: hasDiscount ? accentColor : INK }}
+              aria-label={formatEur(priceTtc)}>
+              <span className="text-[30px] sm:text-[38px]" aria-hidden="true">{euros}</span>
+              <span className="align-top text-lg sm:text-xl" aria-hidden="true">,{cents}</span>
+              <span className="ml-1 text-sm sm:text-base" aria-hidden="true">€</span>
+            </span>
+            <span className="text-xs font-medium sm:text-sm" style={{ color: MUTED }}>TTC</span>
+          </div>
+          <p
+            className="mt-2 flex min-h-6 flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm tabular-nums sm:text-base"
+            style={{ color: MUTED }}>
+            {hasDiscount ? <s>{formatEur(regularTtc)}</s> : null}
+            <span>{formatEur(priceHt)} HT</span>
+          </p>
+
+          {/* Quantity stepper, always visible: no « Ajouter au panier » button. */}
+          <div
+            className="mt-3 flex min-h-12 items-center justify-between rounded border-2 bg-white p-1 sm:mt-4"
+            style={{ borderColor: buttonColor }}>
             <button
               type="button"
-              className="grid h-8 w-8 place-items-center text-foreground hover:bg-muted/50 disabled:opacity-40"
-              onClick={() => {
-                if (qtyInCart <= 0) return;
-                setItemQty(key, qtyInCart - 1);
-              }}
-              disabled={qtyInCart <= 0}
-              aria-label="Diminuer la quantité">
-              <Minus className="size-4" />
+              aria-label={`Diminuer la quantité de ${product.title}`}
+              onClick={decrease}
+              disabled={quantity <= 0}
+              className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              style={{ color: buttonColor }}>
+              <Minus className="size-4" aria-hidden="true" />
             </button>
-            <div className="grid h-8 min-w-9 place-items-center border-x border-border/80 px-2 text-sm font-semibold tabular-nums">
-              {qtyInCart}
-            </div>
+            <span className="min-w-8 text-center text-lg font-semibold tabular-nums" aria-live="polite">
+              {quantity}
+            </span>
             <button
               type="button"
-              className="grid h-8 w-8 place-items-center text-foreground hover:bg-muted/50"
-              onClick={() => {
-                if (qtyInCart <= 0) {
-                  addItem(
-                    {
-                      productId: product.id,
-                      productSlug: product.slug,
-                      title: product.title,
-                      image: product.images?.[0] ?? null,
-                      categorySlug: productCategorySlug ?? categorySlug ?? null,
-                      variantId: null,
-                      price: String(displayedHt),
-                      taxRate: product.taxRelation?.rate ?? null,
-                    },
-                    1,
-                  );
-                  toast.success("Ajouté au panier", { description: product.title });
-                  return;
-                }
-                setItemQty(key, qtyInCart + 1);
-                toast.success("Panier mis à jour", {
-                  description: `${product.title} × ${qtyInCart + 1}`,
-                });
-              }}
-              aria-label="Augmenter la quantité">
-              <Plus className="size-4" />
+              aria-label={`Augmenter la quantité de ${product.title}`}
+              onClick={increase}
+              className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2"
+              style={{ color: buttonColor }}>
+              <Plus className="size-4" aria-hidden="true" />
             </button>
           </div>
         </div>
