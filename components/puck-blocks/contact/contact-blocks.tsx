@@ -331,6 +331,8 @@ export type MapProps = {
   address: string;
   /** The tag pinned on the map. Missing on maps placed before it existed. */
   label?: string;
+  /** Show the address card Google draws at the top left of the embedded map. Missing = hidden. */
+  showCard?: boolean;
   height: number;
   directionsLabel: string;
   maxWidth: number;
@@ -338,16 +340,16 @@ export type MapProps = {
   spaceBottom: number;
 };
 
-function MapView({ address, label = "Notre atelier", height, directionsLabel }: MapProps) {
+function MapView({ address, label = "Notre atelier", showCard = false, height, directionsLabel }: MapProps) {
   const { data: site } = useShopDetails();
   const place = address.trim() || (site ? shopAddress(site) : "");
   if (!place) return <div className="pc-empty">Indiquez une adresse, ou renseignez celle de la boutique dans « Informations de la boutique ».</div>;
   return (
     <figure className="pc-map">
       <div className="pc-map-mat">
-        {/* The embedded map draws its own address card at the top left: the frame is shifted up so only the map shows. */}
-        <div className="pc-map-view" style={{ height }}>
-          <iframe title={`Carte : ${place}`} src={`https://www.google.com/maps?q=${encodeURIComponent(place)}&output=embed`} style={{ height: height + 170 }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+        {/* The embedded map draws its own address card at the top left: unless it is wanted, the frame is shifted up so only the map shows. */}
+        <div className={showCard ? "pc-map-view is-card" : "pc-map-view"} style={{ height }}>
+          <iframe title={`Carte : ${place}`} src={`https://www.google.com/maps?q=${encodeURIComponent(place)}&output=embed`} style={{ height: showCard ? height : height + 170 }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
           {label ? <span className="pc-map-tag"><PiMapPinFill className="size-4" aria-hidden="true" />{label}</span> : null}
         </div>
       </div>
@@ -361,10 +363,11 @@ function MapView({ address, label = "Notre atelier", height, directionsLabel }: 
 
 export const mapBlock: ComponentConfig<MapProps> = {
   label: "Carte",
-  defaultProps: { address: "", label: "Notre atelier", height: 420, directionsLabel: "Itinéraire", maxWidth: 960, spaceTop: 24, spaceBottom: 24 },
+  defaultProps: { address: "", label: "Notre atelier", showCard: false, height: 420, directionsLabel: "Itinéraire", maxWidth: 960, spaceTop: 24, spaceBottom: 24 },
   fields: {
     address: { type: "text", label: "Adresse (vide = adresse de la boutique)" },
     label: { type: "text", label: "Étiquette sur la carte (vide = aucune)" },
+    showCard: { type: "radio", label: "Carte d’adresse Google (en haut à gauche)", options: [{ label: "Afficher", value: true }, { label: "Masquer", value: false }] },
     height: { type: "number", label: "Hauteur de la carte (px)", min: 200, max: 800 },
     directionsLabel: { type: "text", label: "Texte du bouton d’itinéraire (vide = aucun)" },
     maxWidth: widthField,

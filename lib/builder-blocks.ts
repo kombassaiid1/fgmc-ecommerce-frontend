@@ -5,7 +5,7 @@ import type { Data } from "@puckeditor/core";
  * A page saved with an older builder can contain blocks that no longer exist: Puck draws those as nothing,
  * so such a page is not used and the original home page is shown instead.
  */
-export const BUILDER_BLOCK_TYPES = ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic", "Heading", "Text", "Image", "Faq", "Spacer", "ContactForm", "ContactInfo", "Map", "Hours", "Container", "Grid", "Button", "Input"];
+export const BUILDER_BLOCK_TYPES = ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic", "BrandsShowcase", "Heading", "Text", "Image", "Faq", "Spacer", "ContactForm", "ContactInfo", "Map", "Hours", "Container", "Grid", "Button", "Input"];
 
 /** A saved page that has content and only uses blocks the builder still has. */
 export function isUsableBuilderPage(data: Data | null | undefined): data is Data {

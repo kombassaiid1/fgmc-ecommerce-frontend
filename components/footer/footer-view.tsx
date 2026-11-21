@@ -28,6 +28,7 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
   const style = { "--ft-bg": config.backgroundColor, "--ft-fg": config.textColor, "--ft-accent": config.accentColor, "--ft-cols": Math.max(1, config.groups.length) } as CSSProperties;
   const address = [site.address, [site.postalCode, site.city].filter(Boolean).join(" "), site.country].filter(Boolean).join(", ");
   const social = SOCIAL_ORDER.filter((id) => site.socialLinks[id]?.trim());
+  const showMap = config.showMap && Boolean(address);
   const hasContact = config.showContact && Boolean(site.phoneNumber || site.secondPhoneNumber || site.contactEmail || address);
   const stop = preview ? (event: React.MouseEvent) => event.preventDefault() : undefined;
   const name = site.siteName || config.wordmark;
@@ -57,7 +58,7 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
             </section>
           ) : null}
 
-          <div className="ft-grid">
+          <div className="ft-grid" data-map={showMap}>
             <div className="ft-brand">
               {logo ? (
                 <span className="ft-logo-tag">
@@ -100,6 +101,29 @@ export function FooterView({ config, site, preview = false }: { config: FooterCo
                 </ul>
               </nav>
             ))}
+
+            {showMap ? (
+              <section className="ft-col ft-map" aria-label="Où nous trouver">
+                <h3>Où nous trouver</h3>
+                {/* Google draws an address card at the top left of its embedded map: the frame is pushed up so only the map shows. */}
+                <div className="ft-map-view">
+                  <iframe
+                    title={`Carte : ${address}`}
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+                <a
+                  className="ft-link"
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={stop}>
+                  Itinéraire<PiArrowUpRightBold className="size-4" aria-hidden="true" />
+                </a>
+              </section>
+            ) : null}
           </div>
 
           {config.showWordmark && config.wordmark ? <p className="ft-wordmark" aria-hidden="true">{config.wordmark}</p> : null}

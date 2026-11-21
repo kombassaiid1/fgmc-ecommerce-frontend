@@ -5,5 +5,6 @@ export { heroBlock } from "./hero/hero.config";
 export { imageMosaicBlock } from "./image-mosaic/image-mosaic.config";
 export { featuredProductsBlock } from "./featured-products/featured-products.config";
 export { dailyOffersBlock } from "./daily-offers/daily-offers.config";
+export { brandsBlock } from "./brands/brands.config";
 export { faqBlock, headingBlock, imageBlock, spacerBlock, textBlock } from "./content/content-blocks";
 export { contactFormBlock, contactInfoBlock, hoursBlock, mapBlock } from "./contact/contact-blocks";

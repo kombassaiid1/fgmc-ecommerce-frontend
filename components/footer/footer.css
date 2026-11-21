@@ -98,6 +98,11 @@
 .ft-link:hover { color: var(--ft-fg); transform: translateX(3px); }
 .ft a:focus-visible, .ft button:focus-visible { outline: 2px solid var(--ft-fg); outline-offset: 3px; border-radius: 6px; }
 
+/* ---------------------------------------------------------------- map column, beside the link columns */
+.ft-map { grid-column: 1 / -1; }
+.ft-map-view { position: relative; height: 220px; overflow: hidden; border: 2px dashed color-mix(in srgb, var(--ft-accent) 80%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--ft-fg) 10%, transparent); margin-bottom: 6px; }
+.ft-map-view iframe { position: absolute; left: 0; top: -170px; width: 100%; height: calc(100% + 170px); border: 0; }
+
 /* ---------------------------------------------------------------- the giant name */
 .ft-wordmark {
   margin: 10px 0 0;
@@ -153,6 +158,8 @@
   .ft-body { padding: 0 48px; }
   .ft-grid { grid-template-columns: minmax(0, 1.5fr) repeat(var(--ft-cols, 3), minmax(0, 1fr)); gap: 40px 40px; }
   .ft-brand { grid-column: auto; padding-right: 16px; }
+  .ft-grid[data-map="true"] { grid-template-columns: minmax(0, 1.2fr) repeat(var(--ft-cols, 3), minmax(0, 1fr)) minmax(0, 1.5fr); gap: 40px 32px; }
+  .ft-map { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

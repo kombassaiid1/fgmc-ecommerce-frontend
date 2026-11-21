@@ -19,6 +19,7 @@ export type FooterConfig = {
   wordmark: string;
   showContact: boolean;
   showSocial: boolean;
+  showMap: boolean;
   groups: FooterGroup[];
   cta: { enabled: boolean; title: string; text: string; buttonLabel: string; buttonUrl: string };
   copyright: string;
@@ -56,6 +57,7 @@ export const DEFAULT_FOOTER: FooterConfig = {
   wordmark: "FGMC",
   showContact: true,
   showSocial: true,
+  showMap: true,
   groups: [],
   cta: { enabled: true, title: "Une réparation, une machine, un devis ?", text: "Notre équipe vous répond avec une proposition claire.", buttonLabel: "Nous contacter", buttonUrl: "/informations" },
   copyright: "© {year} {siteName}. Tous droits réservés.",

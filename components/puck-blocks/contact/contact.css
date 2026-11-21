@@ -162,6 +162,9 @@
 .pc-map-view { position: relative; overflow: hidden; border-radius: 16px; background: #e8eef7; box-shadow: 0 0 0 3px #fff, 0 14px 28px -12px rgba(0, 0, 0, 0.6); }
 /* Shifted up so the embedded map's own address card (about 150 px high) falls outside the visible frame. */
 .pc-map-view iframe { display: block; width: 100%; margin-top: -170px; border: 0; }
+/* Google's own address card is wanted: no shift, and the red tag moves to the other corner so it does not cover it. */
+.pc-map-view.is-card iframe { margin-top: 0; }
+.pc-map-view.is-card .pc-map-tag { left: auto; right: 14px; }
 .pc-map-tag {
   position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
   background: #d3202b; padding: 7px 14px 7px 12px; font-size: 0.9375rem; font-weight: 700; color: #fff; box-shadow: 0 10px 20px -10px rgba(211, 32, 43, 0.9);

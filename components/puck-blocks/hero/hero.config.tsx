@@ -35,7 +35,7 @@ export const heroBlock: ComponentConfig<HeroProps> = {
     showArrows: { type: "radio", label: "Flèches", options: yesNoOptions },
     showDots: { type: "radio", label: "Pastilles", options: yesNoOptions },
     showPanels: { type: "radio", label: "Panneaux de catégories", options: yesNoOptions },
-    showOnCatalogPages: switchField("Afficher les panneaux sur les pages produit et catégorie", "Les panneaux gauche et droit encadrent alors le contenu des pages catégorie et produit (écrans larges)."),
+    showOnCatalogPages: switchField("Afficher les panneaux sur les pages produit, catégorie et marque", "Les panneaux gauche et droit encadrent alors le contenu des pages catégorie, marque et produit (écrans larges)."),
     followScroll: {
       type: "radio",
       label: "Suivre le défilement",

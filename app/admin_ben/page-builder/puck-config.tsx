@@ -1,9 +1,10 @@
 import type { Config, Data, Fields, Slot } from "@puckeditor/core";
 
-import { contactFormBlock, contactInfoBlock, dailyOffersBlock, faqBlock, featuredProductsBlock, headingBlock, heroBlock, hoursBlock, imageBlock, imageMosaicBlock, mapBlock, spacerBlock, textBlock } from "@/components/puck-blocks";
+import { brandsBlock, contactFormBlock, contactInfoBlock, dailyOffersBlock, faqBlock, featuredProductsBlock, headingBlock, heroBlock, hoursBlock, imageBlock, imageMosaicBlock, mapBlock, spacerBlock, textBlock } from "@/components/puck-blocks";
 import type { ContactFormProps, ContactInfoProps, HoursProps, MapProps } from "@/components/puck-blocks/contact/contact-blocks";
 import type { FaqProps, HeadingProps, ImageBlockProps, SpacerProps, TextProps } from "@/components/puck-blocks/content/content-blocks";
 import { colorField, yesNoOptions as yesNo } from "@/components/puck-blocks/fields";
+import type { BrandsProps } from "@/components/puck-blocks/brands/brands";
 import type { DailyOffersProps } from "@/components/puck-blocks/daily-offers/daily-offers";
 import type { FeaturedProductsProps } from "@/components/puck-blocks/featured-products/featured-products";
 import type { ImageMosaicProps } from "@/components/puck-blocks/image-mosaic/image-mosaic";
@@ -14,6 +15,7 @@ type Props = {
   DailyOffers: DailyOffersProps;
   FeaturedProducts: FeaturedProductsProps;
   ImageMosaic: ImageMosaicProps;
+  BrandsShowcase: BrandsProps;
   Heading: HeadingProps;
   Text: TextProps;
   Image: ImageBlockProps;
@@ -97,7 +99,7 @@ export const puckConfig: Config<Props> = {
   categories: {
     content: { title: "Contenu", components: ["Heading", "Text", "Image", "Faq", "Spacer"] },
     contact: { title: "Contact", components: ["ContactForm", "ContactInfo", "Map", "Hours"] },
-    home: { title: "Accueil", components: ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic"] },
+    home: { title: "Accueil", components: ["Hero", "DailyOffers", "FeaturedProducts", "ImageMosaic", "BrandsShowcase"] },
     layout: { title: "Mise en page", components: ["Container", "Grid"] },
     basic: { title: "Basique", components: ["Button", "Input"] },
   },
@@ -114,6 +116,7 @@ export const puckConfig: Config<Props> = {
     DailyOffers: dailyOffersBlock,
     FeaturedProducts: featuredProductsBlock,
     ImageMosaic: imageMosaicBlock,
+    BrandsShowcase: brandsBlock,
     Heading: headingBlock,
     Text: textBlock,
     Image: imageBlock,

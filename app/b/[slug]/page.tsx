@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { BrandPageClient } from "@/components/brand-page/brand-page-client";
+import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { getBrands } from "@/lib/api/brands";
 
 type Props = {
@@ -24,5 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BrandPage({ params }: Props) {
   const { slug } = await params;
-  return <BrandPageClient slug={slug} />;
+  return (
+    <CatalogSidePanels>
+      <BrandPageClient slug={slug} />
+    </CatalogSidePanels>
+  );
 }

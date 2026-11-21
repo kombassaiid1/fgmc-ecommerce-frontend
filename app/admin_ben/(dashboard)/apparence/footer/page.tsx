@@ -251,6 +251,7 @@ export default function FooterSettingsPage() {
                 <div className="fa-toggles">
                   <Checkbox label="Afficher les coordonnées" helpText="Téléphone, e-mail et adresse des informations de la boutique." checked={form.showContact} onChange={(showContact) => patch({ showContact })} />
                   <Checkbox label="Afficher les réseaux sociaux" helpText="Les réseaux renseignés dans les informations de la boutique." checked={form.showSocial} onChange={(showSocial) => patch({ showSocial })} />
+                  <Checkbox label="Afficher la carte" helpText="Une carte avec l’adresse de la boutique et un bouton d’itinéraire. Elle n’apparaît que si l’adresse est renseignée." checked={form.showMap} onChange={(showMap) => patch({ showMap })} />
                 </div>
                 <p className="mt-3 text-xs text-[#667085]">
                   À modifier dans <Link href="/admin_ben/settings/site" className="text-[#2456a6] underline">Informations de la boutique</Link>.
