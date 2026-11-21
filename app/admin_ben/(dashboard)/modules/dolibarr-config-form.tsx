@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Badge, BlockStack, Button, Card, Checkbox, InlineGrid, Select, Text, TextField, useFrame } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Card, Checkbox, InlineGrid, Modal, Select, Text, TextField, useFrame } from '@shopify/polaris';
 
 type Config = {
   configured: boolean; apiUrl: string; apiKeySet: boolean; integrationToken: string;
@@ -18,6 +18,11 @@ export default function DolibarrConfigForm() {
   const [config, setConfig] = useState(defaults);
   const [apiKey, setApiKey] = useState('');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // Received invoices ticked for deletion (only those not linked to a shop order can be).
+  const [selected, setSelected] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,7 +38,11 @@ export default function DolibarrConfigForm() {
   const loadInvoices = useCallback(async () => {
     const response = await fetch('/frontend-api/admin/dolibarr-integration/invoices', { cache: 'no-store' });
     const data = await response.json();
-    if (response.ok) setInvoices(data);
+    if (response.ok) {
+      setInvoices(data);
+      // Forget ticks for invoices that are no longer listed.
+      setSelected((current) => current.filter((id) => (data as Invoice[]).some((invoice) => invoice.id === id && !invoice.orderId)));
+    }
   }, []);
 
   const reload = useCallback(async () => {
@@ -46,6 +55,25 @@ export default function DolibarrConfigForm() {
   }, [loadInvoices]);
 
   useEffect(() => { reload().catch((error: unknown) => toast(error instanceof Error ? error.message : 'Chargement impossible.', true)).finally(() => setLoading(false)); }, [reload, toast]);
+
+  async function deleteSelected() {
+    setDeleting(true);
+    try {
+      const response = await fetch('/frontend-api/admin/dolibarr-integration/invoices/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: selected }), cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(' ') : data.message || 'Suppression impossible.');
+      toast(`${data.deleted} facture${data.deleted > 1 ? 's' : ''} supprimée${data.deleted > 1 ? 's' : ''}${data.skipped ? `, ${data.skipped} ignorée${data.skipped > 1 ? 's' : ''} (déjà liée${data.skipped > 1 ? 's' : ''} à une commande)` : ''}.`);
+      setSelected([]);
+      setConfirmDelete(false);
+      await loadInvoices();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Suppression impossible.', true);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true);
@@ -170,8 +198,43 @@ export default function DolibarrConfigForm() {
 
     <Card>
       <BlockStack gap="300">
-        <div className="flex items-center justify-between gap-3"><div><Text as="h2" variant="headingMd">Factures reçues</Text><Text as="p" variant="bodySm" tone="subdued">Factures Dolibarr validées et liées aux commandes de la boutique.</Text></div><Button onClick={() => void loadInvoices()}>Actualiser</Button></div>
-        {invoices.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] border-collapse text-left text-sm"><thead><tr className="border-b border-[#dfe4e8] text-xs text-[#667085]"><th className="py-2">Référence</th><th className="py-2">Client</th><th className="py-2">Commande boutique</th><th className="py-2">Date</th><th className="py-2 text-right">TTC</th></tr></thead><tbody>{invoices.map((invoice) => <tr key={invoice.id} className="border-b border-[#edf0f3]"><td className="py-3 font-medium">{invoice.reference}</td><td className="py-3">{invoice.customerName || '—'}</td><td className="py-3">{invoice.orderId || 'Non liée'}</td><td className="py-3">{invoice.date ? new Date(invoice.date).toLocaleDateString('fr-FR') : '—'}</td><td className="py-3 text-right">{invoice.totalTtc == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(invoice.totalTtc)}</td></tr>)}</tbody></table></div> : <div className="rounded-lg border border-dashed border-[#cbd5df] p-6 text-center"><Text as="p" variant="bodySm" tone="subdued">Aucune facture reçue pour le moment.</Text></div>}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><Text as="h2" variant="headingMd">Factures reçues</Text><Text as="p" variant="bodySm" tone="subdued">Factures Dolibarr validées et liées aux commandes de la boutique.</Text></div>
+          <div className="flex flex-wrap items-center gap-2">
+            {invoices.some((invoice) => !invoice.orderId) ? <Button pressed={onlyUnlinked} onClick={() => setOnlyUnlinked((value) => !value)}>Non liées seulement</Button> : null}
+            <Button onClick={() => void loadInvoices()}>Actualiser</Button>
+          </div>
+        </div>
+        {selected.length > 0 ? (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#f1f8f5] px-3 py-2">
+            <Text as="span" variant="bodySm">{selected.length} facture{selected.length > 1 ? 's' : ''} sélectionnée{selected.length > 1 ? 's' : ''}</Text>
+            <div className="flex gap-2"><Button onClick={() => setSelected([])}>Tout désélectionner</Button><Button variant="primary" tone="critical" onClick={() => setConfirmDelete(true)}>Supprimer</Button></div>
+          </div>
+        ) : null}
+        {(() => {
+          const shown = onlyUnlinked ? invoices.filter((invoice) => !invoice.orderId) : invoices;
+          const selectable = shown.filter((invoice) => !invoice.orderId).map((invoice) => invoice.id);
+          const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
+          const toggle = (id: string, checked: boolean) => setSelected((current) => (checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)));
+          return shown.length ? (
+            <div className="overflow-x-auto"><table className="w-full min-w-[680px] border-collapse text-left text-sm"><thead><tr className="border-b border-[#dfe4e8] text-xs text-[#667085]">
+              <th className="w-10 py-2"><Checkbox label="Sélectionner toutes les factures non liées" labelHidden checked={allSelected} disabled={selectable.length === 0} onChange={(checked) => setSelected(checked ? selectable : [])} /></th>
+              <th className="py-2">Référence</th><th className="py-2">Client</th><th className="py-2">Commande boutique</th><th className="py-2">Date</th><th className="py-2 text-right">TTC</th></tr></thead>
+              <tbody>{shown.map((invoice) => (
+                <tr key={invoice.id} className="border-b border-[#edf0f3]">
+                  <td className="w-10 py-3"><Checkbox label={`Sélectionner la facture ${invoice.reference}`} labelHidden checked={selected.includes(invoice.id)} disabled={Boolean(invoice.orderId)} onChange={(checked) => toggle(invoice.id, checked)} /></td>
+                  <td className="py-3 font-medium">{invoice.reference}</td><td className="py-3">{invoice.customerName || '—'}</td>
+                  <td className="py-3">{invoice.orderId ? invoice.orderId : <Badge tone="attention">Non liée</Badge>}</td>
+                  <td className="py-3">{invoice.date ? new Date(invoice.date).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td className="py-3 text-right">{invoice.totalTtc == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(invoice.totalTtc)}</td>
+                </tr>))}</tbody></table></div>
+          ) : <div className="rounded-lg border border-dashed border-[#cbd5df] p-6 text-center"><Text as="p" variant="bodySm" tone="subdued">{invoices.length ? 'Aucune facture non liée.' : 'Aucune facture reçue pour le moment.'}</Text></div>;
+        })()}
+        <Modal open={confirmDelete} onClose={() => !deleting && setConfirmDelete(false)} title={`Supprimer ${selected.length} facture${selected.length > 1 ? 's' : ''} ?`}
+          primaryAction={{ content: 'Supprimer', destructive: true, loading: deleting, onAction: () => void deleteSelected() }}
+          secondaryActions={[{ content: 'Annuler', disabled: deleting, onAction: () => setConfirmDelete(false) }]}>
+          <Modal.Section><Text as="p">Ces factures ne sont liées à aucune commande de la boutique. Elles sont retirées de cette liste, mais elles restent dans Dolibarr : elles reviendraient si Dolibarr les renvoyait à la boutique.</Text></Modal.Section>
+        </Modal>
       </BlockStack>
     </Card>
   </BlockStack>;
