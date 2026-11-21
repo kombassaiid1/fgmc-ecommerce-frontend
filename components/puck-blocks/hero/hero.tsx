@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 
 import { getImageUrl } from "@/lib/api";
 import { getCategories, type Category } from "@/lib/api/categories";
@@ -206,14 +206,20 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
     .filter((slide) => slide.imageUrl)
     .map((slide, index) => ({ key: `slide-${index}`, ...slide }));
 
+  // Autoplay runs one timer per slide, so the progress thread and the slide change stay in step.
+  // It pauses while the visitor hovers or focuses the slider, or after pressing the pause button.
+  const [userPaused, setUserPaused] = useState(false);
+  const [hoverPaused, setHoverPaused] = useState(false);
+  const canAutoplay = slides.length > 1 && autoplaySeconds > 0;
+  const running = canAutoplay && !userPaused && !hoverPaused;
   useEffect(() => {
-    if (slides.length < 2 || autoplaySeconds <= 0) return;
-    const timer = window.setInterval(
-      () => setActiveSlide((current) => (current + 1) % slides.length),
+    if (!running) return;
+    const timer = window.setTimeout(
+      () => setActiveSlide((value) => (value + 1) % slides.length),
       autoplaySeconds * 1000,
     );
-    return () => window.clearInterval(timer);
-  }, [slides.length, autoplaySeconds]);
+    return () => window.clearTimeout(timer);
+  }, [running, activeSlide, slides.length, autoplaySeconds]);
 
   // Clamp instead of resetting in an effect: keeps the index valid when slides change.
   const current = activeSlide < slides.length ? activeSlide : 0;
@@ -268,6 +274,10 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
             showPanels && "col-span-2 lg:col-span-1",
           )}
           style={{ borderRadius: sliderRadius }}
+          onMouseEnter={() => setHoverPaused(true)}
+          onMouseLeave={() => setHoverPaused(false)}
+          onFocus={() => setHoverPaused(true)}
+          onBlur={() => setHoverPaused(false)}
         >
           {slides.length > 0 ? (
             <>
@@ -298,36 +308,62 @@ export function Hero(props: Partial<HeroProps> & { isEditing?: boolean }) {
                     type="button"
                     onClick={() => moveSlide(-1)}
                     aria-label="Image précédente"
-                    className="absolute left-3 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-[#0a224f]/75 text-white shadow transition hover:bg-[#0a224f]"
+                    className="absolute left-3 top-1/2 flex size-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-[4px] bg-white/90 text-[#0f1f45] shadow-[0_2px_0_rgba(15,31,69,0.25)] transition-colors duration-200 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
-                    <ChevronLeft className="size-5" />
+                    <ChevronLeft className="size-5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => moveSlide(1)}
                     aria-label="Image suivante"
-                    className="absolute right-3 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-[#0a224f]/75 text-white shadow transition hover:bg-[#0a224f]"
+                    className="absolute right-3 top-1/2 flex size-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-[4px] bg-white/90 text-[#0f1f45] shadow-[0_2px_0_rgba(15,31,69,0.25)] transition-colors duration-200 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
-                    <ChevronRight className="size-5" />
+                    <ChevronRight className="size-5" aria-hidden="true" />
                   </button>
                 </>
               ) : null}
               {slides.length > 1 && showDots ? (
-                <div className="absolute inset-x-0 bottom-4 flex justify-center gap-2" aria-label="Choisir une image">
-                  {slides.map((slide, index) => (
-                    <button
-                      key={slide.key}
-                      type="button"
-                      aria-label={`Afficher l’image ${index + 1}`}
-                      aria-current={index === current}
-                      onClick={() => setActiveSlide(index)}
-                      className={cn(
-                        "h-2.5 w-2.5 rounded-full border border-white transition",
-                        index === current ? "w-7 bg-white" : "bg-white/50 hover:bg-white/80",
-                      )}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#0f1f45]/60 to-transparent" aria-hidden="true" />
+                  {/* One stitch per image: the red thread runs along the current one for as long as the image stays. */}
+                  <div className="absolute inset-x-3 bottom-1 flex items-center gap-3 sm:inset-x-4">
+                    <div role="group" aria-label="Choisir une image" className="flex min-w-0 max-w-sm flex-1 items-center gap-1.5">
+                      {slides.map((slide, index) => (
+                        <button
+                          key={slide.key}
+                          type="button"
+                          aria-label={`Afficher l’image ${index + 1} sur ${slides.length}`}
+                          aria-current={index === current}
+                          onClick={() => setActiveSlide(index)}
+                          className="group relative h-11 min-w-0 flex-1 cursor-pointer focus-visible:outline-none"
+                        >
+                          <span className="absolute inset-x-0 bottom-3.5 h-1 overflow-hidden rounded-full bg-white/45 transition-colors group-hover:bg-white/70 group-focus-visible:ring-2 group-focus-visible:ring-white group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[#0f1f45]">
+                            {index === current ? (
+                              <span
+                                key={`${current}-${running ? "run" : "still"}`}
+                                className={cn("absolute inset-0 origin-left rounded-full bg-[#d6202e]", running && "hero-fill")}
+                                style={running ? { animationDuration: `${autoplaySeconds}s` } : undefined}
+                              />
+                            ) : null}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="ml-auto text-sm font-medium tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]" aria-hidden="true">
+                      {current + 1} / {slides.length}
+                    </p>
+                    {canAutoplay ? (
+                      <button
+                        type="button"
+                        onClick={() => setUserPaused((value) => !value)}
+                        aria-label={userPaused ? "Reprendre le défilement" : "Mettre le défilement en pause"}
+                        className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-white transition-colors duration-200 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                      >
+                        {userPaused ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
               ) : null}
             </>
           ) : (
@@ -432,6 +468,8 @@ export function CategoryPanel({
 }) {
   const cellRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // The panel opens its menus to the left: its text and arrows are mirrored.
+  const mirrored = submenuSide === "left";
 
   // While the panel follows the visitor it shrinks to its title; the list opens
   // only when the title is clicked.
@@ -471,13 +509,14 @@ export function CategoryPanel({
     <aside
       ref={panelRef}
       className={cn(
-        "relative z-20 h-fit min-w-0 rounded-xl border border-[#dce3ec] bg-white shadow-sm hover:z-50 focus-within:z-50",
+        "relative z-20 h-fit min-w-0 rounded-[6px] border border-[#d5deee] bg-white hover:z-50 focus-within:z-50",
         pinned && "shadow-lg",
       )}
       aria-label={title}
+      style={{ ["--panel" as string]: color }}
     >
       <h2
-        className={cn("overflow-hidden rounded-xl", !collapsed && "lg:rounded-b-none lg:rounded-t-xl")}
+        className={cn("relative overflow-hidden rounded-[6px]", !collapsed && "lg:rounded-b-none lg:rounded-t-[6px]")}
         style={{ background: color }}
       >
         {/* Mobile: only the title is shown; it opens the list under the buttons. */}
@@ -485,7 +524,7 @@ export function CategoryPanel({
           type="button"
           onClick={onOpenSheet}
           aria-expanded={sheetOpen}
-          className="flex min-h-11 w-full items-center justify-between gap-1 px-3 text-left text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white sm:min-h-[52px] sm:px-4 sm:text-base lg:hidden"
+          className="flex min-h-12 w-full items-center justify-between gap-1 px-3 pb-2 text-left text-base font-semibold text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white sm:min-h-[60px] sm:px-4 sm:text-lg lg:hidden"
         >
           {title}
           <ChevronDown
@@ -498,7 +537,7 @@ export function CategoryPanel({
             type="button"
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
-            className="hidden min-h-[52px] w-full cursor-pointer items-center justify-between gap-1 px-4 text-left text-base font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex"
+            className={cn("hidden min-h-[60px] w-full cursor-pointer items-center justify-between gap-1 px-4 pb-2 text-lg font-semibold text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex", mirrored ? "flex-row-reverse text-right" : "text-left")}
           >
             {title}
             <ChevronDown
@@ -510,31 +549,39 @@ export function CategoryPanel({
           <Link
             href={href}
             onClick={onLinkClick}
-            className="hidden min-h-[52px] items-center justify-between gap-1 px-4 text-base font-bold uppercase tracking-wide text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex"
+            className={cn(
+              "hidden min-h-[60px] items-center justify-between gap-1 px-4 pb-2 text-lg font-semibold text-white transition-colors hover:bg-black/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:flex",
+              mirrored && "flex-row-reverse text-right",
+            )}
           >
             {title}
-            <ChevronRight className="size-4" aria-hidden="true" />
+            {mirrored ? <ChevronLeft className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
           </Link>
         )}
+        <span aria-hidden="true" className="hero-ruler pointer-events-none absolute inset-x-0 bottom-0 h-2" />
       </h2>
-      <ul className={cn("divide-y divide-[#e8edf3]", collapsed ? "hidden" : "hidden lg:block")} aria-label={`${title} categories`}>
+      <ul className={cn("divide-y divide-dashed divide-[#b4c2dc]", collapsed ? "hidden" : "hidden lg:block")} aria-label={`${title} categories`}>
         {categories.map((category) => (
           <li key={category.id} className="group relative">
             <Link
               href={`/${category.slug}`}
               onClick={onLinkClick}
               aria-haspopup={category.children.length > 0 || category.menuImage ? "true" : undefined}
-              className="flex min-h-[39px] items-center justify-between gap-2 px-4 py-2 text-[13px] text-[#12264b] transition-colors hover:bg-[#f2f6fc] hover:text-[#2456b1] focus-visible:bg-[#f2f6fc] focus-visible:text-[#2456b1] focus-visible:outline-none"
+              className={cn("relative flex min-h-11 items-center justify-between gap-2 px-4 py-2 text-[15px] text-[#0f1f45] transition-colors duration-150 before:absolute before:inset-y-1.5 before:w-[3px] before:origin-center before:scale-y-0 before:rounded-full before:bg-[var(--panel)] before:transition-transform before:duration-200 hover:bg-[#f2f5fa] hover:before:scale-y-100 focus-visible:bg-[#f2f5fa] focus-visible:outline-none focus-visible:before:scale-y-100 motion-reduce:transition-none motion-reduce:before:transition-none", mirrored ? "flex-row-reverse text-right before:right-0" : "before:left-0")}
             >
               <span>{category.title}</span>
               {category.children.length > 0 || category.menuImage ? (
-                <ChevronRight className="size-3 shrink-0 text-[#687b98]" aria-hidden="true" />
+                mirrored ? (
+                  <ChevronLeft className="size-4 shrink-0 text-[var(--panel)] transition-transform duration-200 group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="size-4 shrink-0 text-[var(--panel)] transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
+                )
               ) : null}
             </Link>
             {category.children.length > 0 || category.menuImage ? (
               <div
                 className={cn(
-                  "invisible absolute top-0 z-50 rounded-lg border border-[#dce3ec] bg-white opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
+                  "invisible absolute top-0 z-50 rounded-[6px] border border-[#d5deee] border-t-[3px] border-t-[var(--panel)] bg-white opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
                   category.menuImage ? "w-[min(720px,calc(100vw-2rem))]" : "w-64",
                   submenuSide === "right" ? "left-full" : "right-full",
                 )}
@@ -548,8 +595,15 @@ export function CategoryPanel({
                       category.menuImage ? "flex-1 sm:columns-2 sm:gap-6" : "w-full py-2",
                     )}
                   >
-                    <li className={cn("break-inside-avoid text-xs font-bold uppercase text-[#929db0]", category.menuImage ? "pb-2" : "px-4 py-2")}>
-                      {category.title}
+                    <li className={cn("break-inside-avoid", category.menuImage ? "pb-2" : "px-4 py-2.5")}>
+                      <Link
+                        href={`/${category.slug}`}
+                        onClick={onLinkClick}
+                        className="flex items-baseline justify-between gap-3 text-base font-semibold text-[#0f1f45] hover:underline focus-visible:outline-none focus-visible:underline"
+                      >
+                        {category.title}
+                        <span className="text-sm font-medium text-[#5b6b8a]">Tout voir</span>
+                      </Link>
                     </li>
                     {category.children.map((child) => (
                       <li key={child.id} className="break-inside-avoid">
@@ -557,7 +611,7 @@ export function CategoryPanel({
                           href={`/${child.slug}`}
                           onClick={onLinkClick}
                           className={cn(
-                            "block text-[13px] text-[#12264b] transition-colors hover:bg-[#f2f6fc] hover:text-[#2456b1] focus-visible:bg-[#f2f6fc] focus-visible:text-[#2456b1] focus-visible:outline-none",
+                            "block text-[15px] text-[#0f1f45] transition-colors hover:bg-[#f2f5fa] focus-visible:bg-[#f2f5fa] focus-visible:outline-none",
                             category.menuImage ? "rounded px-2 py-1.5" : "px-4 py-2",
                           )}
                         >
@@ -590,7 +644,7 @@ export function CategoryPanel({
       {footer ? (
         <p
           className={cn(
-            "border-t border-[#e8edf3] bg-[#f6f8fc] px-4 py-3 text-xs leading-relaxed text-[#63748f]",
+            "border-t border-dashed border-[#b4c2dc] bg-[#f2f5fa] px-4 py-3 text-sm leading-relaxed text-[#5b6b8a]",
             collapsed ? "hidden" : "hidden lg:block",
           )}
         >
@@ -808,12 +862,12 @@ export function MobileDropdown({
       role="region"
       aria-label={title}
       className={cn(
-        "flex flex-col overflow-hidden rounded-xl border border-[#dce3ec] bg-white shadow-md animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+        "flex flex-col overflow-hidden rounded-[6px] border border-[#d5deee] bg-white shadow-md animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
         className,
       )}
       style={{ borderTop: `3px solid ${color}` }}
     >
-      <ul className="max-h-[65vh] min-h-0 divide-y divide-[#e8edf3] overflow-y-auto overscroll-contain" aria-label={`${title} categories`}>
+      <ul className="max-h-[65vh] min-h-0 divide-y divide-dashed divide-[#b4c2dc] overflow-y-auto overscroll-contain" aria-label={`${title} categories`}>
         <li>
           <Link
             href={href}
