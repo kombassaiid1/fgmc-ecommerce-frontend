@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ImpersonateClient } from "./impersonate-client";
 
 export const metadata: Metadata = {
-  title: "Connexion | FGMC",
+  title: "Connexion",
   robots: { index: false, follow: false },
 };
 

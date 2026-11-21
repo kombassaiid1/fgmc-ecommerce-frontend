@@ -2,11 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Minus, Package, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Minus, Package, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { getImageUrl } from "@/lib/api";
-import { useCartStore, type CartItem } from "@/lib/stores/cart-store";
+import { useCartPricing } from "@/hooks/use-cart-pricing";
+import { cartLineHt, cartLineTtc, cartUnitTtc, useCartStore, type CartItem } from "@/lib/stores/cart-store";
 
 function parsePrice(value: string): number {
   const parsed = Number.parseFloat(
@@ -31,11 +32,6 @@ function splitPrice(value: number) {
     euros: new Intl.NumberFormat("fr-FR").format(Math.floor(totalCents / 100)),
     cents: String(totalCents % 100).padStart(2, "0"),
   };
-}
-
-function rateToFraction(rate: number | null | undefined): number {
-  if (rate == null || !Number.isFinite(rate)) return 0;
-  return rate > 1 ? rate / 100 : rate;
 }
 
 function buildItemHref(item: {
@@ -99,6 +95,29 @@ function QtyInput({
 
 const LEAVE_MS = 220;
 
+/** "Passer la commande", available once the server has checked the prices and every line can be bought. */
+function CheckoutAction({ pricing, className }: { pricing: ReturnType<typeof useCartPricing>; className: string }) {
+  if (pricing.status === "error") {
+    return (
+      <button type="button" onClick={pricing.refresh} className={className}>
+        Vérifier à nouveau les prix
+      </button>
+    );
+  }
+  if (pricing.blocking) {
+    return (
+      <button type="button" disabled className={className}>
+        {pricing.status === "loading" ? "Vérification des prix…" : "Corrigez votre panier"}
+      </button>
+    );
+  }
+  return (
+    <Link href="/checkout" className={className}>
+      Passer la commande
+    </Link>
+  );
+}
+
 export default function CartPage() {
   const itemsByKey = useCartStore((state) => state.items);
   const items = useMemo(() => Object.values(itemsByKey), [itemsByKey]);
@@ -146,13 +165,10 @@ export default function CartPage() {
     });
   };
 
+  // The server prices the cart (prices, promotions, tax, stock): what is shown here is what will be charged.
+  const pricing = useCartPricing();
   const productsSubtotalTtc = useMemo(
-    () =>
-      items.reduce((sum, item) => {
-        const unitHt = parsePrice(item.price);
-        const unitTtc = unitHt * (1 + rateToFraction(item.taxRate));
-        return sum + unitTtc * Math.max(0, item.qty ?? 0);
-      }, 0),
+    () => Math.round(items.reduce((sum, item) => sum + cartLineTtc(item), 0) * 100) / 100,
     [items],
   );
   const unitCount = useMemo(
@@ -224,12 +240,12 @@ export default function CartPage() {
               <ul className="space-y-3">
                 {items.map((item) => {
                   const image = item.image?.trim() ? getImageUrl(item.image) : null;
-                  const qty = Math.max(0, item.qty ?? 0);
                   const unitHt = parsePrice(item.price);
-                  const unitTtc = unitHt * (1 + rateToFraction(item.taxRate));
-                  const lineHt = unitHt * qty;
-                  const lineTtc = unitTtc * qty;
+                  const unitTtc = cartUnitTtc(item);
+                  const lineHt = cartLineHt(item);
+                  const lineTtc = cartLineTtc(item);
                   const href = buildItemHref(item);
+                  const issue = pricing.issueFor(item);
 
                   return (
                     <li
@@ -263,6 +279,22 @@ export default function CartPage() {
                         <p className="mt-1 text-sm tabular-nums text-[var(--cart-muted)]">
                           {formatEuro(unitTtc)} TTC · {formatEuro(unitHt)} HT l’unité
                         </p>
+                        {issue ? (
+                          <p role="alert" className="mt-2 flex items-start gap-2 text-sm font-medium text-[var(--cart-thread)]">
+                            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                            <span>
+                              {issue.message}
+                              {issue.code === "INSUFFICIENT_STOCK" && issue.available ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setItemQty(item.key, issue.available ?? 1)}
+                                  className="ml-2 cursor-pointer rounded underline underline-offset-4 focus-visible:outline focus-visible:outline-2">
+                                  Mettre {issue.available}
+                                </button>
+                              ) : null}
+                            </span>
+                          </p>
+                        ) : null}
 
                         <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4">
                           <div className="flex min-h-12 items-center rounded border-2 border-[var(--cart-royal)] bg-white p-1">
@@ -371,11 +403,15 @@ export default function CartPage() {
                   Hors frais de livraison, calculés à la caisse selon votre adresse.
                 </p>
 
-                <Link
-                  href="/checkout"
-                  className="mt-6 hidden min-h-14 w-full items-center justify-center rounded-[4px] bg-[var(--cart-royal)] text-lg font-medium text-white transition-colors duration-200 hover:bg-[var(--cart-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 lg:flex">
-                  Passer la commande
-                </Link>
+                {pricing.status === "error" ? (
+                  <p role="alert" className="mt-4 text-sm text-[var(--cart-thread)]">
+                    Les prix n’ont pas pu être vérifiés. {pricing.error}
+                  </p>
+                ) : null}
+                <CheckoutAction
+                  pricing={pricing}
+                  className="mt-6 hidden min-h-14 w-full items-center justify-center rounded-[4px] bg-[var(--cart-royal)] text-lg font-medium text-white transition-colors duration-200 hover:bg-[var(--cart-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--cart-royal)] lg:flex"
+                />
               </div>
               {/* Torn edge of the receipt. */}
               <div
@@ -398,11 +434,10 @@ export default function CartPage() {
             <p className="text-xs text-[var(--cart-muted)]">Total TTC hors livraison</p>
             <BigPrice value={productsSubtotalTtc} />
           </div>
-          <Link
-            href="/checkout"
-            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-[4px] bg-[var(--cart-royal)] px-6 text-base font-medium text-white transition-colors duration-200 hover:bg-[var(--cart-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-            Passer la commande
-          </Link>
+          <CheckoutAction
+            pricing={pricing}
+            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-[4px] bg-[var(--cart-royal)] px-6 text-base font-medium text-white transition-colors duration-200 hover:bg-[var(--cart-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--cart-royal)]"
+          />
         </div>
       ) : null}
     </main>

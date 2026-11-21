@@ -193,7 +193,7 @@ export function OrderPaymentsCard({ order, canEdit, statusControl }: { order: Or
                   <col className="w-[22%]" /><col /><col className="w-[85px]" />
                 </colgroup>
                 <thead>
-                  <tr className="border-b-2 border-[#22b6d1] [&_th]:px-1.5 [&_th]:py-2.5">
+                  <tr className="border-b border-[#e1e3e5] text-[#616161] [&_th]:px-1.5 [&_th]:py-2.5">
                     <th scope="col">Date</th>
                     <th scope="col">Moyen de paiement</th>
                     <th scope="col">ID de la transaction</th>

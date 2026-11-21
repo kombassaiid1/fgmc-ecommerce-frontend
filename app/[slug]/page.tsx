@@ -8,6 +8,7 @@ import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { BuilderHome } from "@/components/home/builder-home";
 import { getPublishedPage } from "@/lib/api/builder-page";
 import { pageMetadata } from "@/lib/page-metadata";
+import { getSiteSeo } from "@/lib/site-seo";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 import {
@@ -65,6 +66,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     const title =
       productsResult?.title || filtersResult?.categoryTitle || slugTrim;
+    const seo = await getSiteSeo();
     const description =
       productsResult?.description?.slice(0, 160) ||
       `Découvrez les produits de la catégorie ${title}`;
@@ -77,15 +79,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     return {
       metadataBase: new URL(getSiteUrl()),
-      title: `${title} | Elbootic`,
+      // The shop's title template adds the shop's name.
+      title,
       description,
       alternates: { canonical: canonicalUrl },
       openGraph: {
         type: "website",
-        title: `${title} | Elbootic`,
+        title: `${title} | ${seo.siteName}`,
         description,
         url: canonicalUrl,
-        siteName: "Elbootic",
+        siteName: seo.siteName,
         images: [
           {
             url: ogSafe.url,
@@ -98,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
       twitter: {
         card: "summary_large_image",
-        title: `${title} | Elbootic`,
+        title: `${title} | ${seo.siteName}`,
         description,
         images: [ogSafe.url],
       },

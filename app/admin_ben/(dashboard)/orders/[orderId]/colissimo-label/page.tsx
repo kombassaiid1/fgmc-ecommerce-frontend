@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Banner, Button, Card, Spinner, Text } from "@shopify/polaris";
 import { toast } from "sonner";
-import { getOrder, updateOrderStatus, type OrderDetail } from "@/lib/api/orders";
+import { getAdminOrder, updateOrderStatus, type OrderDetail } from "@/lib/api/orders";
 import { inputClass, prefill, type Form } from "../gls-shipping-card";
 import { COLISSIMO_API, COLISSIMO_TYPE_NAMES, colissimoFetch, type ColissimoDeliveryChoice, type ColissimoType } from "../colissimo-shipping-card";
 
@@ -54,7 +54,7 @@ function ColissimoLabel({ orderId }: { orderId: string }) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      getOrder(orderId),
+      getAdminOrder(orderId),
       colissimoFetch<Config>(""),
       colissimoFetch<ExistingShipment[]>(`/orders/${orderId}/shipments`),
       colissimoFetch<ColissimoDeliveryChoice | null>(`/orders/${orderId}/delivery`).catch(() => null),

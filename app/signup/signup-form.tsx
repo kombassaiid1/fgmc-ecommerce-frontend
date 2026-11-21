@@ -142,6 +142,7 @@ export function SignupForm() {
             options={[
               { value: "M", label: "M" },
               { value: "Mme", label: "Mme" },
+              { value: "Autre", label: "Autre" },
             ]}
           />
           <div className="grid gap-4 sm:grid-cols-2">

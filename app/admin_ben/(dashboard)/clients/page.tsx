@@ -225,7 +225,7 @@ export default function AdminClientsPage() {
 
   const filterRow = [
     "",
-    select("titre", "Titre", [{ label: "", value: "" }, { label: "M.", value: "M" }, { label: "Mme", value: "Mme" }]),
+    select("titre", "Titre", [{ label: "", value: "" }, { label: "M.", value: "M" }, { label: "Mme", value: "Mme" }, { label: "Autre", value: "Autre" }]),
     input("firstName", "Rechercher prénom"),
     input("lastName", "Rechercher nom"),
     input("email", "Rechercher e-mail", 170),

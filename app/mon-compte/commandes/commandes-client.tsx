@@ -23,7 +23,7 @@ import {
 } from "react-icons/pi";
 
 import { getImageUrl } from "@/lib/api";
-import { getOrders, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
+import { getMyOrders, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
 import { getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
 
 import "../account.css";
@@ -94,7 +94,7 @@ export function CommandesClient() {
   const customerSearch = getCustomerSearch(session);
 
   useEffect(() => {
-    if (!session || !customerSearch) return;
+    if (!session?.token || !customerSearch) return;
 
     let cancelled = false;
     const timeout = window.setTimeout(async () => {
@@ -102,10 +102,10 @@ export function CommandesClient() {
       setError(null);
 
       try {
-        const response = await getOrders({
+        // The server only returns the orders of the signed-in account.
+        const response = await getMyOrders(session.token, {
           page,
           limit: PAGE_SIZE,
-          search: customerSearch,
           etat: etat === ALL_VALUE ? undefined : etat,
           paymentStatus: paymentStatus === ALL_VALUE ? undefined : paymentStatus,
         });

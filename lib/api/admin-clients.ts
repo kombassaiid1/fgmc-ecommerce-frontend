@@ -2,7 +2,7 @@
 
 export type AdminClient = {
   id: string;
-  Titre: "M" | "Mme";
+  Titre: "M" | "Mme" | "Autre";
   email: string;
   username: string | null;
   firstName: string;
@@ -57,7 +57,7 @@ export type AdminClientStats = {
 };
 
 export type AdminClientUpdate = Partial<{
-  Titre: "M" | "Mme";
+  Titre: "M" | "Mme" | "Autre";
   email: string;
   username: string;
   firstName: string;

@@ -1,6 +1,6 @@
 import { apiRequest } from "./http-client";
 
-export type ClientTitre = "M" | "Mme";
+export type ClientTitre = "M" | "Mme" | "Autre";
 
 export type Client = {
   id: string;
@@ -134,6 +134,15 @@ export async function signupClient(
     path: "/auth/signup",
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/** The signed-in customer's own profile. Fails with 401 when the token is expired or no longer valid. */
+export async function getClientProfile(token: string): Promise<ClientAuthUser> {
+  return apiRequest<ClientAuthUser>({
+    path: "/auth/me",
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 

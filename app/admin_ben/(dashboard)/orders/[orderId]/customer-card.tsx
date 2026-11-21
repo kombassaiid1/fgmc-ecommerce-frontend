@@ -20,7 +20,7 @@ export function CustomerCard({ order, onUpdated, onNoteSaved }: { order: OrderDe
 
   const client = order.Client;
   const isGuest = !client;
-  const name = client ? `${client.Titre === "Mme" ? "Mme" : "M"} ${client.firstName} ${client.lastName}`.trim() : order.guestName || "Client invité";
+  const name = client ? `${client.Titre === "Mme" ? "Mme" : client.Titre === "Autre" ? "" : "M"} ${client.firstName} ${client.lastName}`.trim() : order.guestName || "Client invité";
   const email = client?.email ?? order.guestEmail;
   const phone = client?.phoneNumber ?? order.guestPhone;
   const address = order.Address;
@@ -60,7 +60,7 @@ export function CustomerCard({ order, onUpdated, onNoteSaved }: { order: OrderDe
         </Popover>
       </InlineStack>
       {hint ? <p className="mb-1 text-xs text-[#667085]">{hint}</p> : null}
-      <p className="whitespace-pre-line text-sm leading-6 text-[#344054]">{lines.join("\n")}</p>
+      <p className="whitespace-pre-line break-words text-sm leading-6 text-[#344054]">{lines.join("\n")}</p>
     </div>
   );
 
@@ -92,7 +92,7 @@ export function CustomerCard({ order, onUpdated, onNoteSaved }: { order: OrderDe
               </div>
             </div>
 
-            <div className="grid gap-5 rounded-md bg-[#f6f6f7] p-4 sm:grid-cols-2">
+            <div className="grid gap-5 rounded-md bg-[#f6f6f7] p-4 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
               {addressBlock("shipping", "Adresse de livraison")}
               {addressBlock("invoice", "Adresse de facturation", "Identique à l’adresse de livraison")}
             </div>

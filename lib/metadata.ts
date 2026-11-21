@@ -43,11 +43,12 @@ interface SiteSettingsResponse {
   ogImage?: string | null;
 }
 
-function getImageUrl(image: string | null | undefined, baseUrl: string): string {
+/** An image saved in the settings (a full address, a public path, or a file of the media library) as an address a browser can open. */
+export function resolveUploadUrl(image: string | null | undefined, baseUrl: string): string {
   if (!image || typeof image !== "string") return "";
   const trimmed = image.trim();
   if (!trimmed) return "";
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://"))
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/") && !trimmed.startsWith("/api/upload/images/"))
     return trimmed;
   return `${baseUrl.replace(/\/$/, "")}/upload/images/${
     trimmed.startsWith("/api/upload/images/")
@@ -67,7 +68,7 @@ export async function getDefaultOgImageUrl(): Promise<string> {
     if (!res.ok) return getDefaultOgImageFallback();
     const data = (await res.json()) as SiteSettingsResponse;
     return data.ogImage
-      ? getImageUrl(data.ogImage, baseUrl)
+      ? resolveUploadUrl(data.ogImage, baseUrl)
       : getDefaultOgImageFallback();
   } catch {
     return getDefaultOgImageFallback();

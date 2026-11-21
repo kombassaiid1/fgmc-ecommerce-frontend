@@ -6,7 +6,7 @@ import { AlertCircle, CreditCard, Loader2, PackageCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getImageUrl } from "@/lib/api";
-import { getOrder, type OrderDetail, type StoredOrderProduct } from "@/lib/api/orders";
+import { getOrder, type PublicOrder, type StoredOrderProduct } from "@/lib/api/orders";
 import { confirmStripePayment, createStripeCheckoutSession } from "@/lib/api/stripe";
 import { Fireworks } from "./fireworks";
 
@@ -26,7 +26,7 @@ export function StripeReturn(props: Props) {
   const { kind, orderId, sessionId } = props;
   const [status, setStatus] = useState<Status>(kind === "paid" ? "checking" : "cancelled");
   const [mode, setMode] = useState<"sandbox" | "live" | null>(null);
-  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [order, setOrder] = useState<PublicOrder | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -134,7 +134,7 @@ function PaidReceipt({
   testMode,
 }: {
   orderId: string;
-  order: OrderDetail | null;
+  order: PublicOrder | null;
   testMode: boolean;
 }) {
   const products: StoredOrderProduct[] = Array.isArray(order?.products)

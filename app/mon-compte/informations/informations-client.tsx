@@ -233,6 +233,7 @@ export function InformationsClient() {
                   options={[
                     { value: "M", label: "M" },
                     { value: "Mme", label: "Mme" },
+                    { value: "Autre", label: "Autre" },
                   ]}
                 />
                 <AuthField id="information-first-name" label="Prénom" value={form.firstName} onChange={(value) => updateField("firstName", value)} autoComplete="given-name" icon={PiUserDuotone} required />

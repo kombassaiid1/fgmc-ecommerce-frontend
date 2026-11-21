@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge, Banner, BlockStack, Box, Button, Card, InlineStack, Modal, Pagination, Text } from "@shopify/polaris";
 import { DeleteIcon, ExportIcon, RefreshIcon } from "@shopify/polaris-icons";
 
-import { getOrders, updateOrderPaymentStatus, updateOrderStatus, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
+import { getAdminOrders, updateOrderPaymentStatus, updateOrderStatus, type OrderListItem, type StoredOrderProduct } from "@/lib/api/orders";
 import { paymentLabel } from "@/lib/payment-label";
 import { useOrderStates } from "@/lib/use-order-states";
 import { OrderPreviewPanel } from "./order-preview";
@@ -121,7 +121,7 @@ export default function AdminOrdersPage() {
   const loadOrders = () => {
     setLoading(true);
     setError(null);
-    void getOrders({ page, limit: PAGE_SIZE, etat: etat || undefined })
+    void getAdminOrders({ page, limit: PAGE_SIZE, etat: etat || undefined })
       .then((response) => { setItems(response.data); setMeta(response.meta); })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Impossible de charger les commandes."))
       .finally(() => setLoading(false));

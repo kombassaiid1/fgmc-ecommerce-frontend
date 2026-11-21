@@ -50,7 +50,7 @@ import {
   type HeaderConfig,
   type HeaderLink,
 } from "@/lib/header-config";
-import { useCartStore } from "@/lib/stores/cart-store";
+import { cartLineTtc, useCartStore } from "@/lib/stores/cart-store";
 import { cn } from "@/lib/utils";
 
 import "./header.css";
@@ -844,11 +844,9 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 function CartActionButton() {
   const [mounted, setMounted] = useState(false);
   const totalItems = useCartStore((state) => state.totalItems());
+  // Tax included, like every price the shop shows (the server's price once the cart has been checked).
   const totalAmount = useCartStore((state) =>
-    Object.values(state.items).reduce((sum, item) => {
-      const price = Number(item.price.replace(/[^\d,.-]/g, "").replace(",", "."));
-      return sum + (Number.isFinite(price) ? price * item.qty : 0);
-    }, 0),
+    Math.round(Object.values(state.items).reduce((sum, item) => sum + cartLineTtc(item), 0) * 100) / 100,
   );
 
   useEffect(() => {
@@ -866,7 +864,10 @@ function CartActionButton() {
       </span>
       <span className="hidden flex-col text-[11px] leading-tight sm:flex">
         <span className="text-white/75">Panier</span>
-        <strong className="text-[13px]">{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(mounted ? totalAmount : 0)}</strong>
+        <strong className="text-[13px]">
+          {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(mounted ? totalAmount : 0)}
+          <small className="ml-1 text-[10px] font-medium text-white/75">TTC</small>
+        </strong>
       </span>
     </Link>
   );

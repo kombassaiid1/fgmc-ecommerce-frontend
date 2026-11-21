@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { MonCompteClient } from "./mon-compte-client";
 
 export const metadata: Metadata = {
-  title: "Mon compte | FGMC",
+  title: "Mon compte",
+  robots: { index: false, follow: false },
 };
 
 export default function MonComptePage() {

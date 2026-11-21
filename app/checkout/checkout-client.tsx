@@ -60,23 +60,28 @@ import {
   type OrderItemPayload,
   type OrderTotalsPayload,
 } from "@/lib/api/orders";
-import { loginClient, signupClient } from "@/lib/api/clients";
+import { getClientProfile, loginClient, signupClient } from "@/lib/api/clients";
 import {
   createStripeCheckoutSession,
   getStripePublicConfig,
   type StripePublicConfig,
 } from "@/lib/api/stripe";
 import {
+  clearClientSession,
   getClientSession,
   saveClientSession,
   subscribeToClientSession,
   type ClientSession,
 } from "@/lib/client-auth";
-import { useCartStore, type CartItem } from "@/lib/stores/cart-store";
+import { useCartPricing } from "@/hooks/use-cart-pricing";
+import { ApiError } from "@/lib/api/http-client";
+import { cartLineHt, cartLineTtc, cartUnitTtc, useCartStore, type CartItem } from "@/lib/stores/cart-store";
 import { trackRecoPurchase } from "@/lib/reco/events";
 import { cn } from "@/lib/utils";
 
 type CheckoutForm = {
+  /** Civilité: « M » (Monsieur), « Mme » (Madame) or « Autre ». */
+  title: "M" | "Mme" | "Autre";
   firstName: string;
   lastName: string;
   email: string;
@@ -118,6 +123,7 @@ type CheckoutAddressForm = Omit<
 >;
 
 const DEFAULT_FORM: CheckoutForm = {
+  title: "M",
   firstName: "",
   lastName: "",
   email: "",
@@ -185,21 +191,12 @@ function formatEuro(value: number): string {
   }).format(value);
 }
 
-function rateToFraction(rate: number | null | undefined): number {
-  if (rate == null || !Number.isFinite(rate)) return 0;
-  return rate > 1 ? rate / 100 : rate;
-}
-
 function itemTotals(item: CartItem) {
-  const unitHt = parsePrice(item.price);
-  const unitTtc = unitHt * (1 + rateToFraction(item.taxRate));
-  const qty = Math.max(0, item.qty ?? 0);
-
   return {
-    unitHt,
-    unitTtc,
-    lineHt: unitHt * qty,
-    lineTtc: unitTtc * qty,
+    unitHt: parsePrice(item.price),
+    unitTtc: cartUnitTtc(item),
+    lineHt: cartLineHt(item),
+    lineTtc: cartLineTtc(item),
   };
 }
 
@@ -233,6 +230,7 @@ function useClientSessionState() {
 function buildInitialForm(session: ClientSession | null): CheckoutForm {
   return {
     ...DEFAULT_FORM,
+    title: session?.user?.Titre === "Mme" || session?.user?.Titre === "Autre" ? session.user.Titre : "M",
     firstName: session?.user?.firstName ?? "",
     lastName: session?.user?.lastName ?? "",
     email: session?.user?.email ?? "",
@@ -397,7 +395,31 @@ export function CheckoutClient() {
   const itemsByKey = useCartStore((state) => state.items);
   const items = useMemo(() => Object.values(itemsByKey), [itemsByKey]);
   const clearCart = useCartStore((state) => state.clear);
+  // The server prices the cart: the amounts below are the ones the order will be charged.
+  const pricing = useCartPricing();
   const session = useClientSessionState();
+  // A saved login can be old: its token expired, or only the token was kept and not the customer's details.
+  // Check it once, so the page never treats someone as signed in when the server would refuse them.
+  const sessionToken = session?.token ?? "";
+  const hasSessionUser = Boolean(session?.user);
+  useEffect(() => {
+    if (!sessionToken) return;
+    let cancelled = false;
+    getClientProfile(sessionToken)
+      .then((profile) => {
+        if (cancelled) return;
+        // The details were missing: fill them in, so the form and the account card show who is signed in.
+        if (!hasSessionUser) saveClientSession({ access_token: sessionToken, client: profile });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Expired or revoked: sign out here, which brings back « Connexion client ».
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) clearClientSession();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, hasSessionUser]);
   const [form, setForm] = useState<CheckoutForm>(() => buildInitialForm(null));
   const [hasTouchedForm, setHasTouchedForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -809,7 +831,10 @@ export function CheckoutClient() {
   }
 
   const summaryOf = (step: number) => {
-    if (step === 1) return [`${visibleForm.firstName} ${visibleForm.lastName}`.trim(), visibleForm.email].filter(Boolean).join(" · ");
+    if (step === 1) {
+      const person = `${visibleForm.firstName} ${visibleForm.lastName}`.trim();
+      return [person ? `${{ M: "M.", Mme: "Mme", Autre: "" }[visibleForm.title]} ${person}`.trim() : "", visibleForm.email].filter(Boolean).join(" · ");
+    }
     if (step === 2) {
       return selectedAddress
         ? [selectedAddress.street, `${selectedAddress.postalCode} ${selectedAddress.city}`.trim()].filter(Boolean).join(", ")
@@ -862,6 +887,14 @@ export function CheckoutClient() {
       setSubmitError(colissimoPhoneRequired ? "Indiquez un numéro de mobile valide : Colissimo l’utilise pour vous prévenir de l’arrivée du colis." : "Le numéro de mobile n’est pas valide : corrigez-le ou laissez le champ vide.");
       return;
     }
+    if (pricing.blocking) {
+      setSubmitError(
+        pricing.issues.length > 0
+          ? pricing.issues.map((issue) => issue.message).join(" ")
+          : "Les prix de votre panier sont en cours de vérification. Réessayez dans un instant.",
+      );
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -908,6 +941,7 @@ export function CheckoutClient() {
       if (!session?.token && accountPassword) {
         try {
           const clientSession = await signupClient({
+            Titre: currentForm.title,
             email: currentForm.email.trim(),
             password: accountPassword,
             firstName: currentForm.firstName.trim(),
@@ -960,6 +994,8 @@ export function CheckoutClient() {
       setCompletedReference(order.reference ?? null);
       clearCart();
     } catch (error) {
+      // 409: the prices moved. 422: a product can no longer be bought. Either way, show the real cart again.
+      if (error instanceof ApiError && (error.status === 409 || error.status === 422)) pricing.refresh();
       setSubmitError(
         error instanceof Error
           ? error.message
@@ -1159,7 +1195,7 @@ export function CheckoutClient() {
               <div className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground">
                 <User className="size-5" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">
                   {session.user?.firstName || session.user?.lastName
                     ? `${session.user?.firstName ?? ""} ${
@@ -1171,6 +1207,13 @@ export function CheckoutClient() {
                   {session.user?.email}
                 </p>
               </div>
+              {/* Not the right account, or a login that is stuck: sign out here to log in again. */}
+              <button
+                type="button"
+                onClick={clearClientSession}
+                className="shrink-0 cursor-pointer rounded-md px-3 py-2 text-sm font-medium text-[#153675] underline underline-offset-4 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#153675]">
+                Changer de compte
+              </button>
             </div>
           )}
 
@@ -1186,6 +1229,9 @@ export function CheckoutClient() {
             onEdit={() => editStep(1)}
             onContinue={() => continueFrom(1)}>
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <TitleChoice value={visibleForm.title} onChange={(title) => updateField("title", title)} />
+              </div>
               <TextField
                 id="checkout-first-name"
                 label="Prénom"
@@ -1548,9 +1594,30 @@ export function CheckoutClient() {
                 </p>
               )}
 
+              {/* The order is only possible once the server has checked the prices and the stock. */}
+              {pricing.issues.length > 0 ? (
+                <div role="alert" className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {pricing.issues.map((issue) => (
+                    <p key={`${issue.id}:${issue.variantId ?? ""}`}>{issue.message}</p>
+                  ))}
+                  <Link href="/cart" className="inline-block font-semibold underline underline-offset-4">
+                    Corriger mon panier
+                  </Link>
+                </div>
+              ) : pricing.status === "error" ? (
+                <p role="alert" className="text-sm text-destructive">
+                  Les prix n’ont pas pu être vérifiés.{" "}
+                  <button type="button" onClick={pricing.refresh} className="font-semibold underline underline-offset-4">
+                    Réessayer
+                  </button>
+                </p>
+              ) : pricing.status === "loading" ? (
+                <p className="text-sm text-muted-foreground" aria-live="polite">Vérification des prix…</p>
+              ) : null}
+
               <Button
                 type="submit"
-                disabled={isSubmitting || isRedirecting || (carrierMode && (quoteLoading || !chosenOption))}
+                disabled={isSubmitting || isRedirecting || pricing.blocking || (carrierMode && (quoteLoading || !chosenOption))}
                 className="h-14 w-full rounded-[4px] bg-[#153675] text-lg font-medium text-white hover:bg-[#0f1f45] focus-visible:ring-[#153675]/40">
                 {isSubmitting ? (
                   <>
@@ -1598,32 +1665,17 @@ function buildOrderTotalsPayload(
     subtotalTtc: number;
   },
 ): OrderTotalsPayload {
-  const orderItems: OrderItemPayload[] = items.map((item) => {
-    const totalsForItem = itemTotals(item);
-
-    return {
-      id: item.productId,
-      title: item.title,
-      slug: item.productSlug,
-      image: item.image ?? undefined,
-      variantId: item.variantId ?? undefined,
-      quantity: Math.max(0, item.qty ?? 0),
-      unitPrice: roundMoney(totalsForItem.unitTtc),
-      totalPrice: roundMoney(totalsForItem.lineTtc),
-      unitPriceHt: roundMoney(totalsForItem.unitHt),
-      totalPriceHt: roundMoney(totalsForItem.lineHt),
-      taxRate: rateToFraction(item.taxRate) * 100,
-    };
-  });
+  // Only what the customer chose. The server prices the order itself; `total` is the amount the customer
+  // saw, which the server compares with its own and refuses the order when they differ.
+  const orderItems: OrderItemPayload[] = items.map((item) => ({
+    id: item.productId,
+    ...(item.variantId ? { variantId: item.variantId } : {}),
+    quantity: Math.max(1, Math.floor(item.qty ?? 1)),
+  }));
 
   return {
     items: orderItems,
     total: roundMoney(totals.subtotalTtc),
-    unitPrice: roundMoney(totals.productsTtc),
-    discount: 0,
-    priceHT: roundMoney(totals.productsHt),
-    tva: roundMoney(totals.productsTtc - totals.productsHt),
-    priceTTC: roundMoney(totals.subtotalTtc),
     deliveryFee: roundMoney(totals.shipping),
   };
 }
@@ -2232,6 +2284,42 @@ function ManualAddressFields({
           value={form.country}
           onChange={(value) => onFieldChange("country", value)}
         />
+      </div>
+    </div>
+  );
+}
+
+/** Civilité: Monsieur, Madame or Autre, as three buttons. */
+function TitleChoice({ value, onChange }: { value: CheckoutForm["title"]; onChange: (value: CheckoutForm["title"]) => void }) {
+  const options: Array<{ value: CheckoutForm["title"]; label: string }> = [
+    { value: "M", label: "Monsieur" },
+    { value: "Mme", label: "Madame" },
+    { value: "Autre", label: "Autre" },
+  ];
+  return (
+    <div className="space-y-2">
+      <span id="checkout-title-label" className="block text-sm leading-none font-medium">
+        Civilité
+      </span>
+      <div role="radiogroup" aria-labelledby="checkout-title-label" className="flex gap-3">
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "inline-flex min-h-12 min-w-32 cursor-pointer items-center justify-center gap-2 rounded-md border-2 px-5 text-base font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153675]",
+                selected ? "border-[#153675] bg-[#153675] text-white" : "border-[#d5deee] bg-white text-[#0f1f45] hover:border-[#153675]",
+              )}>
+              {selected ? <Check className="size-4" aria-hidden="true" /> : null}
+              {option.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

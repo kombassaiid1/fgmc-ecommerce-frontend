@@ -4,7 +4,8 @@ import { CheckoutClient } from "./checkout-client";
 import { StripeReturn } from "./stripe-return";
 
 export const metadata: Metadata = {
-  title: "Checkout | FGMC",
+  title: "Commande",
+  robots: { index: false, follow: false },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

@@ -13,7 +13,7 @@ import {
 import { updateAdminClient, type AdminClient } from "@/lib/api/admin-clients";
 
 type Form = {
-  Titre: "M" | "Mme";
+  Titre: "M" | "Mme" | "Autre";
   firstName: string;
   lastName: string;
   email: string;
@@ -118,9 +118,10 @@ export function ClientEditModal({
                 options={[
                   { label: "M.", value: "M" },
                   { label: "Mme", value: "Mme" },
+                  { label: "Autre", value: "Autre" },
                 ]}
                 value={form.Titre}
-                onChange={(value) => set("Titre", value as "M" | "Mme")}
+                onChange={(value) => set("Titre", value as "M" | "Mme" | "Autre")}
               />
               <TextField label="Prénom" value={form.firstName} autoComplete="off"
                 onChange={(value) => set("firstName", value)} />

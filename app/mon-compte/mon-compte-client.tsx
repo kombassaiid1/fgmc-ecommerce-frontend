@@ -18,7 +18,7 @@ import {
   PiUserCircleDuotone,
 } from "react-icons/pi";
 
-import { getClientAddresses, getOrders, type OrderListItem } from "@/lib/api/orders";
+import { getClientAddresses, getMyOrders, type OrderListItem } from "@/lib/api/orders";
 import { clearClientSession, getClientSession, subscribeToClientSession, type ClientSession } from "@/lib/client-auth";
 
 import "./account.css";
@@ -66,8 +66,6 @@ function getClientSessionSnapshot() {
   return cachedSession;
 }
 
-const fullName = (session: ClientSession | null) => [session?.user?.firstName, session?.user?.lastName].filter(Boolean).join(" ").trim();
-
 function firstName(session: ClientSession | null) {
   const user = session?.user;
   return user?.firstName?.trim() || user?.username?.trim() || user?.email?.split("@")[0] || "";
@@ -112,8 +110,7 @@ export function MonCompteClient() {
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
-    const search = session.user?.email?.trim() || fullName(session) || session.user?.id || "";
-    Promise.allSettled([getOrders({ limit: 30, search }), getClientAddresses(session.token)]).then(([ordersResult, addressesResult]) => {
+    Promise.allSettled([getMyOrders(session.token, { limit: 30 }), getClientAddresses(session.token)]).then(([ordersResult, addressesResult]) => {
       if (cancelled) return;
       const mine = ordersResult.status === "fulfilled" ? ordersResult.value.data.filter((order) => isCurrentCustomerOrder(order, session)) : null;
       const sorted = mine ? [...mine].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) : null;

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getSiteSeo } from "@/lib/site-seo";
 import { redirect } from "next/navigation";
 
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
@@ -42,9 +43,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const normalized = normalizeProductSlug(productSlug);
   try {
     const { product } = await fetchProductBySlugWithDebug(normalized);
+    const seo = await getSiteSeo();
+    const description = product?.shortDescription?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) || seo.metaDescription || undefined;
     return {
       title: product?.title ?? normalized,
-      description: product?.shortDescription ?? undefined,
+      description,
+      openGraph: {
+        type: "website",
+        siteName: seo.siteName,
+        title: `${product?.title ?? normalized} | ${seo.siteName}`,
+        description,
+      },
     };
   } catch {
     return { title: normalized };

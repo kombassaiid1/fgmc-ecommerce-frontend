@@ -77,6 +77,8 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"status" | "documents" | "carriers" | "returns">("status");
   const [refundOrderId, setRefundOrderId] = useState<string | null>(null);
+  // A product line is being edited: the products card takes the full width.
+  const [editingProducts, setEditingProducts] = useState(false);
   const [refunds, setRefunds] = useState<{ orderId: string; context: RefundContext | null; error?: string } | null>(null);
   const [preview, setPreview] = useState<{ id: string; data?: OrderPreview } | null>(null);
 
@@ -171,7 +173,7 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
   if (error || !order) return <BlockStack gap="400"><Button onClick={() => router.push("/admin_ben/orders")}>← Retour aux commandes</Button><Banner tone="critical" title={error ?? "Commande introuvable."} /></BlockStack>;
 
   const customerName = order.Client
-    ? `${order.Client.Titre === "Mme" ? "Mme" : "M"} ${order.Client.firstName} ${order.Client.lastName}`.trim()
+    ? `${order.Client.Titre === "Mme" ? "Mme" : order.Client.Titre === "Autre" ? "" : "M"} ${order.Client.firstName} ${order.Client.lastName}`.trim()
     : order.guestName || "Client invité";
   const refunding = refundOrderId === orderId;
   const refundContext = refunds?.orderId === orderId ? refunds.context : null;
@@ -321,14 +323,32 @@ function AdminOrderDetail({ orderId }: { orderId: string }) {
         </div>
       ) : null}
 
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(350px,0.82fr)_minmax(0,1.65fr)]">
-        <CustomerCard key={order.id} order={order} onUpdated={(updated) => setOrder((current) =>
-          current?.id === updated.id ? { ...updated, adjacentOrders: current.adjacentOrders } : current
-        )} onNoteSaved={onNoteSaved} />
+      {/* While a product line is being edited, the products take the full width and the customer card goes below. */}
+      <div className={editingProducts ? "grid items-start gap-3" : "grid items-start gap-3 xl:grid-cols-[minmax(350px,0.82fr)_minmax(0,1.65fr)]"}>
+        <div className={editingProducts ? "order-2 min-w-0" : "min-w-0"}>
+          <CustomerCard key={order.id} order={order} onUpdated={(updated) => setOrder((current) =>
+            current?.id === updated.id ? { ...updated, adjacentOrders: current.adjacentOrders } : current
+          )} onNoteSaved={onNoteSaved} />
+        </div>
 
         <BlockStack gap="300">
           {!refunding ? invoiceCard : null}
-          {!refunding ? <OrderProductsCard key={`products-${order.id}`} order={order} preview={currentPreview} /> : null}
+          {!refunding ? (
+            <OrderProductsCard key={`products-${order.id}`} order={order} preview={currentPreview}
+              canEdit={canEditOrder && order.paymentStatus !== "Payé"}
+              editBlockedReason={
+                !canEditOrder
+                  ? "Vous n’avez pas la permission de modifier les commandes."
+                  : order.paymentStatus === "Payé"
+                    ? "Cette commande est déjà payée : ses produits ne peuvent plus être modifiés. Si le paiement est une erreur, remettez-le sur « En attente »."
+                    : undefined
+              }
+              onEditingChange={setEditingProducts}
+              onProductsSaved={(updated) => {
+                setOrder((current) => (current?.id === updated.id ? { ...updated, adjacentOrders: current.adjacentOrders } : current));
+                void refreshPreview();
+              }} />
+          ) : null}
 
           <Card padding="0">
             <div role="tablist" aria-label="Détails de la commande" className="flex flex-wrap items-end gap-1 border-b border-[#dce4ea] bg-[#e9eaec] px-3 pt-2 text-sm">

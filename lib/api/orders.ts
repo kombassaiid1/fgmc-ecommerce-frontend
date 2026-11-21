@@ -10,28 +10,78 @@ export type OrdersQueryParams = {
   paymentStatus?: string;
 };
 
+/** What an order line says: which product, which variant, how many. The server decides every price. */
 export type OrderItemPayload = {
   id: string;
-  title: string;
-  slug: string;
-  image?: string;
   variantId?: string;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  unitPriceHt?: number;
-  totalPriceHt?: number;
-  taxRate?: number;
 };
+
+/** One line of a cart as the server priced it. */
+export type CartQuoteLine = {
+  id: string;
+  variantId: string | null;
+  title: string;
+  slug: string;
+  image: string | null;
+  quantity: number;
+  unitTtc: number;
+  unitHt: number;
+  lineTtc: number;
+  lineHt: number;
+  /** As a fraction (0.2). */
+  taxRate: number;
+  taxPercent: number;
+  originalUnitTtc: number;
+  promo: boolean;
+};
+
+/** What is wrong with a line: the product is gone, hidden, out of stock, or there is less than asked. */
+export type CartQuoteIssue = {
+  id: string;
+  variantId: string | null;
+  title: string | null;
+  code: "NOT_FOUND" | "UNAVAILABLE" | "OUT_OF_STOCK" | "INSUFFICIENT_STOCK";
+  message: string;
+  available?: number;
+};
+
+export type CartQuote = {
+  lines: CartQuoteLine[];
+  issues: CartQuoteIssue[];
+  productsTtc: number;
+  productsHt: number;
+  discount: number;
+  couponCode: string | null;
+  totalTtc: number;
+  totalHt: number;
+  tva: number;
+};
+
+/** Asks the server to price a cart: prices, promotions, tax and stock all come from the catalogue. */
+export async function quoteCart(
+  items: Array<{ id: string; variantId?: string | null; quantity: number }>,
+  options?: { signal?: AbortSignal; couponCode?: string },
+): Promise<CartQuote> {
+  return apiRequest<CartQuote>({
+    path: "/orders/quote",
+    method: "POST",
+    signal: options?.signal,
+    body: JSON.stringify({
+      items: items.map((item) => ({ id: item.id, ...(item.variantId ? { variantId: item.variantId } : {}), quantity: item.quantity })),
+      ...(options?.couponCode ? { couponCode: options.couponCode } : {}),
+    }),
+  });
+}
 
 export type OrderTotalsPayload = {
   items: OrderItemPayload[];
-  total: number;
-  unitPrice?: number;
-  discount?: number;
-  priceHT?: number;
-  tva?: number;
-  priceTTC?: number;
+  /**
+   * The total the customer saw (tax included, delivery included). It never sets the price: the server
+   * refuses the order with a 409 when its own total is different, so the customer sees the new one first.
+   */
+  total?: number;
+  /** The delivery price the customer saw; checked against the carrier's real rate. */
   deliveryFee?: number;
   couponCode?: string;
   paymentMethod?: "En_ligne" | "COD";
@@ -123,6 +173,10 @@ export type StoredOrderProduct = {
   quantity?: number;
   unitPrice?: number;
   totalPrice?: number;
+  unitPriceHt?: number;
+  totalPriceHt?: number;
+  /** A percentage (20). */
+  taxRate?: number;
 };
 
 export type OrderListItem = {
@@ -240,17 +294,43 @@ function buildOrdersQuery(params?: OrdersQueryParams) {
   return `/orders${qs ? `?${qs}` : ""}`;
 }
 
-export async function getOrders(
-  params?: OrdersQueryParams,
-): Promise<OrdersResponse> {
+/** The orders list of the back office (needs an admin session; the browser never holds the admin token). */
+export async function getAdminOrders(params?: OrdersQueryParams): Promise<OrdersResponse> {
+  const response = await fetch(buildOrdersQuery(params).replace(/^\/orders/, "/frontend-api/admin/orders"), { cache: "no-store" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Impossible de charger les commandes.");
+  return data as OrdersResponse;
+}
+
+/** A signed-in customer's own orders. The server filters on the account, whatever the query says. */
+export async function getMyOrders(token: string, params?: OrdersQueryParams): Promise<OrdersResponse> {
   return apiRequest<OrdersResponse>({
-    path: buildOrdersQuery(params),
+    path: buildOrdersQuery(params).replace(/^\/orders/, "/my/orders"),
     method: "GET",
+    headers: authHeaders(token),
   });
 }
 
-export async function getOrder(id: string): Promise<OrderDetail> {
-  return apiRequest<OrderDetail>({
+/** What the order confirmation shows: the order and its totals, without the customer's details. */
+export type PublicOrder = {
+  id: string;
+  reference?: string | null;
+  products: StoredOrderProduct[] | unknown;
+  total: number;
+  unitPrice?: number | null;
+  discount?: number | null;
+  priceHT?: number | null;
+  tva?: number | null;
+  priceTTC?: number | null;
+  deliveryFee?: number | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
+  etat?: string | null;
+  createdAt?: string;
+};
+
+export async function getOrder(id: string): Promise<PublicOrder> {
+  return apiRequest<PublicOrder>({
     path: `/orders/${encodeURIComponent(id)}`,
     method: "GET",
   });
@@ -269,12 +349,17 @@ export async function updateOrderStatus(id: string, etat: string): Promise<Order
   return data as OrderListItem;
 }
 
+/** Changes an order's payment status as the logged-in admin. */
 export async function updateOrderPaymentStatus(id: string, paymentStatus: string): Promise<OrderListItem> {
-  return apiRequest<OrderListItem>({
-    path: `/orders/${encodeURIComponent(id)}/payment-status`,
+  const response = await fetch(`/frontend-api/admin/orders/${encodeURIComponent(id)}/payment-status`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paymentStatus }),
+    cache: "no-store",
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Impossible de mettre à jour le paiement.");
+  return data as OrderListItem;
 }
 
 export async function createGuestOrder(
@@ -378,6 +463,10 @@ export const updateOrderAddress = (id: string, address: { street: string; zipCod
 
 export const updateOrderGuest = (id: string, guest: { guestName?: string; guestEmail?: string; guestPhone?: string; guestAddress?: string }) =>
   adminOrderCall<OrderDetail>(`${encodeURIComponent(id)}/guest`, { method: "PATCH", body: JSON.stringify(guest) });
+
+/** Changes the quantity and/or the unit price (tax included) of some lines, or removes a line; the server works the order's amounts out again. */
+export const updateOrderProducts = (id: string, lines: Array<{ index: number; quantity?: number; unitPriceTtc?: number; remove?: boolean }>) =>
+  adminOrderCall<OrderDetail>(`${encodeURIComponent(id)}/products`, { method: "PATCH", body: JSON.stringify({ lines }) });
 
 export const saveOrderNote = (id: string, note: string) => adminOrderCall<{ privateNote: string | null }>(`${encodeURIComponent(id)}/note`, { method: "PATCH", body: JSON.stringify({ note }) });
 

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Badge, Banner, Button, Card, Spinner, Text } from "@shopify/polaris";
 import { toast } from "sonner";
 import { paymentLabel } from "@/lib/payment-label";
-import { getOrder, updateOrderStatus, type OrderDetail } from "@/lib/api/orders";
+import { getAdminOrder, updateOrderStatus, type OrderDetail } from "@/lib/api/orders";
 import { GLS_API, GLS_TYPE_NAMES, glsFetch, inputClass, prefill, type Delivery, type Form, type GlsType } from "../gls-shipping-card";
 
 type GlsConfig = { mode: "sandbox" | "live"; configured: boolean };
@@ -67,7 +67,7 @@ function GlsLabel({ orderId }: { orderId: string }) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      getOrder(orderId),
+      getAdminOrder(orderId),
       glsFetch<GlsConfig>(""),
       glsFetch<ExistingShipment[]>(`/orders/${orderId}/shipments`),
       glsFetch<Delivery | null>(`/orders/${orderId}/delivery`).catch(() => null),

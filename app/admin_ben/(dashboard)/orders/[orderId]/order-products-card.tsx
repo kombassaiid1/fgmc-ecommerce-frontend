@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Pencil, Trash2 } from "lucide-react";
 import { Banner, Button, Card, Text } from "@shopify/polaris";
 import { createOrderRefund, RefundRequestError, type OrderRefund, type RefundContext, type RefundInput } from "@/lib/api/order-refunds";
-import type { OrderDetail, OrderPreview, StoredOrderProduct } from "@/lib/api/orders";
+import { toast } from "sonner";
+import { updateOrderProducts, type OrderDetail, type OrderPreview, type StoredOrderProduct } from "@/lib/api/orders";
 
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const fieldClass = "h-9 w-full min-w-0 bg-white px-2 text-[13px] text-[#344054] focus-visible:outline-2 focus-visible:outline-[#087e9a]";
@@ -55,9 +58,38 @@ function MoneyField({ label, value, max, disabled, onChange }: {
   );
 }
 
-export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSaved, refundContext, refundLoadError }: {
+/** Rounds to the cent. */
+const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+/** "469", "469,00" or "469.00" → 469. Empty or invalid → NaN. */
+function parseInput(value: string) {
+  const text = value.trim().replace(",", ".");
+  return text === "" ? NaN : Number(text);
+}
+
+/** The tax rate of a line as a fraction: its own, else what its prices say, else the product's current rate. */
+function lineVat(product: StoredOrderProduct, preview: OrderPreview | null) {
+  if (Number(product.taxRate) > 0) return Number(product.taxRate) / 100;
+  const ttc = Number(product.unitPrice);
+  const ht = Number(product.unitPriceHt);
+  if (ttc > 0 && ht > 0) return Math.max(0, ttc / ht - 1);
+  const rate = product.id ? preview?.products?.[product.id]?.taxRate : undefined;
+  return rate && rate > 0 ? (rate > 1 ? rate / 100 : rate) : 0;
+}
+
+type EditForm = { quantity: string; ht: string; ttc: string };
+
+export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSaved, refundContext, refundLoadError, canEdit, editBlockedReason, onEditingChange, onProductsSaved }: {
   order: OrderDetail;
   preview: OrderPreview | null;
+  /** Whether the pencil on a line may open the edit form. */
+  canEdit?: boolean;
+  /** Why the lines cannot be edited, shown above the table. */
+  editBlockedReason?: string;
+  /** Tells the page that a line is being edited, so it can give this card the full width. */
+  onEditingChange?: (editing: boolean) => void;
+  /** The order as the server saved it after a change. */
+  onProductsSaved?: (order: OrderDetail) => void;
   onCancelRefund?: () => void;
   onRefundSaved?: (refund: OrderRefund) => void;
   refundContext?: RefundContext | null;
@@ -74,6 +106,13 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
   const [submitError, setSubmitError] = useState("");
   const [locked, setLocked] = useState(false);
   const request = useRef<RefundInput | null>(null);
+  // Editing one line: quantity and unit price (HT and TTC follow each other through the tax rate).
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ quantity: "1", ht: "", ttc: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  // Removing a line asks first, in the line itself.
+  const [removeIndex, setRemoveIndex] = useState<number | null>(null);
   const products = Array.isArray(order.products) ? order.products as StoredOrderProduct[] : [];
   const productsTotal = products.reduce((sum, product) => sum + (Number(product.totalPrice) || 0), 0);
   const shipping = Number(order.deliveryFee ?? 0);
@@ -103,6 +142,60 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
   useEffect(() => {
     if (refunding) focusTarget.current?.focus();
   }, [refunding]);
+
+  const editing = editIndex !== null;
+  useEffect(() => {
+    onEditingChange?.(editing);
+    return () => onEditingChange?.(false);
+  }, [editing, onEditingChange]);
+
+  function startEdit(index: number) {
+    const product = products[index];
+    const vat = lineVat(product, preview);
+    const ttc = round2(Number(product.unitPrice) || 0);
+    const ht = Number(product.unitPriceHt) > 0 ? round2(Number(product.unitPriceHt)) : round2(ttc / (1 + vat));
+    setEditForm({ quantity: String(Math.max(1, Math.floor(Number(product.quantity) || 1))), ht: ht.toFixed(2), ttc: ttc.toFixed(2) });
+    setEditError("");
+    setEditIndex(index);
+  }
+
+  async function removeLine(index: number) {
+    setEditSaving(true);
+    setEditError("");
+    try {
+      const updated = await updateOrderProducts(order.id, [{ index, remove: true }]);
+      onProductsSaved?.(updated);
+      setRemoveIndex(null);
+      toast.success("Produit retiré : les montants de la commande ont été recalculés.");
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Impossible de retirer le produit.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  function cancelEdit() {
+    setEditIndex(null);
+    setEditError("");
+  }
+
+  async function saveEdit() {
+    if (editIndex === null) return;
+    const quantity = Math.floor(parseInput(editForm.quantity));
+    const unitPriceTtc = round2(parseInput(editForm.ttc));
+    setEditSaving(true);
+    setEditError("");
+    try {
+      const updated = await updateOrderProducts(order.id, [{ index: editIndex, quantity, unitPriceTtc }]);
+      onProductsSaved?.(updated);
+      setEditIndex(null);
+      toast.success("Produits modifiés : les montants de la commande ont été recalculés.");
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Impossible d’enregistrer la modification.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   function setLine(index: number, fields: Partial<RefundLine>) {
     setRefundLines((current) => ({ ...current, [index]: { ...emptyLine, ...current[index], ...fields } }));
@@ -138,6 +231,11 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
         <div className="border-b border-[#dce4ea] px-4 py-3">
           <Text as="h2" variant="headingMd">Produits ({products.length})</Text>
         </div>
+        {!refunding && !canEdit && editBlockedReason ? (
+          <p role="status" className="mx-3 mt-3 rounded border border-[#e3e8ec] bg-[#f7f9fa] px-3 py-2 text-xs text-[#536b78]">
+            Modification des produits désactivée. {editBlockedReason}
+          </p>
+        ) : null}
         <div className={refunding ? "overflow-x-auto px-5" : "overflow-x-auto px-3"}>
           <table className={`w-full border-collapse text-left text-xs text-[#344054] ${refunding ? "min-w-[1100px]" : "min-w-[760px]"}`}>
             <thead>
@@ -166,15 +264,52 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
                           <img src={product.image} alt="" className="size-11 shrink-0 object-cover" />
                         ) : <div className="grid size-11 shrink-0 place-items-center bg-[#f2f4f7] text-[10px] text-[#98a2b3]">IMG</div>}
                         <div>
-                          <p className="font-medium text-[#087e9a]">{name}</p>
+                          <p className="font-medium text-[#087e9a]">
+                            {product.id ? (
+                              // Opens the product's edit page.
+                              <Link href={`/admin_ben/products/add_product?id=${encodeURIComponent(product.id)}`} className="underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none">
+                                {name}
+                              </Link>
+                            ) : name}
+                          </p>
                           <p className="mt-1 text-[#087e9a]">Référence : {reference}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-2">{formatMoney(product.unitPrice)}</td>
-                    <td className="px-2 text-center"><span className={refunding ? "" : "inline-flex min-w-6 justify-center rounded-full bg-[#718b91] px-1.5 py-1 font-semibold text-white"}>{product.quantity ?? 0}</span></td>
+                    <td className="whitespace-nowrap px-2">
+                      {editIndex === index ? (
+                        <div className="grid w-48 gap-2">
+                          <div className="flex border border-[#bacdd7]">
+                            <input aria-label={`Prix unitaire HT de ${name}`} inputMode="decimal" className={fieldClass} value={editForm.ht} disabled={editSaving}
+                              onChange={(event) => {
+                                const ht = parseInput(event.target.value);
+                                setEditForm((form) => ({ ...form, ht: event.target.value, ttc: Number.isFinite(ht) ? round2(ht * (1 + lineVat(product, preview))).toFixed(2) : form.ttc }));
+                              }} />
+                            <span aria-hidden="true" className={suffixClass}>€ HT</span>
+                          </div>
+                          <div className="flex border border-[#bacdd7]">
+                            <input aria-label={`Prix unitaire TTC de ${name}`} inputMode="decimal" className={fieldClass} value={editForm.ttc} disabled={editSaving}
+                              onChange={(event) => {
+                                const ttc = parseInput(event.target.value);
+                                setEditForm((form) => ({ ...form, ttc: event.target.value, ht: Number.isFinite(ttc) ? round2(ttc / (1 + lineVat(product, preview))).toFixed(2) : form.ht }));
+                              }} />
+                            <span aria-hidden="true" className={suffixClass}>€ TTC</span>
+                          </div>
+                        </div>
+                      ) : formatMoney(product.unitPrice)}
+                    </td>
+                    <td className="px-2 text-center">
+                      {editIndex === index ? (
+                        <input aria-label={`Quantité de ${name}`} type="number" min={1} step={1} className={`${fieldClass} w-20 border border-[#bacdd7]`} value={editForm.quantity} disabled={editSaving}
+                          onChange={(event) => setEditForm((form) => ({ ...form, quantity: event.target.value }))} />
+                      ) : <span className={refunding ? "" : "inline-flex min-w-6 justify-center rounded-full bg-[#718b91] px-1.5 py-1 font-semibold text-white"}>{product.quantity ?? 0}</span>}
+                    </td>
                     <td className="px-2 text-center">—</td>
-                    <td className="whitespace-nowrap px-2">{formatMoney(product.totalPrice)}</td>
+                    <td className="whitespace-nowrap px-2">
+                      {editIndex === index
+                        ? formatMoney(Number.isFinite(parseInput(editForm.ttc)) && Number.isFinite(parseInput(editForm.quantity)) ? round2(parseInput(editForm.ttc) * Math.floor(parseInput(editForm.quantity))) : 0)
+                        : formatMoney(product.totalPrice)}
+                    </td>
                     <td className="whitespace-nowrap px-2">{refunding ? invoiceReference ?? "—" : "—"}</td>
                     <td className="px-2 py-2">
                       {refunding ? (
@@ -212,7 +347,39 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
                             </div>
                           </div>
                         </div>
-                      ) : <div className="text-center text-[#718b91]">✎　▤</div>}
+                      ) : editIndex === index ? (
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex gap-2">
+                            <Button disabled={editSaving} onClick={cancelEdit}>Annuler</Button>
+                            <Button variant="primary" loading={editSaving} disabled={editSaving || !(Math.floor(parseInput(editForm.quantity)) >= 1) || !(parseInput(editForm.ttc) >= 0) ||
+                              (Math.floor(parseInput(editForm.quantity)) === Math.floor(Number(product.quantity) || 0) && round2(parseInput(editForm.ttc)) === round2(Number(product.unitPrice) || 0))} onClick={() => void saveEdit()}>Enregistrer</Button>
+                          </div>
+                          {editError ? <p role="alert" className="max-w-64 text-right text-[#b42318]">{editError}</p> : null}
+                        </div>
+                      ) : removeIndex === index ? (
+                        <div role="alertdialog" aria-label={`Retirer ${name} de la commande`} className="flex flex-col items-end gap-2">
+                          <p className="text-right font-medium text-[#344054]">Retirer ce produit de la commande ?</p>
+                          <div className="flex gap-2">
+                            <Button disabled={editSaving} onClick={() => { setRemoveIndex(null); setEditError(""); }}>Annuler</Button>
+                            <Button variant="primary" tone="critical" loading={editSaving} disabled={editSaving} onClick={() => void removeLine(index)}>Retirer</Button>
+                          </div>
+                          {editError ? <p role="alert" className="max-w-64 text-right text-[#b42318]">{editError}</p> : null}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1">
+                          <button type="button" onClick={() => startEdit(index)} disabled={!canEdit || editing || removeIndex !== null}
+                            aria-label={`Modifier ${name}`} title={canEdit ? "Modifier la quantité ou le prix" : "Modification impossible : commande déjà payée ou droits insuffisants"}
+                            className="grid size-8 cursor-pointer place-items-center rounded text-[#536b78] transition-colors hover:bg-[#e6f4f8] hover:text-[#087e9a] focus-visible:outline-2 focus-visible:outline-[#087e9a] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[#536b78]">
+                            <Pencil className="size-4" aria-hidden="true" />
+                          </button>
+                          <button type="button" onClick={() => { setEditError(""); setRemoveIndex(index); }} disabled={!canEdit || editing || removeIndex !== null || products.length <= 1}
+                            aria-label={`Retirer ${name}`}
+                            title={products.length <= 1 ? "Une commande doit garder au moins un produit" : canEdit ? "Retirer ce produit de la commande" : "Modification impossible : commande déjà payée ou droits insuffisants"}
+                            className="grid size-8 cursor-pointer place-items-center rounded text-[#536b78] transition-colors hover:bg-[#fdecea] hover:text-[#b42318] focus-visible:outline-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[#536b78]">
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -224,7 +391,6 @@ export function OrderProductsCard({ order, preview, onCancelRefund, onRefundSave
         {!refunding ? (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs text-[#667085]">
             <label className="flex items-center gap-2">Articles par page : <select defaultValue="8" className="h-8 rounded border border-[#cbd6de] bg-white px-2"><option>8</option></select></label>
-            <div className="flex gap-2"><Button disabled>⊕ Ajouter un produit</Button><Button disabled>▣ Ajouter une remise</Button></div>
           </div>
         ) : null}
         <div className={`grid gap-3 bg-[#f7f7f7] px-5 text-center sm:grid-cols-3 ${refunding ? "mx-5 mt-8 py-6" : "py-4"}`}>

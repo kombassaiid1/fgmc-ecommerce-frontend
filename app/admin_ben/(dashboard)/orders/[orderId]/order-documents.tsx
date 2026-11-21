@@ -160,7 +160,7 @@ export function OrderDocuments({
             <col />
           </colgroup>
           <thead>
-            <tr className="border-b-2 border-[#22b6d1] text-[#24364b]">
+            <tr className="border-b border-[#e1e3e5] text-[#616161]">
               <th scope="col" className="px-2 py-2.5">Date</th>
               <th scope="col" className="px-2 py-2.5">Document</th>
               <th scope="col" className="px-2 py-2.5">Numéro</th>
