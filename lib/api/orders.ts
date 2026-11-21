@@ -91,13 +91,6 @@ export type OrderTotalsPayload = {
   shipping?: { carrierId: string; countryCode: string };
 };
 
-export type GuestOrderPayload = OrderTotalsPayload & {
-  guestName: string;
-  guestEmail?: string;
-  guestPhone: string;
-  guestAddress: string;
-};
-
 export type AuthenticatedOrderPayload = OrderTotalsPayload & {
   addressId: string;
 };
@@ -360,16 +353,6 @@ export async function updateOrderPaymentStatus(id: string, paymentStatus: string
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Impossible de mettre à jour le paiement.");
   return data as OrderListItem;
-}
-
-export async function createGuestOrder(
-  payload: GuestOrderPayload,
-): Promise<CreatedOrder> {
-  return apiRequest<CreatedOrder>({
-    path: "/orders",
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
 }
 
 export async function createClientAddress(

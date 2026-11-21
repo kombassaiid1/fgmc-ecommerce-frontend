@@ -54,13 +54,12 @@ import {
   createAuthenticatedOrder,
   createClientAddress,
   deleteClientAddress,
-  createGuestOrder,
   getClientAddresses,
   updateClientAddress,
   type OrderItemPayload,
   type OrderTotalsPayload,
 } from "@/lib/api/orders";
-import { getClientProfile, loginClient, signupClient } from "@/lib/api/clients";
+import { getClientProfile, loginClient } from "@/lib/api/clients";
 import {
   createStripeCheckoutSession,
   getStripePublicConfig,
@@ -436,13 +435,10 @@ export function CheckoutClient() {
   );
   const [addressError, setAddressError] = useState<string | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
-  const [showLoginForm, setShowLoginForm] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [accountPassword, setAccountPassword] = useState("");
-  const [accountCreationNotice, setAccountCreationNotice] = useState<string | null>(null);
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [stripeConfig, setStripeConfig] = useState<StripePublicConfig | null>(null);
@@ -630,7 +626,6 @@ export function CheckoutClient() {
       saveClientSession(response);
       setHasTouchedForm(false);
       setLoginPassword("");
-      setShowLoginForm(false);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Connexion impossible.");
     } finally {
@@ -789,7 +784,6 @@ export function CheckoutClient() {
       if (!visibleForm.firstName.trim() || !visibleForm.lastName.trim()) return "Indiquez votre prénom et votre nom.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(visibleForm.email.trim())) return "Indiquez une adresse e-mail valide.";
       if (!visibleForm.phone.trim()) return "Indiquez votre numéro de téléphone.";
-      if (!session?.token && accountPassword.length < 6) return "Choisissez un mot de passe d’au moins 6 caractères pour créer votre compte.";
       return null;
     }
     if (step === 2) {
@@ -920,59 +914,16 @@ export function CheckoutClient() {
             }
           : {}),
       };
-      const order = session?.token
-        ? await createAuthenticatedCheckoutOrder(
-            session.token,
-            currentForm,
-            payload,
-            selectedAddress?.id,
-          )
-        : await createGuestOrder({
-            ...payload,
-            guestName: `${currentForm.firstName} ${currentForm.lastName}`.trim(),
-            guestEmail: currentForm.email.trim() || undefined,
-            guestPhone: currentForm.phone.trim(),
-            guestAddress: formatAddress(currentForm),
-          });
+      if (!session?.token) throw new Error("Connectez-vous pour passer commande.");
+      const order = await createAuthenticatedCheckoutOrder(
+        session.token,
+        currentForm,
+        payload,
+        selectedAddress?.id,
+      );
 
       // Order confirmed: fire-and-forget PURCHASE for attributed products.
       trackRecoPurchase(items.map((item) => item.productId));
-
-      if (!session?.token && accountPassword) {
-        try {
-          const clientSession = await signupClient({
-            Titre: currentForm.title,
-            email: currentForm.email.trim(),
-            password: accountPassword,
-            firstName: currentForm.firstName.trim(),
-            lastName: currentForm.lastName.trim(),
-            phoneNumber: currentForm.phone.trim() || null,
-            company: currentForm.company.trim() || null,
-            numberIdFiscale: currentForm.numberIdFiscale.trim() || null,
-          });
-          const authenticatedSession = saveClientSession(clientSession);
-          try {
-            await createClientAddress(authenticatedSession.token, {
-              country: currentForm.country.trim(),
-              street: currentForm.address.trim(),
-              City: currentForm.city.trim(),
-              state: currentForm.city.trim() || currentForm.country.trim(),
-              zipCode: currentForm.postalCode.trim() || "-",
-            });
-            setAccountCreationNotice(
-              "Votre compte a ete cree, votre adresse enregistree et vous etes connecte.",
-            );
-          } catch {
-            setAccountCreationNotice(
-              "Votre compte client a ete cree et vous etes connecte, mais l'adresse n'a pas pu etre enregistree au compte.",
-            );
-          }
-        } catch {
-          setAccountCreationNotice(
-            "Commande confirmee. Le compte n'a pas pu etre cree automatiquement; verifiez l'adresse e-mail et reessayez plus tard.",
-          );
-        }
-      }
 
       if (payOnline) {
         try {
@@ -1023,11 +974,6 @@ export function CheckoutClient() {
               {paymentNotice}
             </p>
           ) : null}
-          {accountCreationNotice ? (
-            <p className="mx-auto mt-4! max-w-md text-sm leading-6 text-[#5b6b8a]">
-              {accountCreationNotice}
-            </p>
-          ) : null}
           <Link
             href="/categorie-produit"
             className="mt-8 inline-flex min-h-12 items-center rounded-[4px] bg-[#153675] px-8 text-base font-medium text-white transition-colors duration-200 hover:bg-[#0f1f45] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
@@ -1060,6 +1006,51 @@ export function CheckoutClient() {
           <Button asChild className="mt-6 bg-destructive hover:bg-destructive/90">
             <Link href="/">Continuer mes achats</Link>
           </Button>
+        </div>
+      </main>
+    );
+  }
+
+  // Orders are placed by signed-in customers only.
+  if (!session?.token) {
+    return (
+      <main className="min-h-[calc(100dvh-5rem)] bg-[#f2f5fa] px-4 py-12 text-[#0f1f45]">
+        <div className="mx-auto w-full max-w-md rounded-[4px] border border-[#b4c2dc] bg-white p-6 shadow-sm sm:p-8">
+          <div className="grid size-12 place-items-center rounded-[4px] bg-[#eef2f9] text-[#153675]">
+            <LockKeyhole className="size-6" aria-hidden="true" />
+          </div>
+          <h1 className="mt-5! text-2xl! font-semibold!">Connectez-vous pour commander</h1>
+          <p className="mt-2! text-[15px] leading-6 text-[#5b6b8a]">
+            Votre panier est gardé. Une fois connecté, vous pourrez suivre vos commandes, retrouver vos documents et vos adresses.
+          </p>
+          <form
+            className="mt-6 grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleClientLogin();
+            }}>
+            <TextField id="checkout-login-email" label="Adresse e-mail" type="email" value={loginEmail} onChange={setLoginEmail} autoComplete="email" icon={Mail} required />
+            <TextField id="checkout-login-password" label="Mot de passe" type="password" value={loginPassword} onChange={setLoginPassword} autoComplete="current-password" icon={LockKeyhole} required />
+            {loginError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {loginError}
+              </p>
+            ) : null}
+            <Button type="submit" disabled={isLoggingIn} className="min-h-12 bg-[#153675] text-base hover:bg-[#0f1f45]">
+              {isLoggingIn ? "Connexion…" : "Se connecter"}
+            </Button>
+          </form>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <Link href="/forgot-password" className="inline-flex min-h-11 items-center font-medium text-[#153675] underline underline-offset-4">
+              Mot de passe oublié ?
+            </Link>
+            <Link href="/signup?returnTo=/checkout" className="inline-flex min-h-11 items-center font-medium text-[#153675] underline underline-offset-4">
+              Créer un compte
+            </Link>
+          </div>
+          <Link href="/cart" className="mt-2 inline-flex min-h-11 items-center text-sm text-[#5b6b8a] underline underline-offset-4">
+            Retour au panier
+          </Link>
         </div>
       </main>
     );
@@ -1125,72 +1116,7 @@ export function CheckoutClient() {
             </Link>
           </div>
 
-          {!session ? (
-            <>
-            <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <LockKeyhole className="mt-0.5 size-5 text-primary" />
-                <div>
-                  <p className="font-semibold">Connectez-vous plus vite</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Votre compte client peut remplir vos informations
-                    automatiquement.
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0"
-                onClick={() => {
-                  setShowLoginForm((open) => !open);
-                  setLoginEmail(visibleForm.email);
-                  setLoginError(null);
-                }}>
-                {showLoginForm ? "Fermer" : "Connexion client"}
-              </Button>
-            </div>
-            {showLoginForm ? (
-              <div
-                className="mt-4 grid gap-4 rounded-lg border border-border bg-background p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
-                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void handleClientLogin();
-                  }
-                }}>
-                <TextField
-                  id="checkout-login-email"
-                  label="Adresse e-mail"
-                  type="email"
-                  value={loginEmail}
-                  onChange={setLoginEmail}
-                  autoComplete="email"
-                  icon={Mail}
-                  required
-                />
-                <TextField
-                  id="checkout-login-password"
-                  label="Mot de passe"
-                  type="password"
-                  value={loginPassword}
-                  onChange={setLoginPassword}
-                  autoComplete="current-password"
-                  icon={LockKeyhole}
-                  required
-                />
-                <Button type="button" onClick={() => void handleClientLogin()} disabled={isLoggingIn}>
-                  {isLoggingIn ? "Connexion..." : "Se connecter"}
-                </Button>
-                {loginError ? (
-                  <p role="alert" className="text-sm text-destructive sm:col-span-3">
-                    {loginError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            </>
-          ) : (
+          {(
             <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-background p-4">
               <div className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground">
                 <User className="size-5" />
@@ -1283,19 +1209,6 @@ export function CheckoutClient() {
                 onChange={(value) => updateField("numberIdFiscale", value)}
                 icon={Fingerprint}
               />
-              {!session?.token ? (
-                <TextField
-                  id="checkout-account-password"
-                  label="Mot de passe pour créer votre compte"
-                  type="password"
-                  value={accountPassword}
-                  onChange={setAccountPassword}
-                  autoComplete="new-password"
-                  icon={LockKeyhole}
-                  minLength={6}
-                  required
-                />
-              ) : null}
             </div>
           </CheckoutPanel>
 
@@ -1698,13 +1611,6 @@ async function createAuthenticatedCheckoutOrder(
     ...payload,
     addressId,
   });
-}
-
-function formatAddress(form: CheckoutForm) {
-  return [form.address, form.city, form.postalCode, form.country]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(", ");
 }
 
 function roundMoney(value: number) {

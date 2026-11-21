@@ -108,7 +108,9 @@ export function SignupForm() {
       }
 
       saveClientSession(response);
-      router.push("/");
+      // Back to where they came from (the checkout), but only to a page of this site.
+      const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+      router.push(requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : "/");
       router.refresh();
     } catch (submitError) {
       setError(

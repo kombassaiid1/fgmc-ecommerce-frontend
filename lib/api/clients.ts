@@ -128,7 +128,7 @@ export async function deleteClient(id: string): Promise<void> {
 }
 
 export async function signupClient(
-  payload: CreateClientPayload,
+  payload: CreateClientPayload & { claimOrderId?: string },
 ): Promise<ClientAuthResponse> {
   return apiRequest<ClientAuthResponse>({
     path: "/auth/signup",
