@@ -165,11 +165,13 @@ export const featuredProductsBlock: ComponentConfig<FeaturedProductsProps> = {
   fields: FIELDS,
 
   // The recommendations block has no category / count / link: hide those fields.
+  // « Produits visibles (mobile) » stays: the carousel uses it for both sources.
   resolveFields: (data) => {
     if (data.props.source === "recommendations") {
       return {
         title: FIELDS.title,
         source: FIELDS.source,
+        mobileColumns: FIELDS.mobileColumns,
         background: FIELDS.background,
         maxWidth: FIELDS.maxWidth,
       } as Fields<FeaturedProductsProps>;
