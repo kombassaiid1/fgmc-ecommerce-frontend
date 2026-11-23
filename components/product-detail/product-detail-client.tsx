@@ -1,5 +1,6 @@
 "use client";
 
+import { OptimizedImage } from "@/components/shared/optimized-image";
 import { Carousel, CarouselContent, CarouselItem, useCarousel } from "@/components/ui/carousel";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -598,8 +599,14 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
               <div className="pd-stage" ref={stageRef}>
                 <span className="pd-frame" aria-hidden="true" />
                 {selectedImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img ref={imgRef} src={selectedImageUrl} alt={product.title} />
+                  <OptimizedImage
+                    ref={imgRef}
+                    src={selectedImageUrl}
+                    alt={selectedImageIndex > 0 ? `${product.title} - photo ${selectedImageIndex + 1}` : product.title}
+                    fill
+                    sizes="(min-width: 1024px) 45vw, 100vw"
+                    preload={selectedImageIndex === 0}
+                  />
                 ) : (
                   <div className="pd-empty"><Package className="size-20" aria-hidden="true" /></div>
                 )}
@@ -642,8 +649,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 {images.map((img, idx) => (
                   <li key={`${img}-${idx}`}>
                     <button type="button" className="pd-thumb" onClick={() => setSelectedImageIndex(idx)} aria-label={`Afficher l’image ${idx + 1}`} aria-pressed={idx === selectedImageIndex}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={getImageUrl(img)} alt="" loading="lazy" />
+                      <OptimizedImage src={getImageUrl(img)} alt={`${product.title} - miniature ${idx + 1}`} fill sizes="80px" />
                     </button>
                   </li>
                 ))}
@@ -1021,8 +1027,7 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
                 {images.map((img, idx) => (
                   <li key={`${img}-lb-${idx}`}>
                     <button type="button" aria-pressed={idx === selectedImageIndex} aria-label={`Afficher l’image ${idx + 1}`} onClick={() => setSelectedImageIndex(idx)}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={getImageUrl(img)} alt="" />
+                      <OptimizedImage src={getImageUrl(img)} alt={`${product.title} - miniature ${idx + 1}`} fill sizes="64px" />
                     </button>
                   </li>
                 ))}

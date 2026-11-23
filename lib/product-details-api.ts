@@ -10,6 +10,10 @@ export type ProductDetailsResponse = {
   price: string;
   sku?: string;
   reference?: string | null;
+  /** The « SEO » tab of the product editor. */
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
   /** Stock quantity as string in API payload. */
   qty?: string | null;
   stockStatus?: string;

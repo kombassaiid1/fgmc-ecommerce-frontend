@@ -4,6 +4,7 @@ import type { PublishedPage } from "@/lib/api/builder-page";
 import { getImageUrl } from "@/lib/api";
 import { getSiteUrl, toOgSafeImageUrl } from "@/lib/metadata";
 import { getSiteSeo } from "@/lib/site-seo";
+import { storefrontPath } from "@/lib/storefront-path";
 
 /**
  * The title, description and sharing image of a built page, from its own search settings.
@@ -15,7 +16,7 @@ export async function pageMetadata(page: PublishedPage, slug: string): Promise<M
   const description = page.metaDescription?.trim() || seo.metaDescription || undefined;
   const own = page.ogImage ? getImageUrl(page.ogImage) : null;
   const image = own ? { url: own, type: undefined } : seo.ogImage ? toOgSafeImageUrl(seo.ogImage) : null;
-  const url = `${getSiteUrl()}/${slug}`;
+  const url = `${getSiteUrl()}${storefrontPath(`/${slug}`)}`;
   const fullTitle = `${title} | ${seo.siteName}`;
   return {
     metadataBase: new URL(getSiteUrl()),

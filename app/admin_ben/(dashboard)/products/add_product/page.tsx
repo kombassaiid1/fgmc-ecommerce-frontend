@@ -48,6 +48,7 @@ import { getAdminSettings } from "@/lib/api/settings";
 import { TabBar } from "../../tab-bar";
 import { shippingAdmin, type ProductShippingInput } from "@/lib/api/shipping-admin";
 import { EMPTY_PRODUCT_SHIPPING, ProductShippingTab } from "./product-shipping-tab";
+import { SeoTab } from "./seo-tab";
 import { createProduct, getProductForAdmin, updateProduct, type ProductAttachment, type SpecificPriceRule } from "@/lib/api/products";
 
 type ProductFormState = {
@@ -1711,33 +1712,28 @@ export default function AdminProductsPage() {
           ) : null}
 
           {selectedTabId === "seo" ? (
-            <BlockStack gap="300">
-              <TextField
-                label="Meta titre"
-                value={formState.metaTitle}
-                onChange={(value) =>
-                  setFormState((prev) => ({ ...prev, metaTitle: value }))
-                }
-                autoComplete="off"
-              />
-              <TextField
-                label="Meta description"
-                value={formState.metaDescription}
-                onChange={(value) =>
-                  setFormState((prev) => ({ ...prev, metaDescription: value }))
-                }
-                multiline={2}
-                autoComplete="off"
-              />
-              <TextField
-                label="Meta keywords"
-                value={formState.metaKeywords}
-                onChange={(value) =>
-                  setFormState((prev) => ({ ...prev, metaKeywords: value }))
-                }
-                autoComplete="off"
-              />
-            </BlockStack>
+            <SeoTab
+              title={formState.title}
+              slug={formState.slug}
+              description={formState.description}
+              shortDescription={formState.shortDescription}
+              imageCount={images.length}
+              metaTitle={formState.metaTitle}
+              metaDescription={formState.metaDescription}
+              keyphrase={formState.metaKeywords}
+              onMetaTitleChange={(value) =>
+                setFormState((prev) => ({ ...prev, metaTitle: value }))
+              }
+              onMetaDescriptionChange={(value) =>
+                setFormState((prev) => ({ ...prev, metaDescription: value }))
+              }
+              onKeyphraseChange={(value) =>
+                setFormState((prev) => ({ ...prev, metaKeywords: value }))
+              }
+              onSlugChange={(value) =>
+                setFormState((prev) => ({ ...prev, slug: value }))
+              }
+            />
           ) : null}
 
           {selectedTabId === "attributes" ? (

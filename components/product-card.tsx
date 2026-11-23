@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useMemo, type MouseEvent } from "react";
@@ -6,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Minus, Package, Plus } from "lucide-react";
 import { toast } from "sonner";
 
+import { OptimizedImage } from "@/components/shared/optimized-image";
 import { getImageUrl } from "@/lib/api";
 import { resolveSpecificPrice, type StorefrontSpecificPrice } from "@/lib/specific-pricing";
 import { cartItemKey, useCartStore } from "@/lib/stores/cart-store";
@@ -248,10 +248,11 @@ export function ProductCard({
         )}
         style={{ background: SURFACE }}>
         {image ? (
-          <img
+          <OptimizedImage
             src={image}
-            alt=""
-            loading="lazy"
+            alt={product.title}
+            fill
+            sizes={isList ? "176px" : "(min-width: 1280px) 20vw, (min-width: 768px) 33vw, 50vw"}
             className={cn(
               "size-full transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100",
               imageFit === "cover" ? "object-cover" : "object-contain",

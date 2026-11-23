@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { getSiteSeo } from "@/lib/site-seo";
 import { redirect } from "next/navigation";
 
+import { buildProductMetadata, ProductJsonLd } from "@/lib/product-seo";
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
@@ -44,18 +44,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const normalized = normalizeProductSlug(productSlug);
   try {
     const { product } = await fetchProductBySlugWithDebug(normalized);
-    const seo = await getSiteSeo();
-    const description = product?.shortDescription?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) || seo.metaDescription || undefined;
-    return {
-      title: product?.title ?? normalized,
-      description,
-      openGraph: {
-        type: "website",
-        siteName: seo.siteName,
-        title: `${product?.title ?? normalized} | ${seo.siteName}`,
-        description,
-      },
-    };
+    if (!product) return { title: "Produit introuvable", robots: { index: false, follow: true } };
+    return await buildProductMetadata(product);
   } catch {
     return { title: normalized };
   }
@@ -82,5 +72,10 @@ export default async function ProductDetailsPage({ params }: Props) {
     redirect(`/${mainCategory.slug}/${product.slug}.html`);
   }
 
-  return <CatalogSidePanels><ProductDetailClient categorySlug={slug} product={product} /></CatalogSidePanels>;
+  return (
+    <>
+      <ProductJsonLd product={product} />
+      <CatalogSidePanels><ProductDetailClient categorySlug={slug} product={product} /></CatalogSidePanels>
+    </>
+  );
 }

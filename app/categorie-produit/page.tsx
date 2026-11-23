@@ -6,18 +6,26 @@ import { CategoryPageClient } from "@/components/category-page/category-page-cli
 import { fetchCategoryFilters, fetchCategoryProducts } from "@/lib/category-catalog-api";
 import { categoryFiltersQueryKey, categoryProductsQueryKey } from "@/lib/category-catalog-query-keys";
 import { getSiteSeo } from "@/lib/site-seo";
+import { storefrontPath } from "@/lib/storefront-path";
 
 /** The shop root's slug on the backend: a virtual category holding every published product (see CategoriesService.shopRoot). */
 const SHOP_SLUG = "categorie-produit";
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
   const seo = await getSiteSeo();
+  // Filtered, sorted or paginated views duplicate the shop page: keep them out of the index.
+  const isFilteredView = Object.keys((await searchParams) ?? {}).length > 0;
   const description = `Tous les produits de ${seo.siteName} : machines à coudre et à broder, pièces détachées, fils et accessoires. Filtrez par catégorie, marque ou prix.`;
   return {
     title: "Boutique",
     description,
-    alternates: { canonical: "/categorie-produit" },
-    openGraph: { type: "website", title: `Boutique | ${seo.siteName}`, description, url: "/categorie-produit" },
+    alternates: { canonical: storefrontPath("/categorie-produit") },
+    ...(isFilteredView ? { robots: { index: false, follow: true } } : {}),
+    openGraph: { type: "website", title: `Boutique | ${seo.siteName}`, description, url: storefrontPath("/categorie-produit") },
   };
 }
 

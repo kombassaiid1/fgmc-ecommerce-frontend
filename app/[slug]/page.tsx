@@ -9,6 +9,7 @@ import { BuilderHome } from "@/components/home/builder-home";
 import { getPublishedPage } from "@/lib/api/builder-page";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getSiteSeo } from "@/lib/site-seo";
+import { storefrontPath } from "@/lib/storefront-path";
 import { CategoryPageClient } from "@/components/category-page/category-page-client";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
 import {
@@ -23,6 +24,7 @@ import { getImageUrl } from "@/lib/api";
 import { getDefaultOgImageUrl, getSiteUrl, toOgSafeImageUrl } from "@/lib/metadata";
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { notFound, redirect } from "next/navigation";
+import { buildProductMetadata, ProductJsonLd } from "@/lib/product-seo";
 import { PageNotFound } from "@/components/shared/page-not-found";
 
 type Props = {
@@ -32,21 +34,26 @@ type Props = {
 /** True when the backend answered « this category does not exist » (as opposed to being unreachable). */
 const isMissing = (error: unknown) => error instanceof Error && /"statusCode"\s*:\s*404|HTTP 404/.test(error.message);
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: Props & { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { slug } = await params;
   const slugTrim = slug?.trim() ?? "";
   if (!slugTrim) return { title: "Catégorie" };
+
+  // Filtered, sorted or paginated listings are duplicates of the category itself: they stay out of the index
+  // and point to the clean address (the links on them are still followed).
+  const query = await searchParams;
+  const isFilteredView = Object.keys(query ?? {}).length > 0;
 
   // Products without a category use the legacy root URL /[product-slug].html.
   if (slugTrim.toLowerCase().endsWith(".html")) {
     const productSlug = slugTrim.slice(0, -5);
     try {
       const { product } = await fetchProductBySlugWithDebug(productSlug);
-      return {
-        title: product?.title ?? productSlug,
-        description: product?.shortDescription ?? undefined,
-        alternates: { canonical: `${getSiteUrl()}/${slugTrim}` },
-      };
+      if (!product) return { title: "Produit introuvable", robots: { index: false, follow: true } };
+      return await buildProductMetadata(product);
     } catch {
       return { title: productSlug };
     }
@@ -84,7 +91,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       : null;
     const rawImage = categoryImage || (await getDefaultOgImageUrl());
     const ogSafe = toOgSafeImageUrl(rawImage);
-    const canonicalUrl = `${getSiteUrl()}/categorie-produit/${slugTrim}`;
+    // Categories are served at /their-slug (there is no /categorie-produit/their-slug route).
+    const canonicalUrl = `${getSiteUrl()}${storefrontPath(`/${slugTrim}`)}`;
 
     return {
       metadataBase: new URL(getSiteUrl()),
@@ -92,6 +100,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       alternates: { canonical: canonicalUrl },
+      ...(isFilteredView ? { robots: { index: false, follow: true } } : {}),
       openGraph: {
         type: "website",
         title: `${title} | ${seo.siteName}`,
@@ -144,7 +153,12 @@ export default async function CategoryProductPage({ params }: Props) {
         (item) => item.categoryId === product.mainCategoryId || item.category?.id === product.mainCategoryId,
       )?.category ?? product.categories?.[0]?.category;
       if (category?.slug) redirect(`/${category.slug}/${product.slug}.html`);
-      return <CatalogSidePanels><ProductDetailClient categorySlug="" product={product} /></CatalogSidePanels>;
+      return (
+        <>
+          <ProductJsonLd product={product} />
+          <CatalogSidePanels><ProductDetailClient categorySlug="" product={product} /></CatalogSidePanels>
+        </>
+      );
     }
 
     return <PageNotFound title="Ce produit n’est plus disponible" message="Il a peut-être été retiré de la boutique ou son adresse a changé. Cherchez-le par son nom ou sa référence." />;
