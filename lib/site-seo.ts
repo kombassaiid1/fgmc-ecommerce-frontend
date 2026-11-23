@@ -19,6 +19,8 @@ export type SiteSeo = {
   ogImage: string | null;
   /** False when the shop asked search engines not to index it. */
   indexable: boolean;
+  /** False when the opening (loading) screen is switched off. */
+  splashEnabled: boolean;
 };
 
 const FALLBACK_NAME = "FGMC";
@@ -55,5 +57,6 @@ export const getSiteSeo = cache(async (): Promise<SiteSeo> => {
       .filter(Boolean),
     ogImage: ogImage ? resolveUploadUrl(ogImage, baseUrl) : null,
     indexable: !robots.includes("noindex"),
+    splashEnabled: data.splashEnabled !== false,
   };
 });

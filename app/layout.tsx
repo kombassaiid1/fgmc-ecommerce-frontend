@@ -70,8 +70,8 @@ export default async function RootLayout({
         {/* A visitor who already saw the opening sequence in this session does not see it again, not even for a frame. */}
         <script dangerouslySetInnerHTML={{ __html: `try{if(sessionStorage.getItem("fgmc-splash-seen")==="1")document.documentElement.setAttribute("data-splash","seen")}catch(e){}` }} />
       </head>
-      <body className="min-h-screen! flex flex-col bg-[#F2F5FA]!">
-        <SplashScreen />
+      <body className="min-h-screen! flex flex-col bg-[#F2F5FA]!" suppressHydrationWarning>
+        {seo.splashEnabled ? <SplashScreen /> : null}
         <ReactQueryProvider>
           <main className="flex-1!">
             <TopNavBar />

@@ -71,3 +71,12 @@
 @media (prefers-reduced-motion: reduce) {
   .te-frame, .te-stage { transition: none; }
 }
+
+/* E-mail models (one tab each), the « new model » tab and the variable chips of the model editor. */
+.te-kind-model { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.te-kind-model[data-inactive] { opacity: 0.55; text-decoration: line-through; }
+.te-kind-add { display: inline-flex; align-items: center; gap: 4px; color: var(--ss-blue); box-shadow: inset 0 0 0 1px currentColor; }
+.te-var { display: inline-flex; align-items: baseline; gap: 6px; cursor: pointer; border: 0; border-radius: 6px; background: #f2f5fa; padding: 5px 9px; font: inherit; font-size: 12px; color: var(--ss-muted); box-shadow: inset 0 0 0 1px var(--ss-line); }
+.te-var code { color: var(--ss-ink); font-weight: 600; }
+.te-var:hover { background: #fff; color: var(--ss-ink); }
+.te-var:focus-visible { outline: 2px solid var(--ss-blue); outline-offset: 2px; }

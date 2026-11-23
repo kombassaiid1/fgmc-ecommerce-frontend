@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Banner, Button, SkeletonBodyText, TextField } from "@shopify/polaris";
-import { ChevronLeft, ImageIcon, Monitor, Palette, Smartphone, Type } from "lucide-react";
+import { ChevronLeft, ImageIcon, Monitor, Palette, Plus, Smartphone, Type } from "lucide-react";
 import { toast } from "sonner";
+
+import { EMPTY_MODEL, ModelEditor, toDraft, useEmailModels, type ModelDraft } from "./templates-card";
 
 import "../site/site-settings.css";
 import "../email/email-settings.css";
@@ -31,7 +33,7 @@ type EmailTheme = {
 };
 
 type ThemeView = { theme: EmailTheme; defaults: EmailTheme; logoUrl: string | null; siteName: string };
-type Kind = "order" | "admin-order" | "reset" | "contact" | "abandoned-cart";
+type Kind = "order" | "admin-order" | "reset" | "contact" | "abandoned-cart" | "order-status";
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: "order", label: "Confirmation de commande" },
@@ -39,6 +41,7 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: "contact", label: "Message de contact" },
   { id: "admin-order", label: "Nouvelle commande (équipe)" },
   { id: "abandoned-cart", label: "Panier abandonné" },
+  { id: "order-status", label: "Changement d’état (standard)" },
 ];
 
 const COLORS: { key: keyof EmailTheme; label: string }[] = [
@@ -129,6 +132,10 @@ export default function EmailThemePage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [kind, setKind] = useState<Kind>("order");
+  // The e-mail models (one tab each): the one open in the editor, or « new » for a model being created.
+  const { models, error: modelsError, reload: reloadModels } = useEmailModels();
+  const [modelTab, setModelTab] = useState<string | null>(null);
+  const [modelDraft, setModelDraft] = useState<ModelDraft | null>(null);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [html, setHtml] = useState("");
   const [subject, setSubject] = useState("");
@@ -163,13 +170,19 @@ export default function EmailThemePage() {
     };
   }, []);
 
+  // An open model is drawn as the status e-mail it sends, with the text being typed (not yet saved).
+  const previewTarget = modelDraft
+    ? { kind: "order-status" as Kind, template: { subject: modelDraft.subject, body: modelDraft.htmlContent } }
+    : { kind };
+  const previewKey = JSON.stringify(previewTarget);
+
   // The e-mail is drawn by the server, with the same code that sends it, so the preview is what customers get.
   useEffect(() => {
     if (!draft) return;
     const id = ++requestId.current;
     const timer = window.setTimeout(() => {
       setBusy(true);
-      call<{ subject: string; html: string }>("/preview", { method: "POST", body: JSON.stringify({ theme: draft, kind }) })
+      call<{ subject: string; html: string }>("/preview", { method: "POST", body: JSON.stringify({ theme: draft, ...previewTarget }) })
         .then((result) => {
           if (id !== requestId.current) return;
           setHtml(result.html);
@@ -184,7 +197,7 @@ export default function EmailThemePage() {
         });
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [draft, kind]);
+  }, [draft, previewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !draft) return <Banner tone="critical" title="Impossible de charger le thème des e-mails">{error}</Banner>;
   if (!draft || !saved || !view) return <div className="ss-page es-page"><div className="ss-card"><div className="ss-card-body"><SkeletonBodyText lines={10} /></div></div></div>;
@@ -216,7 +229,7 @@ export default function EmailThemePage() {
     setTesting(true);
     setTestResult(null);
     try {
-      await call<{ success: boolean }>("/test", { method: "POST", body: JSON.stringify({ to: testTo.trim(), kind }) });
+      await call<{ success: boolean }>("/test", { method: "POST", body: JSON.stringify({ to: testTo.trim(), ...previewTarget }) });
       setTestResult({ ok: true, text: `E-mail de test envoyé à ${testTo.trim()}.` });
     } catch (e) {
       setTestResult({ ok: false, text: e instanceof Error ? e.message : "Envoi impossible." });
@@ -358,14 +371,52 @@ export default function EmailThemePage() {
               </div>
             </div>
           </section>
+
         </div>
 
         <div className="te-preview">
           <div role="tablist" aria-label="E-mail à prévisualiser" className="te-kinds">
             {KINDS.map((item) => (
-              <button key={item.id} type="button" role="tab" aria-selected={kind === item.id} className="te-kind" onClick={() => setKind(item.id)}>{item.label}</button>
+              <button key={item.id} type="button" role="tab" aria-selected={!modelTab && kind === item.id} className="te-kind" onClick={() => { setModelTab(null); setModelDraft(null); setKind(item.id); }}>{item.label}</button>
             ))}
+            {(models ?? []).map((model) => (
+              <button
+                key={model.id}
+                type="button"
+                role="tab"
+                aria-selected={modelTab === model.id}
+                className="te-kind te-kind-model"
+                data-inactive={!model.isActive || undefined}
+                title={model.isActive ? model.subject : `${model.subject} (inactif)`}
+                onClick={() => { setModelTab(model.id); setModelDraft(toDraft(model)); setTestResult(null); }}>
+                {model.name}
+              </button>
+            ))}
+            <button type="button" role="tab" aria-selected={modelTab === "new"} className="te-kind te-kind-add" onClick={() => { setModelTab("new"); setModelDraft(EMPTY_MODEL); setTestResult(null); }}>
+              <Plus className="size-3.5" aria-hidden="true" />Nouveau modèle
+            </button>
           </div>
+          {modelsError ? <Banner tone="warning" title={modelsError} /> : null}
+          {modelDraft ? (
+            <ModelEditor
+              key={modelTab ?? "none"}
+              draft={modelDraft}
+              saved={modelTab && modelTab !== "new" ? (models ?? []).find((model) => model.id === modelTab) ?? null : null}
+              onChange={setModelDraft}
+              onSaved={(model) => {
+                void reloadModels().then(() => {
+                  setModelTab(model.id);
+                  setModelDraft(toDraft({ ...model, isDefault: modelDraft.isDefault }));
+                });
+              }}
+              onDeleted={() => {
+                setModelTab(null);
+                setModelDraft(null);
+                setKind("order");
+                void reloadModels();
+              }}
+            />
+          ) : null}
 
           <div className="te-window">
             <div className="te-window-bar">

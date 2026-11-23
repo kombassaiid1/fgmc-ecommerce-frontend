@@ -120,7 +120,7 @@ export function OrderStateForm({ id }: { id?: string }) {
           </BlockStack>
 
           <Text as="p" variant="bodySm" tone="subdued">
-            Pour l’instant, la boutique applique l’option « payée » quand une commande change d’état. Les autres options sont enregistrées avec le statut (et reprises de PrestaShop à l’import) pour les e-mails et documents automatiques.
+            Quand une commande reçoit ce statut, la boutique applique l’option « payée » et, si l’envoi d’e-mail est coché, prévient le client par e-mail (avec la facture ou le bon de livraison en PDF si demandé).
           </Text>
           {!removable ? <Banner tone="info" title="Statut nécessaire à la boutique : il ne peut pas être supprimé." /> : null}
         </BlockStack>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Banner, Button, FormLayout, Select, Spinner, TextField } from "@shopify/polaris";
+import { Banner, Button, Checkbox, FormLayout, Select, Spinner, TextField } from "@shopify/polaris";
 import { MediaPickerDialog } from "@/components/admin/media-picker-dialog";
 import { getImageUrl } from "@/lib/api";
 import { ExternalLink, ImageOff, Phone, Search, Share2, Store, type LucideIcon } from "lucide-react";
@@ -33,6 +33,7 @@ type SiteSettings = {
   robotsDefault: string | null;
   socialLinks: Record<string, string>;
   locale: string | null;
+  splashEnabled: boolean;
 };
 
 const TEXT_KEYS = [
@@ -43,7 +44,7 @@ const TEXT_KEYS = [
 
 type TextKey = (typeof TEXT_KEYS)[number];
 type SocialId = "facebook" | "instagram" | "x" | "youtube" | "tiktok" | "linkedin" | "pinterest" | "whatsapp" | "snapchat";
-type Form = Record<TextKey, string> & { social: Record<SocialId, string> };
+type Form = Record<TextKey, string> & { social: Record<SocialId, string>; splashEnabled: boolean };
 
 /** The social networks the shop can link to. Each has its brand colour and its logo (Font Awesome brand icons) for its tile. */
 const SOCIAL: Array<{ id: SocialId; label: string; placeholder: string; background: string; color?: string; glyph: React.ReactNode }> = [
@@ -75,7 +76,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: LucideIcon; tone: strin
 ];
 
 function toForm(settings: SiteSettings): Form {
-  const form = { social: Object.fromEntries(SOCIAL.map((network) => [network.id, settings.socialLinks?.[network.id] ?? ""])) } as Form;
+  const form = { splashEnabled: settings.splashEnabled !== false, social: Object.fromEntries(SOCIAL.map((network) => [network.id, settings.socialLinks?.[network.id] ?? ""])) } as Form;
   for (const key of TEXT_KEYS) form[key] = settings[key] ?? "";
   return form;
 }
@@ -186,7 +187,7 @@ export default function SiteSettingsPage() {
         return;
       }
     }
-    const payload: Record<string, unknown> = {};
+    const payload: Record<string, unknown> = { splashEnabled: form.splashEnabled };
     for (const key of TEXT_KEYS) payload[key] = form[key].trim();
     payload.socialLinks = Object.fromEntries(SOCIAL.map((network) => [network.id, form.social[network.id].trim()]).filter(([, link]) => link));
     setSaving(true);
@@ -267,6 +268,12 @@ export default function SiteSettingsPage() {
                 <ImageTile label="Logo des e-mails" hint="En-tête des e-mails envoyés aux clients. Idéalement sur fond transparent." value={form.emailLogo} onChange={set("emailLogo")} />
                 <ImageTile label="Favicon" hint="Icône de l’onglet du navigateur, de préférence carrée." value={form.favicon} onChange={set("favicon")} square />
               </div>
+              <Checkbox
+                label="Afficher la page de chargement"
+                helpText="L’animation d’ouverture (logo et machine à coudre) affichée une fois par visite. Décochez pour l’enlever."
+                checked={form.splashEnabled}
+                onChange={(splashEnabled) => setForm((current) => (current ? { ...current, splashEnabled } : current))}
+              />
             </FormLayout>
           </Section>
 
