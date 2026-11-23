@@ -21,6 +21,14 @@ export type SiteSeo = {
   indexable: boolean;
   /** False when the opening (loading) screen is switched off. */
   splashEnabled: boolean;
+  /** Who the shop is, for structured data and the llms.txt file (Identité and Contact settings). */
+  description: string;
+  logo: string | null;
+  contactEmail: string | null;
+  phone: string | null;
+  address: { street: string | null; postalCode: string | null; city: string | null; country: string | null };
+  /** Addresses of the shop's social accounts. */
+  socialLinks: string[];
 };
 
 const FALLBACK_NAME = "FGMC";
@@ -58,5 +66,18 @@ export const getSiteSeo = cache(async (): Promise<SiteSeo> => {
     ogImage: ogImage ? resolveUploadUrl(ogImage, baseUrl) : null,
     indexable: !robots.includes("noindex"),
     splashEnabled: data.splashEnabled !== false,
+    description: text(data.description) || text(data.metaDescription),
+    logo: text(data.logo) ? resolveUploadUrl(text(data.logo), baseUrl) : null,
+    contactEmail: text(data.contactEmail) || null,
+    phone: text(data.phoneNumber) || null,
+    address: {
+      street: text(data.address) || null,
+      postalCode: text(data.postalCode) || null,
+      city: text(data.city) || null,
+      country: text(data.country) || null,
+    },
+    socialLinks: Object.values((data.socialLinks as Record<string, unknown> | null) ?? {})
+      .map(text)
+      .filter((link) => /^https?:\/\//i.test(link)),
   };
 });

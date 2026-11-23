@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { getSiteSeo } from "@/lib/site-seo";
+import { getSiteOrigin } from "@/lib/site-origin";
+import { buildOrganizationJsonLd, jsonLdString } from "@/lib/seo";
 import { toOgSafeImageUrl } from "@/lib/metadata";
 import { Oswald } from "next/font/google";
 import "@shopify/polaris/build/esm/styles.css";
@@ -64,6 +66,21 @@ export default async function RootLayout({
   const seo = await getSiteSeo();
   // « fr_TN » → « fr »: the language of the page, for browsers and search engines.
   const lang = seo.locale?.split(/[_-]/)[0]?.toLowerCase() || "fr";
+  const origin = await getSiteOrigin();
+  const organizationLd =
+    origin && seo.indexable
+      ? buildOrganizationJsonLd({
+          origin,
+          name: seo.siteName,
+          description: seo.description,
+          logo: seo.logo,
+          email: seo.contactEmail,
+          phone: seo.phone,
+          address: seo.address,
+          sameAs: seo.socialLinks,
+          language: lang,
+        })
+      : null;
   return (
     <html lang={lang} className={`${oswald.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
@@ -71,6 +88,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `try{if(sessionStorage.getItem("fgmc-splash-seen")==="1")document.documentElement.setAttribute("data-splash","seen")}catch(e){}` }} />
       </head>
       <body className="min-h-screen! flex flex-col bg-[#F2F5FA]!" suppressHydrationWarning>
+        {organizationLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(organizationLd) }} /> : null}
         {seo.splashEnabled ? <SplashScreen /> : null}
         <ReactQueryProvider>
           <main className="flex-1!">

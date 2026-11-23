@@ -25,6 +25,7 @@ import { getDefaultOgImageUrl, getSiteUrl, toOgSafeImageUrl } from "@/lib/metada
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { notFound, redirect } from "next/navigation";
 import { buildProductMetadata, ProductJsonLd } from "@/lib/product-seo";
+import { buildCategoryJsonLd, jsonLdString, stripHtml, truncateText } from "@/lib/seo";
 import { PageNotFound } from "@/components/shared/page-not-found";
 
 type Props = {
@@ -84,7 +85,7 @@ export async function generateMetadata({
       productsResult?.title || filtersResult?.categoryTitle || slugTrim;
     const seo = await getSiteSeo();
     const description =
-      productsResult?.description?.slice(0, 160) ||
+      truncateText(stripHtml(productsResult?.description), 160) ||
       `Découvrez les produits de la catégorie ${title}`;
     const categoryImage = productsResult?.image?.trim()
       ? getImageUrl(productsResult.image)
@@ -202,11 +203,39 @@ export default async function CategoryProductPage({ params }: Props) {
     );
   }
 
+  // The category's own text (« Paramètres » of the category) is written in the page itself, not only fetched by the browser,
+  // so search and AI crawlers that do not run JavaScript can read and quote it.
+  const introHtml = productsResult?.description?.trim() ?? "";
+  const categoryTitle = productsResult?.title || filtersResult?.categoryTitle || slugTrim;
+  const categoryUrl = `${getSiteUrl()}${storefrontPath(`/${slugTrim}`)}`;
+  const categoryLd =
+    slugTrim && productsResult
+      ? buildCategoryJsonLd({
+          url: categoryUrl,
+          name: categoryTitle,
+          description: truncateText(stripHtml(introHtml), 300),
+          breadcrumb: [
+            { name: "Accueil", url: `${getSiteUrl()}${storefrontPath()}` },
+            { name: categoryTitle, url: categoryUrl },
+          ],
+        })
+      : [];
+
   return (
     <CatalogSidePanels>
+      {categoryLd.map((data, index) => (
+        <script key={index} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(data) }} />
+      ))}
       <HydrationBoundary state={dehydrate(queryClient)}>
         <CategoryPageClient slug={slug} />
       </HydrationBoundary>
+      {stripHtml(introHtml).length > 40 ? (
+        <section
+          aria-label={`À propos : ${categoryTitle}`}
+          className="mx-auto max-w-4xl px-4 py-8 text-sm leading-relaxed text-slate-700 [&_a]:underline [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:font-semibold [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5"
+          dangerouslySetInnerHTML={{ __html: introHtml }}
+        />
+      ) : null}
     </CatalogSidePanels>
   );
 }

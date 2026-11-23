@@ -122,3 +122,89 @@ export function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }
     })),
   };
 }
+
+/** schema.org Organization + WebSite for the whole shop: how search and AI engines recognise who the shop is. */
+export function buildOrganizationJsonLd(args: {
+  origin: string;
+  name: string;
+  description: string;
+  logo: string | null;
+  email: string | null;
+  phone: string | null;
+  address: { street: string | null; postalCode: string | null; city: string | null; country: string | null };
+  sameAs: string[];
+  language: string;
+}) {
+  const { origin, name, description, logo, email, phone, address, sameAs, language } = args;
+  const home = `${origin}${storefrontPath()}`;
+  const hasAddress = Boolean(address.street || address.city || address.country);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${origin}/#organization`,
+        name,
+        url: home,
+        ...(description ? { description } : {}),
+        ...(logo ? { logo: { "@type": "ImageObject", url: logo } } : {}),
+        ...(sameAs.length ? { sameAs } : {}),
+        // Conditions de vente: 14 jours de rétractation pour les particuliers, frais de retour à leur charge (hors machines industrielles).
+        hasMerchantReturnPolicy: {
+          "@type": "MerchantReturnPolicy",
+          applicableCountry: "FR",
+          returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+          merchantReturnDays: 14,
+          returnMethod: "https://schema.org/ReturnByMail",
+          returnFees: "https://schema.org/ReturnShippingFees",
+          merchantReturnLink: `${origin}${storefrontPath("/conditions-utilisation")}`,
+        },
+        ...(hasAddress
+          ? {
+              address: {
+                "@type": "PostalAddress",
+                ...(address.street ? { streetAddress: address.street } : {}),
+                ...(address.city ? { addressLocality: address.city } : {}),
+                ...(address.postalCode ? { postalCode: address.postalCode } : {}),
+                ...(address.country ? { addressCountry: address.country } : {}),
+              },
+            }
+          : {}),
+        ...(email || phone
+          ? {
+              contactPoint: {
+                "@type": "ContactPoint",
+                contactType: "customer service",
+                ...(email ? { email } : {}),
+                ...(phone ? { telephone: phone } : {}),
+                availableLanguage: language,
+              },
+            }
+          : {}),
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${origin}/#website`,
+        name,
+        url: home,
+        inLanguage: language,
+        publisher: { "@id": `${origin}/#organization` },
+      },
+    ],
+  };
+}
+
+/** schema.org CollectionPage for a category: its name, text and the breadcrumb, so engines know what the page is about. */
+export function buildCategoryJsonLd(args: { url: string; name: string; description: string; breadcrumb: Array<{ name: string; url: string }> }) {
+  const { url, name, description, breadcrumb } = args;
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name,
+      url,
+      ...(description ? { description } : {}),
+    },
+    buildBreadcrumbJsonLd(breadcrumb),
+  ];
+}

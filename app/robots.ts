@@ -24,6 +24,25 @@ const PRIVATE_ROOTS = [
 // The storefront lives under /fr (proxy.ts): block the private pages there, and the bare paths that redirect to them.
 const PRIVATE_PATHS = [...PRIVATE_ROOTS, ...PRIVATE_ROOTS.filter((path) => !["/admin_ben", "/api/", "/frontend-api/", "/impersonate", "/health"].includes(path)).map((path) => storefrontPath(path))];
 
+/**
+ * Search and answer engines run by AI companies. Named explicitly so that being cited by them is a decision, not an accident:
+ * the shop wants to appear in ChatGPT, Perplexity, Claude, Gemini and Apple Intelligence answers.
+ */
+const AI_CRAWLERS = [
+  "GPTBot",
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "PerplexityBot",
+  "Perplexity-User",
+  "ClaudeBot",
+  "Claude-SearchBot",
+  "Claude-User",
+  "Google-Extended",
+  "Applebot",
+  "Applebot-Extended",
+  "Bingbot",
+];
+
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const [seo, origin] = await Promise.all([getSiteSeo(), getSiteOrigin()]);
 
@@ -33,7 +52,10 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   }
 
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: PRIVATE_PATHS }],
+    rules: [
+      { userAgent: "*", allow: "/", disallow: PRIVATE_PATHS },
+      { userAgent: AI_CRAWLERS, allow: "/", disallow: PRIVATE_PATHS },
+    ],
     ...(origin ? { sitemap: `${origin}/sitemap.xml`, host: origin } : {}),
   };
 }
