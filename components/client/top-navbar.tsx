@@ -69,8 +69,21 @@ function subscribeToScroll(onStoreChange: () => void) {
   return () => window.removeEventListener("scroll", onStoreChange);
 }
 
+/**
+ * The header shrinks once the page is scrolled, and shrinking makes the page ~28px shorter. With a single threshold,
+ * a visitor stopped right at it saw the header flip back and forth (the shrink moved the scroll position across the
+ * threshold, which expanded it, which moved it back). Two thresholds, further apart than that jump, end the flicker:
+ * it shrinks past 60px and only expands again near the very top.
+ */
+const SHRINK_AT = 60;
+const EXPAND_AT = 8;
+let headerShrunk = false;
+
 function getScrollSnapshot() {
-  return window.scrollY > 10;
+  const y = window.scrollY;
+  if (!headerShrunk && y > SHRINK_AT) headerShrunk = true;
+  else if (headerShrunk && y < EXPAND_AT) headerShrunk = false;
+  return headerShrunk;
 }
 
 function getServerScrollSnapshot() {

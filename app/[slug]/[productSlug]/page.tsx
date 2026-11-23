@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
 import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
 import { ProductDetailClient } from "@/components/product-detail/product-detail-client";
+import { PageNotFound } from "@/components/shared/page-not-found";
 
 type Props = {
   params: Promise<{ slug: string; productSlug: string }>;
@@ -67,19 +68,9 @@ export default async function ProductDetailsPage({ params }: Props) {
   const { product, debug } = await fetchProductBySlugWithDebug(normalized);
 
   if (!product) {
-    // Keep a simple, non-404 fallback to avoid flaky API 404s during dev reloads.
-    return (
-      <main className="h-screen! min-h-[60vh]! bg-muted/30 px-4 py-16">
-        <div className="mx-auto max-w-xl rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm">
-          <p className="text-sm font-semibold text-destructive">
-            Produit introuvable ou non disponible pour le moment.
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Fetch: {debug.status} {debug.url}
-          </p>
-        </div>
-      </main>
-    );
+    // Not a hard 404 (the API can blip during reloads), but a friendly page: the technical details stay in the server log.
+    console.warn(`Product page: no product for "${normalized}" (fetch ${debug.status} ${debug.url})`);
+    return <PageNotFound title="Ce produit n’est plus disponible" message="Il a peut-être été retiré de la boutique ou son adresse a changé. Cherchez-le par son nom ou sa référence." />;
   }
 
   const mainCategory = product.mainCategoryId

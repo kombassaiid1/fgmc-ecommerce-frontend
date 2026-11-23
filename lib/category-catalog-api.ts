@@ -76,6 +76,8 @@ export interface CategoryProductItem {
     image?: string | null;
   } | null;
   categories: unknown[];
+  /** Combinations (size, colour…): with an active one, the card asks to choose an option instead of adding to the cart. */
+  combinaisons?: Array<{ id: string; isActive?: boolean | null }> | null;
   _count: { reviews: number };
   createdAt: string;
   updatedAt: string;

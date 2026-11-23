@@ -869,17 +869,29 @@ export function CategoryPageClient({ slug }: Props) {
   if (error && !filterData) {
     return (
       <main className="flex min-h-[50vh] items-center justify-center bg-muted/30 px-4">
-        <div className="rounded-xl border border-border/80 bg-card p-8 text-center shadow-sm">
-          <p className="text-destructive mb-4 text-sm">{error}</p>
-          <Button
-            variant="outline"
-            className="rounded-lg"
-            onClick={() => {
-              filtersQuery.refetch();
-              productsQuery.refetch();
-            }}>
-            Réessayer
-          </Button>
+        <div className="max-w-md rounded-xl border border-border/80 bg-card p-8 text-center shadow-sm">
+          <h1 className="mb-2 text-xl! font-semibold!">
+            {/"statusCode"\s*:\s*404|HTTP 404/.test(error) ? "Cette catégorie n’existe pas ou plus" : "Les produits ne se chargent pas"}
+          </h1>
+          <p className="mb-5 text-sm! text-muted-foreground">
+            {/"statusCode"\s*:\s*404|HTTP 404/.test(error)
+              ? "L’adresse est peut-être incorrecte. Parcourez la boutique pour trouver ce qu’il vous faut."
+              : "Un problème de connexion empêche d’afficher cette page. Vérifiez votre connexion, puis réessayez."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              variant="outline"
+              className="rounded-lg"
+              onClick={() => {
+                filtersQuery.refetch();
+                productsQuery.refetch();
+              }}>
+              Réessayer
+            </Button>
+            <Button asChild className="rounded-lg">
+              <Link href="/categorie-produit">Voir toute la boutique</Link>
+            </Button>
+          </div>
         </div>
       </main>
     );

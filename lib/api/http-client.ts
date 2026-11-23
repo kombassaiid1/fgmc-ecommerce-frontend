@@ -1,4 +1,5 @@
 import { getBackendBaseUrl } from "@/lib/backend-url";
+import { relayedPath } from "@/lib/admin-relay";
 
 const API_BASE_URL = getBackendBaseUrl();
 
@@ -39,7 +40,7 @@ export async function apiRequest<T>({
   let response: Response;
 
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(relayedPath(options.method, path) ?? `${API_BASE_URL}${path}`, {
       ...options,
       signal: options.signal ?? controller?.signal,
       headers: {

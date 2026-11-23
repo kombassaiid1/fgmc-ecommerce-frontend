@@ -22,11 +22,15 @@ import {
 import { getImageUrl } from "@/lib/api";
 import { getDefaultOgImageUrl, getSiteUrl, toOgSafeImageUrl } from "@/lib/metadata";
 import { fetchProductBySlugWithDebug } from "@/lib/product-details-api";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { PageNotFound } from "@/components/shared/page-not-found";
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
+
+/** True when the backend answered « this category does not exist » (as opposed to being unreachable). */
+const isMissing = (error: unknown) => error instanceof Error && /"statusCode"\s*:\s*404|HTTP 404/.test(error.message);
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -49,8 +53,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   try {
+    let missing = false;
     const [filtersResult, productsResult] = await Promise.all([
-      fetchCategoryFilters(slugTrim).catch(() => null),
+      fetchCategoryFilters(slugTrim).catch((error: unknown) => {
+        missing = isMissing(error);
+        return null;
+      }),
       fetchCategoryProducts({
         slug: slugTrim,
         page: 1,
@@ -62,6 +70,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (filtersResult == null && productsResult == null) {
       const page = await getPublishedPage(slugTrim);
       if (page) return pageMetadata(page, slugTrim);
+      if (missing) return { title: "Page introuvable", robots: { index: false, follow: false } };
     }
 
     const title =
@@ -138,18 +147,16 @@ export default async function CategoryProductPage({ params }: Props) {
       return <CatalogSidePanels><ProductDetailClient categorySlug="" product={product} /></CatalogSidePanels>;
     }
 
-    return (
-      <main className="min-h-[60vh] bg-muted/30 px-4 py-16">
-        <div className="mx-auto max-w-xl rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm">
-          <p className="text-sm font-semibold text-destructive">Produit introuvable ou non disponible pour le moment.</p>
-        </div>
-      </main>
-    );
+    return <PageNotFound title="Ce produit n’est plus disponible" message="Il a peut-être été retiré de la boutique ou son adresse a changé. Cherchez-le par son nom ou sa référence." />;
   }
 
+  let missing = false;
   const [filtersResult, productsResult] = await Promise.all([
     slugTrim
-      ? fetchCategoryFilters(slugTrim).catch(() => null)
+      ? fetchCategoryFilters(slugTrim).catch((error: unknown) => {
+          missing = isMissing(error);
+          return null;
+        })
       : Promise.resolve(null),
     slugTrim
       ? fetchCategoryProducts({
@@ -163,6 +170,8 @@ export default async function CategoryProductPage({ params }: Props) {
   if (slugTrim && filtersResult == null && productsResult == null) {
     const page = await getPublishedPage(slugTrim);
     if (page) return <main className="min-h-screen"><BuilderHome data={page.data} /></main>;
+    // Neither a category nor a page: a real « not found » (the shop's friendly 404), not a raw error.
+    if (missing) notFound();
   }
 
   const queryClient = new QueryClient();

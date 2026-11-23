@@ -17,6 +17,7 @@ export const PERMISSION_MODULES: ReadonlyArray<PermissionModule> = [
   { key: "settings", label: "Paramètres", actions: ["view", "edit"] },
   { key: "agent", label: "Agent IA", actions: ["view"] },
   { key: "users", label: "Utilisateurs & rôles", actions: ["view", "edit"] },
+  { key: "activity", label: "Journal d’activité", actions: ["view"] },
 ];
 
 /** Longest matching prefix wins. */
@@ -34,6 +35,7 @@ const ROUTE_PERMISSIONS: Array<[prefix: string, permission: string]> = [
   ["/admin_ben/settings", "settings.view"],
   ["/admin_ben/agent", "agent.view"],
   ["/admin_ben/users", "users.view"],
+  ["/admin_ben/journal", "activity.view"],
 ];
 
 export function permissionForPath(pathname: string): string | null {

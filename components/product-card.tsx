@@ -3,7 +3,7 @@
 
 import { useMemo, type MouseEvent } from "react";
 import Link from "next/link";
-import { Minus, Package, Plus } from "lucide-react";
+import { ArrowRight, Minus, Package, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { getImageUrl } from "@/lib/api";
@@ -69,6 +69,8 @@ export type ProductCardProduct = {
   images?: string[];
   brand?: { title?: string | null } | null;
   categories?: unknown[] | null;
+  /** Combinations (size, colour…). With at least one active, the customer must choose on the product page. */
+  combinaisons?: Array<{ isActive?: boolean | null }> | null;
   createdAt?: string;
 };
 
@@ -198,6 +200,8 @@ export function ProductCard({
   const image = product.images?.[0] ? getImageUrl(product.images[0]) : null;
   const href = buildProductHref(category.slug ?? categorySlug, product.slug);
   const eyebrow = product.brand?.title?.trim() || category.title;
+  // A product with combinations cannot go straight to the cart: the card asks to choose one on the product page.
+  const hasOptions = Boolean(product.combinaisons?.some((combination) => combination.isActive !== false));
 
   const increase = () => {
     if (isEditing) return; // never touch the real cart from the editor
@@ -303,31 +307,45 @@ export function ProductCard({
             <span>{formatEur(priceHt)} HT</span>
           </p>
 
-          {/* Quantity stepper, always visible: no « Ajouter au panier » button. */}
-          <div
-            className="mt-3 flex min-h-12 items-center justify-between rounded border-2 bg-white p-1 sm:mt-4"
-            style={{ borderColor: buttonColor }}>
-            <button
-              type="button"
-              aria-label={`Diminuer la quantité de ${product.title}`}
-              onClick={decrease}
-              disabled={quantity <= 0}
-              className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
-              style={{ color: buttonColor }}>
-              <Minus className="size-4" aria-hidden="true" />
-            </button>
-            <span className="min-w-8 text-center text-lg font-semibold tabular-nums" aria-live="polite">
-              {quantity}
-            </span>
-            <button
-              type="button"
-              aria-label={`Augmenter la quantité de ${product.title}`}
-              onClick={increase}
-              className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2"
-              style={{ color: buttonColor }}>
-              <Plus className="size-4" aria-hidden="true" />
-            </button>
-          </div>
+          {hasOptions ? (
+            <Link
+              href={href}
+              onClick={onLinkClick}
+              aria-label={`Choisir une option pour ${product.title}`}
+              className="mt-3 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded border-2 px-4 text-base font-semibold text-white transition-opacity duration-200 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:mt-4"
+              style={{ borderColor: buttonColor, background: buttonColor }}>
+              Choisir une option
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          ) : (
+            <>
+            {/* Quantity stepper, always visible: no « Ajouter au panier » button. */}
+            <div
+              className="mt-3 flex min-h-12 items-center justify-between rounded border-2 bg-white p-1 sm:mt-4"
+              style={{ borderColor: buttonColor }}>
+              <button
+                type="button"
+                aria-label={`Diminuer la quantité de ${product.title}`}
+                onClick={decrease}
+                disabled={quantity <= 0}
+                className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+                style={{ color: buttonColor }}>
+                <Minus className="size-4" aria-hidden="true" />
+              </button>
+              <span className="min-w-8 text-center text-lg font-semibold tabular-nums" aria-live="polite">
+                {quantity}
+              </span>
+              <button
+                type="button"
+                aria-label={`Augmenter la quantité de ${product.title}`}
+                onClick={increase}
+                className="grid size-10 cursor-pointer place-items-center rounded transition-colors duration-200 hover:bg-[#eef2f9] focus-visible:outline focus-visible:outline-2"
+                style={{ color: buttonColor }}>
+                <Plus className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+            </>
+          )}
         </div>
       </div>
     </article>

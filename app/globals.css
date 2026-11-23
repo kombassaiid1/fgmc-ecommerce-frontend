@@ -166,3 +166,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .order-pin { animation: none; }
 }
+
+/* Admin top bar: the « Voir la boutique » button is centred on the bar's height, with room before the user menu. */
+.Polaris-TopBar__SecondaryMenu { display: flex; align-items: center; margin-right: var(--p-space-200); }

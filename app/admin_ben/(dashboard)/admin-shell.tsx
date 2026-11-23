@@ -15,6 +15,7 @@ import {
 } from "@shopify/polaris";
 import {
   AppsIcon,
+  ClockIcon,
   ColorIcon,
   EmailIcon,
   DeliveryIcon,
@@ -29,6 +30,7 @@ import {
   StarIcon,
   LayoutFooterIcon,
 } from "@shopify/polaris-icons";
+import { ExternalLink } from "lucide-react";
 import en from "@shopify/polaris/locales/en.json";
 
 import type { AdminUser } from "@/lib/admin-auth";
@@ -132,6 +134,7 @@ const NAV_ITEMS = [
   { label: "Clients", url: "/admin_ben/clients", icon: PersonIcon, permission: "clients.view" },
   { label: "Messages", url: "/admin_ben/messages", icon: EmailIcon, permission: "clients.view" },
   { label: "Utilisateurs", url: "/admin_ben/users", icon: PersonIcon, permission: "users.view" },
+  { label: "Journal d’activité", url: "/admin_ben/journal", icon: ClockIcon, permission: "activity.view" },
   {
     label: "Paramètres de la boutique",
     url: "/admin_ben/settings",
@@ -186,6 +189,19 @@ export function AdminShell({ children, user }: AdminShellProps) {
     <TopBar
       showNavigationToggle={!isAgentPage}
       onNavigationToggle={() => setShowMobileNavigation((prev) => !prev)}
+      secondaryMenu={
+        <a
+          href="/fr"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-3 py-1.5 text-sm font-medium text-white no-underline transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <ExternalLink className="size-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Voir la boutique</span>
+          <span className="sr-only sm:hidden">Voir la boutique</span>
+          <span className="sr-only">(s’ouvre dans un nouvel onglet)</span>
+        </a>
+      }
       userMenu={
         <TopBar.UserMenu
           name={displayName}
