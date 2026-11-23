@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Text, TextField } from "@shopify/polaris";
 import { ChevronDown, Monitor, Smartphone } from "lucide-react";
-import { validateProductSeo, type SeoValidationResult } from "@/lib/api/seo";
+import { toast } from "sonner";
+import { generateProductSeo, validateProductSeo, type ProductSeoGenerationInput, type SeoValidationResult } from "@/lib/api/seo";
+import { applyProductSeoProposal, createSingleFlightAction, type ProductSeoCallbacks } from "@/lib/api/seo-generation-contract";
 
 export type SeoTabProps = {
   title: string;
@@ -168,6 +170,22 @@ export function SeoTab(props: SeoTabProps) {
   const [host, setHost] = useState("votre-site.com");
   const [result, setResult] = useState<SeoValidationResult | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const generateAction = useRef(createSingleFlightAction(async (
+    input: ProductSeoGenerationInput,
+    callbacks: ProductSeoCallbacks,
+  ) => {
+    setIsGenerating(true);
+    try {
+      const response = await generateProductSeo(input);
+      applyProductSeoProposal(response, callbacks);
+      toast.success("SEO généré avec l’IA.");
+    } catch {
+      toast.error("Impossible de générer le SEO. Réessayez.");
+    } finally {
+      setIsGenerating(false);
+    }
+  })).current;
 
   useEffect(() => {
     try {
@@ -237,8 +255,32 @@ export function SeoTab(props: SeoTabProps) {
   const cutDesc = previewDesc.length > DESC_MAX ? `${previewDesc.slice(0, DESC_MAX - 1).trimEnd()}…` : previewDesc;
   const focus = keyphrase.split(",")[0].trim();
 
+  const handleGenerate = () => {
+    const input: ProductSeoGenerationInput = {
+      title: props.title,
+      slug: props.slug,
+      description: props.description,
+      shortDescription: props.shortDescription,
+      imageCount: props.imageCount,
+      metaTitle: props.metaTitle,
+      metaDescription: props.metaDescription,
+      keyphrase: props.keyphrase,
+    };
+    void generateAction(input, {
+      onKeyphraseChange,
+      onMetaTitleChange,
+      onSlugChange,
+      onMetaDescriptionChange,
+    });
+  };
+
   return (
     <div className="space-y-5">
+      <div className="flex justify-end">
+        <Button onClick={handleGenerate} loading={isGenerating} disabled={isGenerating}>
+          {isGenerating ? "Génération SEO..." : "✨ Générer avec l’IA"}
+        </Button>
+      </div>
       {/* Overall scores */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">

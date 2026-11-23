@@ -5,6 +5,7 @@ const API_BASE_URL = getBackendBaseUrl();
 
 type RequestOptions = RequestInit & {
   path: string;
+  timeoutMs?: number;
 };
 
 type ErrorResponse = {
@@ -26,6 +27,7 @@ export class ApiError extends Error {
 export async function apiRequest<T>({
   path,
   headers,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
   ...options
 }: RequestOptions): Promise<T> {
   const isFormDataPayload =
@@ -35,12 +37,10 @@ export async function apiRequest<T>({
   const timeoutId =
     controller == null
       ? null
-      : setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
-
-  let response: Response;
+      : setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    response = await fetch(relayedPath(options.method, path) ?? `${API_BASE_URL}${path}`, {
+    const response = await fetch(relayedPath(options.method, path) ?? `${API_BASE_URL}${path}`, {
       ...options,
       signal: options.signal ?? controller?.signal,
       headers: {
@@ -49,6 +49,22 @@ export async function apiRequest<T>({
       },
       cache: "no-store",
     });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | ErrorResponse
+        | null;
+      const message = Array.isArray(payload?.message)
+        ? payload?.message.join(", ")
+        : payload?.message ?? "Une erreur est survenue.";
+      throw new ApiError(message, response.status);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return (await response.json()) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ApiError("La requete a expire.", 408);
@@ -59,20 +75,4 @@ export async function apiRequest<T>({
       clearTimeout(timeoutId);
     }
   }
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | ErrorResponse
-      | null;
-    const message = Array.isArray(payload?.message)
-      ? payload?.message.join(", ")
-      : payload?.message ?? "Une erreur est survenue.";
-    throw new ApiError(message, response.status);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
 }

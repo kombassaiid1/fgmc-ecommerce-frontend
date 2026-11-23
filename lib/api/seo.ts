@@ -28,6 +28,17 @@ export type SeoValidationResult = {
   effTitle: string;
 };
 
+export type ProductSeoGenerationInput = {
+  title: string;
+  slug: string;
+  description: string;
+  shortDescription: string;
+  imageCount: number;
+  metaTitle: string;
+  metaDescription: string;
+  keyphrase: string;
+};
+
 export function validateProductSeo(
   input: SeoValidationInput,
   signal?: AbortSignal,
@@ -37,5 +48,14 @@ export function validateProductSeo(
     method: 'POST',
     body: JSON.stringify(input),
     signal,
+  });
+}
+
+export function generateProductSeo(input: ProductSeoGenerationInput): Promise<unknown> {
+  return apiRequest<unknown>({
+    path: '/improve-product/generate-seo',
+    method: 'POST',
+    body: JSON.stringify(input),
+    timeoutMs: 185_000,
   });
 }
