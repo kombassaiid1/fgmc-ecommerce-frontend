@@ -2,7 +2,7 @@
  * The areas of the backend whose changes are made by the back office and need the admin's session
  * (see app/api/admin/backend). The first word of the address, without the leading slash.
  */
-export const ADMIN_RELAY_ROOTS = ["products", "categories", "attributes", "brands", "terms", "taxes", "coupons", "blog", "header", "color-palette"];
+export const ADMIN_RELAY_ROOTS = ["products", "categories", "attributes", "brands", "terms", "taxes", "coupons", "blog", "header", "color-palette", "seo"];
 
 const WRITES = ["POST", "PATCH", "PUT", "DELETE"];
 
