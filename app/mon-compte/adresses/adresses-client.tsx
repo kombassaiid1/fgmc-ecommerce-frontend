@@ -453,13 +453,13 @@ export function AdressesClient() {
         </nav>
 
         {/* ------------------------------------------------------------ the mat */}
-        <section className="ac-hero" aria-labelledby="ad-title">
-          <div className="ad-hero-row">
+        <section className="ac-hero" aria-labelledby="addr-title">
+          <div className="addr-hero-row">
             <div>
-              <h1 id="ad-title" className="ad-title">Mes adresses</h1>
-              <p className="ad-sub">Enregistrez vos adresses de livraison et de facturation pour commander plus vite.</p>
+              <h1 id="addr-title" className="addr-title">Mes adresses</h1>
+              <p className="addr-sub">Enregistrez vos adresses de livraison et de facturation pour commander plus vite.</p>
             </div>
-            <button type="button" className="ad-add" onClick={startCreate}>
+            <button type="button" className="addr-add" onClick={startCreate}>
               <PiPlusBold className="size-5" aria-hidden="true" />
               Ajouter une adresse
             </button>
@@ -470,23 +470,23 @@ export function AdressesClient() {
               <p className="ac-stat-label">Adresse{addresses.length > 1 ? "s" : ""} enregistrée{addresses.length > 1 ? "s" : ""}</p>
             </li>
             <li className="ac-stat">
-              <p className="ac-stat-value ad-stat-value-text">{defaultAddress ? [defaultAddress.postalCode, defaultAddress.city].filter(Boolean).join(" ") : "–"}</p>
+              <p className="ac-stat-value addr-stat-value-text">{defaultAddress ? [defaultAddress.postalCode, defaultAddress.city].filter(Boolean).join(" ") : "–"}</p>
               <p className="ac-stat-label">Adresse par défaut</p>
             </li>
           </ul>
         </section>
 
-        <div className="ad-layout">
+        <div className="addr-layout">
           <section className="min-w-0" aria-label="Mes adresses enregistrées">
             {error ? <Alert tone="bad" icon={PiWarningCircleDuotone}>{error}</Alert> : null}
             {success ? <Alert tone="ok" icon={PiCheckCircleDuotone}>{success}</Alert> : null}
             {!session ? <Alert tone="info" icon={PiWarningCircleDuotone}>Vous n’êtes pas connecté : vos adresses sont conservées uniquement sur ce navigateur. <Link href="/login?returnTo=/mon-compte/adresses" className="underline">Se connecter</Link></Alert> : null}
-            {session && loadingAddresses ? <p className="ad-loading" role="status">Chargement de vos adresses…</p> : null}
+            {session && loadingAddresses ? <p className="addr-loading" role="status">Chargement de vos adresses…</p> : null}
 
             {addresses.length === 0 && !loadingAddresses ? (
               <EmptyState onCreate={startCreate} />
             ) : (
-              <ul className="ad-grid">
+              <ul className="addr-grid">
                 {addresses.map((address) => (
                   <li key={address.id}>
                     <AddressCard
@@ -504,28 +504,28 @@ export function AdressesClient() {
             )}
           </section>
 
-          <aside className="ad-aside" aria-label={editingId ? "Modifier l’adresse" : "Ajouter une adresse"}>
+          <aside className="addr-aside" aria-label={editingId ? "Modifier l’adresse" : "Ajouter une adresse"}>
             <div ref={panelRef}>
               {isFormOpen ? (
-                <div className="ad-panel">
-                  <div className="ad-panel-head">
-                    <div className="ad-panel-title">
-                      <span className="ad-panel-icon" aria-hidden="true">{editingId ? <PiPencilSimpleDuotone className="size-7" /> : <PiMapPinAreaDuotone className="size-7" />}</span>
+                <div className="addr-panel">
+                  <div className="addr-panel-head">
+                    <div className="addr-panel-title">
+                      <span className="addr-panel-icon" aria-hidden="true">{editingId ? <PiPencilSimpleDuotone className="size-7" /> : <PiMapPinAreaDuotone className="size-7" />}</span>
                       <div>
-                        <h2 className="ad-panel-h">{editingId ? "Modifier l’adresse" : "Nouvelle adresse"}</h2>
-                        <p className="ad-panel-sub">{editingId ? "Vos changements s’appliquent aux prochaines commandes." : "Elle sera proposée lors de vos commandes."}</p>
+                        <h2 className="addr-panel-h">{editingId ? "Modifier l’adresse" : "Nouvelle adresse"}</h2>
+                        <p className="addr-panel-sub">{editingId ? "Vos changements s’appliquent aux prochaines commandes." : "Elle sera proposée lors de vos commandes."}</p>
                       </div>
                     </div>
-                    <button type="button" className="ad-close" onClick={cancelForm} aria-label="Fermer le formulaire"><PiXBold className="size-5" aria-hidden="true" /></button>
+                    <button type="button" className="addr-close" onClick={cancelForm} aria-label="Fermer le formulaire"><PiXBold className="size-5" aria-hidden="true" /></button>
                   </div>
-                  <div className="ad-seam" aria-hidden="true" />
+                  <div className="addr-seam" aria-hidden="true" />
                   <AddressForm form={form} editingId={editingId} onSubmit={handleSubmit} onCancel={cancelForm} onFieldChange={updateField} isSaving={savingAddress} />
                 </div>
               ) : (
-                <div className="ad-placeholder">
-                  <span className="ad-placeholder-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-8" /></span>
+                <div className="addr-placeholder">
+                  <span className="addr-placeholder-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-8" /></span>
                   <p>Choisissez « Modifier » sur une adresse, ou ajoutez une nouvelle adresse à votre carnet.</p>
-                  <button type="button" className="ad-btn" onClick={startCreate}><PiPlusBold className="size-4" aria-hidden="true" />Ajouter une adresse</button>
+                  <button type="button" className="addr-btn" onClick={startCreate}><PiPlusBold className="size-4" aria-hidden="true" />Ajouter une adresse</button>
                 </div>
               )}
             </div>
@@ -538,7 +538,7 @@ export function AdressesClient() {
 
 function Alert({ tone, icon: Icon, children }: { tone: "ok" | "bad" | "info"; icon: typeof PiUserDuotone; children: ReactNode }) {
   return (
-    <div role={tone === "bad" ? "alert" : "status"} className={`ad-alert is-${tone}`}>
+    <div role={tone === "bad" ? "alert" : "status"} className={`addr-alert is-${tone}`}>
       <Icon className="size-5" aria-hidden="true" />
       <span>{children}</span>
     </div>
@@ -547,11 +547,11 @@ function Alert({ tone, icon: Icon, children }: { tone: "ok" | "bad" | "info"; ic
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="ad-empty">
-      <span className="ad-empty-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-10" /></span>
-      <h2 className="ad-empty-title">Aucune adresse enregistrée</h2>
+    <div className="addr-empty">
+      <span className="addr-empty-icon" aria-hidden="true"><PiMapPinAreaDuotone className="size-10" /></span>
+      <h2 className="addr-empty-title">Aucune adresse enregistrée</h2>
       <p>Ajoutez votre première adresse pour accélérer vos prochaines commandes.</p>
-      <button type="button" className="ad-add" onClick={onCreate}><PiPlusBold className="size-5" aria-hidden="true" />Ajouter une adresse</button>
+      <button type="button" className="addr-add" onClick={onCreate}><PiPlusBold className="size-5" aria-hidden="true" />Ajouter une adresse</button>
     </div>
   );
 }
@@ -585,36 +585,36 @@ function AddressCard({
   const KindIcon = kind.icon;
 
   return (
-    <article className={`ad-card ${address.isDefault ? "is-default" : ""}`} aria-label={address.label}>
-      <div className="ad-card-top">
-        <span className={`ad-kind ${kind.className}`}><KindIcon className="size-5" aria-hidden="true" />{kindLabel(address.kind)}</span>
-        {address.isDefault ? <span className="ad-default"><PiStarFill className="size-4" aria-hidden="true" />Par défaut</span> : null}
+    <article className={`addr-card ${address.isDefault ? "is-default" : ""}`} aria-label={address.label}>
+      <div className="addr-card-top">
+        <span className={`addr-kind ${kind.className}`}><KindIcon className="size-5" aria-hidden="true" />{kindLabel(address.kind)}</span>
+        {address.isDefault ? <span className="addr-default"><PiStarFill className="size-4" aria-hidden="true" />Par défaut</span> : null}
       </div>
-      <div className="ad-card-body">
-        <p className="ad-label">{address.label}</p>
-        <p className="ad-name">{fullName || "—"}</p>
-        <address className="ad-lines">
+      <div className="addr-card-body">
+        <p className="addr-label">{address.label}</p>
+        <p className="addr-name">{fullName || "—"}</p>
+        <address className="addr-lines">
           {lines.map((line) => (
             <span key={line}>{line}</span>
           ))}
         </address>
-        <div className="ad-barcode" aria-hidden="true" />
+        <div className="addr-barcode" aria-hidden="true" />
       </div>
-      <div className="ad-tear" aria-hidden="true" />
+      <div className="addr-tear" aria-hidden="true" />
 
       {isConfirmingDelete ? (
-        <div className="ad-confirm" role="alertdialog" aria-label="Confirmer la suppression">
+        <div className="addr-confirm" role="alertdialog" aria-label="Confirmer la suppression">
           <p>Supprimer cette adresse ?</p>
           <div>
-            <button type="button" className="ad-btn is-solid-danger" onClick={onConfirmDelete}>Supprimer</button>
-            <button type="button" className="ad-btn" onClick={onCancelDelete}>Annuler</button>
+            <button type="button" className="addr-btn is-solid-danger" onClick={onConfirmDelete}>Supprimer</button>
+            <button type="button" className="addr-btn" onClick={onCancelDelete}>Annuler</button>
           </div>
         </div>
       ) : (
-        <div className="ad-actions">
-          <button type="button" className="ad-btn" onClick={onEdit}><PiPencilSimpleDuotone className="size-5" aria-hidden="true" />Modifier</button>
-          {!address.isDefault ? <button type="button" className="ad-btn" onClick={onSetDefault}><PiStarFill className="size-4" aria-hidden="true" />Par défaut</button> : null}
-          <button type="button" className="ad-btn is-danger" onClick={onAskDelete}><PiTrashDuotone className="size-5" aria-hidden="true" />Supprimer</button>
+        <div className="addr-actions">
+          <button type="button" className="addr-btn" onClick={onEdit}><PiPencilSimpleDuotone className="size-5" aria-hidden="true" />Modifier</button>
+          {!address.isDefault ? <button type="button" className="addr-btn" onClick={onSetDefault}><PiStarFill className="size-4" aria-hidden="true" />Par défaut</button> : null}
+          <button type="button" className="addr-btn is-danger" onClick={onAskDelete}><PiTrashDuotone className="size-5" aria-hidden="true" />Supprimer</button>
         </div>
       )}
     </article>
@@ -637,8 +637,8 @@ function AddressForm({
   onFieldChange: <K extends keyof AddressFormState>(key: K, value: AddressFormState[K]) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="ad-form" noValidate>
-      <div className="auth-scope ad-form">
+    <form onSubmit={onSubmit} className="addr-form" noValidate>
+      <div className="auth-scope addr-form">
         <AuthField id="address-label" label="Nom de l’adresse" value={form.label} onChange={(value) => onFieldChange("label", value)} icon={PiTagDuotone} placeholder="Maison, Atelier, Bureau…" required />
 
         <AuthChoice
@@ -652,7 +652,7 @@ function AddressForm({
           ]}
         />
 
-        <div className="ad-row is-two">
+        <div className="addr-row is-two">
           <AuthField id="address-first-name" label="Prénom" value={form.firstName} onChange={(value) => onFieldChange("firstName", value)} autoComplete="given-name" icon={PiUserDuotone} required />
           <AuthField id="address-last-name" label="Nom" value={form.lastName} onChange={(value) => onFieldChange("lastName", value)} autoComplete="family-name" icon={PiUserDuotone} required />
         </div>
@@ -660,25 +660,25 @@ function AddressForm({
         <AuthField id="address-street" label="Adresse" value={form.street} onChange={(value) => onFieldChange("street", value)} autoComplete="street-address" icon={PiMapPinAreaDuotone} placeholder="Numéro et nom de la rue" required />
         <AuthField id="address-apartment" label="Complément d’adresse" value={form.apartment} onChange={(value) => onFieldChange("apartment", value)} icon={PiBuildingsDuotone} placeholder="Bâtiment, étage, digicode…" optional />
 
-        <div className="ad-row is-two">
+        <div className="addr-row is-two">
           <AuthField id="address-postal-code" label="Code postal" value={form.postalCode} onChange={(value) => onFieldChange("postalCode", value)} autoComplete="postal-code" icon={PiMailboxDuotone} />
           <AuthField id="address-city" label="Ville" value={form.city} onChange={(value) => onFieldChange("city", value)} autoComplete="address-level2" icon={PiMapPinAreaDuotone} required />
         </div>
 
         <CountrySelect value={form.country} onChange={(value) => onFieldChange("country", value)} />
 
-        <label className="ad-switch">
+        <label className="addr-switch">
           <input type="checkbox" checked={form.isDefault} onChange={(event) => onFieldChange("isDefault", event.target.checked)} />
-          <span className="ad-switch-track" aria-hidden="true" />
+          <span className="addr-switch-track" aria-hidden="true" />
           Utiliser comme adresse par défaut
         </label>
 
-        <div className="ad-submit-row">
-          <button type="submit" className="ad-submit" disabled={isSaving}>
+        <div className="addr-submit-row">
+          <button type="submit" className="addr-submit" disabled={isSaving}>
             {isSaving ? <PiSpinnerGapBold className="size-5 animate-spin" aria-hidden="true" /> : <PiFloppyDiskBold className="size-5" aria-hidden="true" />}
             {isSaving ? "Enregistrement…" : editingId ? "Enregistrer" : "Ajouter l’adresse"}
           </button>
-          <button type="button" className="ad-cancel" disabled={isSaving} onClick={onCancel}>Annuler</button>
+          <button type="button" className="addr-cancel" disabled={isSaving} onClick={onCancel}>Annuler</button>
         </div>
       </div>
     </form>
@@ -730,7 +730,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
 
   return (
     <div
-      className="ad-country"
+      className="addr-country"
       onBlur={(event) => {
         const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
 
@@ -740,10 +740,10 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
           setActiveIndex(0);
         }
       }}>
-      <label htmlFor="address-country" className="ad-label-strong">
+      <label htmlFor="address-country" className="addr-label-strong">
         Pays<span aria-hidden="true" style={{ color: "var(--ac-red)", marginLeft: 3 }}>*</span>
       </label>
-      <div className="ad-country-box">
+      <div className="addr-country-box">
         <PiGlobeHemisphereWestDuotone className="lead size-[18px]" aria-hidden="true" />
         <Input
           id="address-country"
@@ -770,7 +770,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
         />
         <button
           type="button"
-          className="ad-country-toggle"
+          className="addr-country-toggle"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
             setIsOpen((open) => !open);
@@ -783,7 +783,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
       </div>
 
       {isOpen ? (
-        <div id="address-country-listbox" role="listbox" className="ad-listbox">
+        <div id="address-country-listbox" role="listbox" className="addr-listbox">
           {filteredOptions.length > 0 ? (
             filteredOptions.map((country, index) => {
               const isSelected = country.name === value;
@@ -793,7 +793,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  className={`ad-option ${index === activeIndex ? "is-active" : ""}`}
+                  className={`addr-option ${index === activeIndex ? "is-active" : ""}`}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => selectCountry(country.name)}>
@@ -803,7 +803,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (value: s
               );
             })
           ) : (
-            <div className="ad-none">Aucun pays trouvé.</div>
+            <div className="addr-none">Aucun pays trouvé.</div>
           )}
         </div>
       ) : null}
