@@ -1,5 +1,6 @@
 "use client";
 
+import { Carousel, CarouselContent, CarouselItem, useCarousel } from "@/components/ui/carousel";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,6 +115,23 @@ function optionKey(options: Array<{ attributeId: string; termId: string }>) {
     .join("|");
 }
 
+/** Previous / next buttons of a recommendations carousel. Hidden when everything already fits on screen. */
+function RecommendationArrows({ title }: { title: string }) {
+  const { scrollPrev, scrollNext, canScrollPrev, canScrollNext } = useCarousel();
+  if (!canScrollPrev && !canScrollNext) return null;
+  const base = "static inline-flex size-10 translate-x-0 translate-y-0 items-center justify-center rounded-full border-[#c5d0e6] text-[#153675]";
+  return (
+    <div className="flex gap-2">
+      <button type="button" onClick={scrollPrev} disabled={!canScrollPrev} aria-label={`${title} : précédents`} className={cn(base, "cursor-pointer border bg-white transition-colors hover:bg-[#eef2f9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153675] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white")}>
+        <ChevronLeft className="size-5" aria-hidden="true" />
+      </button>
+      <button type="button" onClick={scrollNext} disabled={!canScrollNext} aria-label={`${title} : suivants`} className={cn(base, "cursor-pointer border bg-white transition-colors hover:bg-[#eef2f9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153675] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white")}>
+        <ChevronRight className="size-5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function ProductDetailClient({ categorySlug, product }: Props) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -134,7 +152,6 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [recommendationTab, setRecommendationTab] = useState<"similar" | "spareParts" | "associated">("similar");
   const [similarProducts, setSimilarProducts] = useState<ProductCardProduct[]>([]);
   const [spareParts, setSpareParts] = useState<ProductCardProduct[]>([]);
   const [associatedProducts, setAssociatedProducts] = useState<ProductCardProduct[]>([]);
@@ -214,8 +231,12 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
     return () => { active = false; };
   }, [categorySlug, product.categories, product.id, product.sparePartIds, product.associatedIds]);
 
-  const visibleRecommendations =
-    recommendationTab === "similar" ? similarProducts : recommendationTab === "associated" ? associatedProducts : spareParts;
+  // « À découvrir aussi »: one section under the other, each only when it has something to show.
+  const recommendationSections = [
+    { id: "similar", title: "Produits similaires", items: similarProducts },
+    { id: "spare-parts", title: "Pièces de rechange", items: spareParts },
+    { id: "associated", title: "Produits associés", items: associatedProducts },
+  ].filter((section) => section.items.length > 0);
 
   const images = product.images ?? [];
   const selectedImageUrl = images[selectedImageIndex]
@@ -953,38 +974,27 @@ export function ProductDetailClient({ categorySlug, product }: Props) {
         </aside>
         </section>
 
-        <section className="pd-card mt-10">
-          <div className="pd-head">
-            <h2 className="pd-h2">À découvrir aussi</h2>
-            <div className="pd-reco-tabs" role="tablist" aria-label="Produits associés">
-              <button type="button" role="tab" aria-selected={recommendationTab === "similar"}
-                onClick={() => setRecommendationTab("similar")}>
-                Produits similaires
-              </button>
-              <button type="button" role="tab" aria-selected={recommendationTab === "spareParts"}
-                onClick={() => setRecommendationTab("spareParts")}>
-                Pièces de rechange
-              </button>
-              <button type="button" role="tab" aria-selected={recommendationTab === "associated"}
-                onClick={() => setRecommendationTab("associated")}>
-                Associées
-              </button>
-            </div>
-          </div>
-          <div className="p-4 sm:p-6">
-            {visibleRecommendations.length ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                {visibleRecommendations.slice(0, 6).map((relatedProduct) => (
-                  <ProductCard key={relatedProduct.id} product={relatedProduct} categorySlug={categorySlug} />
-                ))}
+        {recommendationSections.map((section) => (
+          <Carousel key={section.id} opts={{ align: "start", slidesToScroll: "auto" }} className="mt-10" aria-label={section.title}>
+            <section className="pd-card" aria-labelledby={`pd-reco-${section.id}`}>
+              <div className="pd-head">
+                <h2 id={`pd-reco-${section.id}`} className="pd-h2">{section.title}</h2>
+                <RecommendationArrows title={section.title} />
               </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-slate-500">
-                {recommendationTab === "similar" ? "Aucun autre produit disponible dans cette catégorie." : recommendationTab === "associated" ? "Aucun produit associé à ce produit." : "Aucune pièce de rechange associée à ce produit."}
-              </p>
-            )}
-          </div>
-        </section>
+              <div className="p-4 sm:p-6">
+                <CarouselContent>
+                  {section.items.slice(0, 12).map((relatedProduct) => (
+                    <CarouselItem key={relatedProduct.id} className="basis-1/2 sm:basis-1/3 lg:basis-1/5 xl:basis-1/6">
+                      <div className="h-full">
+                        <ProductCard product={relatedProduct} categorySlug={categorySlug} />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+              </div>
+            </section>
+          </Carousel>
+        ))}
       </div>
 
       {lightbox && selectedImageUrl ? (
