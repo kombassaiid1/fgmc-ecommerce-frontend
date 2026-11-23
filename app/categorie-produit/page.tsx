@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { QueryClient, HydrationBoundary, dehydrate } from "@tanstack/react-query";
 
 import { CatalogSidePanels } from "@/components/catalog/catalog-side-panels";
@@ -48,7 +49,10 @@ export default async function ShopPage() {
   return (
     <CatalogSidePanels>
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <CategoryPageClient slug={SHOP_SLUG} />
+        {/* CategoryPageClient reads the URL (useSearchParams): Next.js needs a Suspense boundary to prerender the page. */}
+        <Suspense fallback={null}>
+          <CategoryPageClient slug={SHOP_SLUG} />
+        </Suspense>
       </HydrationBoundary>
     </CatalogSidePanels>
   );
