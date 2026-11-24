@@ -19,6 +19,8 @@ import {
 import { readAgentJob, startAgentJob } from "./agent-job-client";
 import { useChat } from "@ai-sdk/react";
 import { SupplierBatchCard, type SupplierBatch } from "./supplier-batch-card";
+import { AgentAvatar, AgentBadge, AgentButton, AgentLoader, useAgentThemeStyle } from "./agent-themed-ui";
+import themedStyles from "./agent-themed-ui.module.css";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
 import { type AgentUIMessage, type AgentTaskStatus, useAgentChatStore } from "./agent-chat-store";
@@ -36,7 +38,6 @@ import {
   Clock3,
   ExternalLink,
   CircleCheck,
-  LoaderCircle,
   MessageSquarePlus,
   RotateCw,
   History,
@@ -191,7 +192,7 @@ function renderInlineNodes(nodes: InlineNode[], keyPrefix: string): ReactNode[] 
               target="_blank"
               rel="noopener noreferrer"
               title={node.text}
-              className="inline-flex max-w-full items-center gap-1.5 align-bottom text-[#0858b1] underline"
+              className="inline-flex max-w-full items-center gap-1.5 align-bottom text-[var(--agent-focus)] underline"
             >
               <SiteFavicon domain={siteDomain} />
               <span className="min-w-0 truncate">{node.text}</span>
@@ -204,7 +205,7 @@ function renderInlineNodes(nodes: InlineNode[], keyPrefix: string): ReactNode[] 
             href={node.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all text-[#0858b1] underline"
+            className="break-all text-[var(--agent-focus)] underline"
           >
             {node.text}
           </a>
@@ -382,6 +383,7 @@ type AgentChatProps = {
 };
 
 export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: AgentChatProps) {
+  const agentThemeStyle = useAgentThemeStyle();
   const [input, setInput] = useState("");
   const responseDurations = useAgentChatStore((state) => state.responseDurations);
   const agentProgress = useAgentChatStore((state) => state.agentProgress);
@@ -1132,11 +1134,15 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
   }
 
   return (
-    <div className={fullPage
-      ? "grid h-full min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-white lg:grid-rows-1 lg:grid-cols-[var(--agent-columns)]"
-      : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[#f8fafc]"}
+    <div
+      className={`${themedStyles.chatRoot} ${
+        fullPage
+          ? "grid h-full min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-white lg:grid-rows-1 lg:grid-cols-[var(--agent-columns)]"
+          : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--agent-surface)]"
+      }`}
       ref={fullPage ? chatGridRef : undefined}
       style={{
+        ...agentThemeStyle,
         fontFamily: "Arial, Helvetica, sans-serif",
         letterSpacing: "normal",
         fontStretch: "normal",
@@ -1152,7 +1158,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             type="button"
             aria-expanded={historyOpen}
             onClick={() => setHistoryOpen((open) => !open)}
-            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)]"
           >
             <History size={15} aria-hidden="true" />
             {historyOpen ? "Fermer l’historique" : `Historique (${conversations.length})`}
@@ -1168,18 +1174,17 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             </div>
             <History size={17} className="text-slate-400" aria-hidden="true" />
           </div>
-          <button
-            type="button"
+          <AgentButton
             onClick={startNewConversation}
             disabled={isBusy || !historyReady}
-            className="mt-4 inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0858b1] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 w-full shrink-0"
           >
             <MessageSquarePlus size={16} aria-hidden="true" />
             Nouvelle conversation
-          </button>
+          </AgentButton>
           <div className="mt-4 flex min-h-0 flex-col gap-2 overflow-y-auto">
             {conversations.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-xs leading-5 text-slate-500">Aucune conversation enregistrée pour le moment.</p> : conversations.map((conversation) => (
-            <button key={conversation.sessionId} type="button" onClick={() => void openConversation(conversation.sessionId)} disabled={isBusy || !historyReady} aria-pressed={activeSessionId === conversation.sessionId} className={`w-full rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${activeSessionId === conversation.sessionId ? "border-[#0858b1] bg-blue-50 shadow-sm ring-1 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm"}`}>
+            <button key={conversation.sessionId} type="button" onClick={() => void openConversation(conversation.sessionId)} disabled={isBusy || !historyReady} aria-pressed={activeSessionId === conversation.sessionId} className={`w-full rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)] disabled:opacity-50 ${activeSessionId === conversation.sessionId ? "border-[var(--agent-primary)] bg-[var(--agent-primary-soft)] shadow-sm ring-1 ring-[var(--agent-primary-border)]" : "border-slate-200 bg-white hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-softer)] hover:shadow-sm"}`}>
                 <span className="line-clamp-2 min-h-10 break-words text-sm font-medium leading-5 text-slate-800">{conversation.title}</span>
                 <span className="mt-2 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-500"><span>{conversation.messageCount} message{conversation.messageCount > 1 ? "s" : ""}</span><span aria-hidden="true">·</span><time dateTime={conversation.updatedAt}>{formatConversationDate(conversation.updatedAt)}</time></span>
               </button>
@@ -1201,29 +1206,28 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           onPointerUp={endPanelResize}
           onPointerCancel={endPanelResize}
           onKeyDown={(event) => handleResizeKeyDown("history", event)}
-          className="group hidden w-2 cursor-col-resize touch-none items-center justify-center bg-transparent hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400 lg:flex"
+          className="group hidden w-2 cursor-col-resize touch-none items-center justify-center bg-transparent hover:bg-[var(--agent-primary-softer)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--agent-focus)] lg:flex"
         >
-          <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[#0858b1]" />
+          <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[var(--agent-primary)]" />
         </button>
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f8fafc]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--agent-surface)]">
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
         {!fullPage && <>
-        <button
-          type="button"
+          <AgentButton
           onClick={startNewConversation}
           disabled={isBusy || !historyReady}
-          className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#0858b1] px-3 text-xs font-semibold text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-10 min-w-0 flex-1 whitespace-nowrap rounded-lg px-3 text-xs"
         >
           <MessageSquarePlus size={15} className="shrink-0" aria-hidden="true" />
           Nouvelle conversation
-        </button>
+        </AgentButton>
         <button
             type="button"
             onClick={onOpenFullPage}
             disabled={isBusy || !historyReady}
             aria-label="Ouvrir l’Agent complet"
-            className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Bot size={15} className="shrink-0" aria-hidden="true" />
             Agent complet
@@ -1235,7 +1239,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             aria-label={resourcesOpen ? "Masquer les liens et ressources" : "Afficher les liens et ressources"}
             aria-expanded={resourcesOpen}
             onClick={() => setResourcesOpen((open) => !open)}
-            className="ml-auto hidden min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:inline-flex"
+            className="ml-auto hidden min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)] lg:inline-flex"
           >
             <ExternalLink size={14} aria-hidden="true" />
             {resourcesOpen ? "Masquer les ressources" : "Afficher les ressources"}
@@ -1247,15 +1251,14 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           <div id="agent-mobile-history" className="flex flex-1 flex-col">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-slate-900">Conversations précédentes</h3>
-              <button
-                type="button"
+              <AgentButton
                 onClick={startNewConversation}
                 disabled={isBusy || !historyReady}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#0858b1] px-2.5 text-xs font-semibold text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 disabled:opacity-50"
+                className="h-9 shrink-0 rounded-lg px-2.5 text-xs"
               >
                 <MessageSquarePlus size={14} aria-hidden="true" />
                 Nouvelle
-              </button>
+              </AgentButton>
             </div>
             {conversations.length === 0 ? (
               <p className="rounded-xl border border-slate-200 bg-white px-3 py-4 text-center text-sm text-slate-500">
@@ -1269,7 +1272,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                     type="button"
                     onClick={() => void openConversation(conversation.sessionId)}
                     aria-pressed={activeSessionId === conversation.sessionId}
-                    className={`w-full rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${activeSessionId === conversation.sessionId ? "border-[#0858b1] bg-blue-50 shadow-sm ring-1 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm"}`}
+                    className={`w-full rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)] ${activeSessionId === conversation.sessionId ? "border-[var(--agent-primary)] bg-[var(--agent-primary-soft)] shadow-sm ring-1 ring-[var(--agent-primary-border)]" : "border-slate-200 bg-white hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-softer)] hover:shadow-sm"}`}
                   >
                     <span className="line-clamp-2 min-h-10 break-words text-sm font-medium leading-5 text-slate-800">{conversation.title}</span>
                     <span className="mt-2 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-500">
@@ -1284,9 +1287,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           </div>
         ) : messages.length === 0 ? (
           <div className="flex w-full flex-1 flex-col items-center justify-center py-4 text-center">
-            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0858b1]">
-              <Sparkles size={22} />
-            </div>
+            <AgentBadge>Assistant d’administration FGMC</AgentBadge>
             <h3 className="text-center text-base font-semibold text-slate-900">
               Bonjour, comment puis-je vous aider ?
             </h3>
@@ -1300,7 +1301,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                   type="button"
                   disabled={isBusy}
                   onClick={() => setInput(action.prompt)}
-                  className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-[#0858b1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 disabled:opacity-50"
+                  className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-soft)] hover:text-[var(--agent-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)] focus-visible:ring-offset-1 disabled:opacity-50"
                 >
                   {action.label}
                 </button>
@@ -1351,11 +1352,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                 key={message.id}
                 className={`flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
               >
-                {!isUser && (
-                  <span className="mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#0858b1]">
-                    <Bot size={15} />
-                  </span>
-                )}
+                {!isUser && <AgentAvatar size="sm" className="mb-0.5" />}
                 <div
                   className={`flex max-w-[84%] flex-col gap-2 ${isUser ? "items-end" : "items-start"}`}
                 >
@@ -1363,7 +1360,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                   {(isUser || text || imageParts.length > 0) && <div
                     className={`max-w-full whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${
                     isUser
-                      ? "rounded-br-md bg-[#0858b1] text-white"
+                        ? "rounded-br-md bg-[var(--agent-primary-soft)] text-slate-900 ring-1 ring-inset ring-[var(--agent-primary-border)]"
                       : "rounded-bl-md border border-slate-100 bg-white text-slate-700 shadow-sm"
                     }`}
                   >
@@ -1400,10 +1397,10 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                         ? "Confirmation de création groupée des produits"
                         : "Confirmation de création du produit"
                     }
-                    className="w-full rounded-2xl border border-blue-100 bg-white p-4 shadow-sm"
+                    className="w-full rounded-2xl border border-[var(--agent-primary-border)] bg-white p-4 shadow-sm"
                   >
                     <div className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#0858b1]">
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-[var(--agent-primary-soft)] text-[var(--agent-focus)]">
                         <Sparkles size={16} aria-hidden="true" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -1444,7 +1441,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                         {(confirmation?.status === "confirming" ||
                           confirmation?.status === "cancelling") && (
                           <p className="mt-2 flex items-center gap-2 text-xs text-slate-500" aria-live="polite">
-                            <LoaderCircle size={14} className="animate-spin" />
+                            <AgentLoader />
                             {confirmation.status === "confirming"
                               ? isUpdateConfirmation
                                 ? "Modification du produit…"
@@ -1503,14 +1500,13 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                         {!confirmation ||
                         confirmation.status === "error" ? (
                           <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
+                            <AgentButton
                               disabled={isBusy || confirmationBusy}
                               onClick={() => void runConfirmationAction(confirmationId, "confirm")}
-                              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0858b1] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#064990] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="min-h-9 rounded-xl px-3 py-2 text-xs"
                             >
                               {confirmationBusy ? (
-                                <LoaderCircle size={14} className="animate-spin" />
+                                <AgentLoader />
                               ) : (
                                 <Check size={14} />
                               )}
@@ -1521,7 +1517,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                                 : isBatchConfirmation
                                   ? "Confirmer le lot"
                                   : "Confirmer"}
-                            </button>
+                            </AgentButton>
                             <button
                               type="button"
                               disabled={isBusy || confirmationBusy}
@@ -1550,11 +1546,9 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
         }} />}
         {isBusy && !activeAssistantHasContent && (
           <div className="flex items-end gap-2" aria-live="polite">
-            <span className="flex size-7 items-center justify-center rounded-full bg-blue-100 text-[#0858b1]">
-              <Bot size={15} />
-            </span>
+            <AgentAvatar size="sm" />
             <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-slate-100 bg-white px-3.5 py-3 text-xs text-slate-500 shadow-sm">
-              <LoaderCircle size={15} className="animate-spin text-[#0858b1]" />
+              <AgentLoader />
               {activeJob ? (
                 <span role="status">
                   <span className="font-medium text-slate-700">L’agent travaille…</span>{" "}
@@ -1585,13 +1579,12 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           >
             <p>{friendlyError}</p>
             {(canRetryDemand || sendFailure?.retryable) && (
-              <button
-                type="button"
+              <AgentButton
                 onClick={() => void (sendFailure ? retryFailedSend() : retryFailedTask())}
-                className="mt-2 inline-flex min-h-8 items-center rounded-lg bg-[#0858b1] px-3 text-xs font-semibold text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                className="mt-2 min-h-8 rounded-lg px-3 text-xs"
               >
                 {sendFailure ? "Relancer l’envoi" : "Relancer la demande"}
-              </button>
+              </AgentButton>
             )}
           </div>
         )}
@@ -1602,7 +1595,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
               onClick={() => void retryFailedTask()}
               aria-label="Régénérer la réponse"
               title="Régénérer la réponse"
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0858b1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[var(--agent-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agent-focus)]"
             >
               <RotateCw size={15} aria-hidden="true" />
             </button>
@@ -1623,7 +1616,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             </button>
           </div>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
+        <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-[var(--agent-primary-border)] focus-within:ring-2 focus-within:ring-[var(--agent-primary-soft)]">
           <textarea
             ref={inputRef}
             value={input}
@@ -1637,25 +1630,24 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             className="max-h-40 min-h-10 flex-1 resize-none overflow-y-hidden bg-transparent px-2 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
           />
           {isBusy && (
-            <button
-              type="button"
+            <AgentButton
               onClick={stopResponse}
               aria-label="Arrêter la réponse"
               title="Arrêter la réponse"
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+              className="size-10 min-h-10 shrink-0 p-0"
             >
               <Square size={14} fill="currentColor" aria-hidden="true" />
-            </button>
+            </AgentButton>
           )}
-          <button
+          <AgentButton
             type="submit"
             aria-label="Envoyer le message"
             title={isBusy ? "Une réponse est en cours. Arrêtez-la pour envoyer un autre message." : undefined}
             disabled={isBusy || (!input.trim() && !pendingImage) || !historyReady}
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0858b1] text-white transition hover:bg-[#064990] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            className="size-10 min-h-10 shrink-0 p-0"
           >
             <ArrowUp size={19} />
-          </button>
+          </AgentButton>
         </div>
         {inputError && <p role="alert" className="mt-2 text-center text-xs text-red-600">{inputError}</p>}
         <p className="mt-2 text-center text-[11px] text-slate-500">
@@ -1678,9 +1670,9 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           onPointerUp={endPanelResize}
           onPointerCancel={endPanelResize}
           onKeyDown={(event) => handleResizeKeyDown("resources", event)}
-          className="group hidden w-2 cursor-col-resize touch-none items-center justify-center bg-transparent hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400 lg:flex"
+          className="group hidden w-2 cursor-col-resize touch-none items-center justify-center bg-transparent hover:bg-[var(--agent-primary-softer)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--agent-focus)] lg:flex"
         >
-          <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[#0858b1]" />
+          <span className="h-10 w-1 rounded-full bg-slate-200 group-hover:bg-[var(--agent-primary)]" />
         </button>
         <aside className="hidden min-h-0 min-w-0 flex-col overflow-hidden bg-slate-50 p-4 lg:flex">
           <h3 className="text-sm font-semibold text-slate-900">Liens et ressources</h3>
@@ -1689,7 +1681,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
             {externalLinks.length ? externalLinks.map((link) => {
               const faviconDomain = getPublicSiteDomain(link.url);
               return (
-                <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" title={link.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-[#0858b1] hover:border-blue-200 hover:bg-blue-50">
+                <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" title={link.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-[var(--agent-focus)] hover:border-[var(--agent-primary-border)] hover:bg-[var(--agent-primary-soft)]">
                   {faviconDomain ? <SiteFavicon domain={faviconDomain} /> : <ExternalLink size={14} className="shrink-0" aria-hidden="true" />}
                   <span className="min-w-0 flex-1 truncate">{link.label}</span>
                 </a>

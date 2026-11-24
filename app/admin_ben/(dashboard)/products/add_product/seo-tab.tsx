@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { generateProductSeo, optimizeProductSeoContent, validateProductSeo, type ProductSeoGenerationInput, type SeoValidationResult } from "@/lib/api/seo";
 import { applyProductSeoProposal, createSingleFlightAction, type ProductSeoCallbacks } from "@/lib/api/seo-generation-contract";
 import { applyProductSeoContentPreview, parseProductSeoContentPreview, type ProductSeoContentOptimizationInput, type ProductSeoContentOptimizationResult } from "@/lib/api/seo-content-optimization";
+import { AgentBadge, AgentButton } from "@/components/agent/agent-themed-ui";
 
 export type SeoTabProps = {
   productId?: string;
@@ -330,12 +331,13 @@ export function SeoTab(props: SeoTabProps) {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button onClick={handleOptimizeContent} loading={isOptimizingContent} disabled={isOptimizingContent || isGenerating}>
+        <AgentBadge>Actions IA</AgentBadge>
+        <AgentButton onClick={handleOptimizeContent} loading={isOptimizingContent} disabled={isOptimizingContent || isGenerating}>
           {isOptimizingContent ? "Optimisation du contenu..." : "✨ Optimiser le contenu SEO"}
-        </Button>
-        <Button onClick={handleGenerate} loading={isGenerating} disabled={isGenerating || isOptimizingContent}>
+        </AgentButton>
+        <AgentButton onClick={handleGenerate} loading={isGenerating} disabled={isGenerating || isOptimizingContent}>
           {isGenerating ? "Génération SEO..." : "✨ Générer avec l’IA"}
-        </Button>
+        </AgentButton>
       </div>
       {contentOptimizationError ? <p className="text-sm text-red-700" role="status">{contentOptimizationError}</p> : null}
       {contentPreview ? (

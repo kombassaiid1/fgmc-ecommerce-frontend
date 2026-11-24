@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, LoaderCircle, X, Clock3 } from "lucide-react";
+import { Check, X, Clock3 } from "lucide-react";
 import Image from "next/image";
 import { Globe } from "lucide-react";
 import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
+import { AgentButton, AgentLoader } from "./agent-themed-ui";
 
 export type AgentEventSource = { url: string; title?: string; domain?: string };
 export type AgentEvent = { id: string; phase: string; label: string; status: string; tool?: string; error?: string; confirmation?: Record<string, unknown>; sources?: AgentEventSource[] };
@@ -40,10 +41,10 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
   {toolEvents.length > 0 && <details className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600" open={running}>
    <summary className="cursor-pointer font-medium">{running ? "Vérifications en cours…" : `${toolEvents.length} vérification(s)`}</summary>
    <ol className="mt-2 space-y-2">{toolEvents.map(event => <li key={event.id} className="flex items-start gap-2">
-    {event.status === "running" ? (running ? <LoaderCircle size={14} className="mt-0.5 shrink-0 animate-spin" /> : <Clock3 size={14} className="mt-0.5 shrink-0 text-slate-400" />) : event.status === "failed" ? <X size={14} className="mt-0.5 shrink-0 text-red-600" /> : <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />}
+    {event.status === "running" ? (running ? <AgentLoader /> : <Clock3 size={14} className="mt-0.5 shrink-0 text-slate-400" />) : event.status === "failed" ? <X size={14} className="mt-0.5 shrink-0 text-red-600" /> : <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />}
     <span className="min-w-0 flex-1">{event.label}{event.error && <span className="mt-1 block text-red-600">{event.error}</span>}
      {(() => { const sources = safeSources(event.sources); return sources.length > 0 && <ul className="mt-1.5 space-y-1">{sources.map(source => <li key={source.url} className="min-w-0">
-      <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.label} className="inline-flex max-w-full items-center gap-1.5 text-[#0858b1] underline">
+      <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.label} className="inline-flex max-w-full items-center gap-1.5 text-[var(--agent-focus)] underline">
        {source.faviconDomain ? <SiteFavicon domain={source.faviconDomain} /> : <Globe size={16} className="shrink-0 text-slate-400" aria-hidden="true" />}
        <span className="min-w-0 truncate">{source.label}</span>
       </a>
@@ -60,7 +61,7 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
    const done = state.status === "confirmed" || state.status === "cancelled"; const pending = state.status === "confirming" || state.status === "cancelling";
    const product = record(c.product); const products = Array.isArray(c.productDrafts) ? c.productDrafts.map(record) : c.productDraft ? [record(c.productDraft)] : [];
    const result = record(state.result); const results = Array.isArray(result.createdProducts) ? result.createdProducts.map(record) : result.id ? [result] : [];
-   return <section key={id} className="space-y-3 rounded-xl border border-blue-200 bg-white p-3 text-xs text-slate-700" aria-label="Confirmation de l’opération">
+   return <section key={id} className="space-y-3 rounded-xl border border-[var(--agent-primary-border)] bg-white p-3 text-xs text-slate-700" aria-label="Confirmation de l’opération">
     <h4 className="font-semibold text-slate-900">{state.status === "confirmed" ? update ? "Produit modifié" : publish ? "Produit publié" : "Produit créé" : state.status === "cancelled" ? "Opération annulée" : update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : `Confirmer ${products.length > 1 ? `la création des ${products.length} produits` : "la création du produit"}`}</h4>
     {typeof product.title === "string" && <p className="font-medium">{product.title}{typeof product.sku === "string" ? ` — ${product.sku}` : ""}</p>}
     {typeof c.message === "string" && <p>{c.message}</p>}
@@ -74,7 +75,7 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
     {state.error && <p role="alert" className="text-red-700">{state.error}</p>}
     {state.status === "expired" && <p className="text-amber-700">Confirmation expirée. Demandez à l’agent de reprendre les données enregistrées.</p>}
     {pending && <p className="flex items-center gap-2"><Clock3 size={14} />Opération en cours…</p>}
-    {!done && !pending && state.status !== "expired" && <div className="flex gap-2"><button type="button" disabled={busy} onClick={() => onAction(id, "confirm")} className="rounded-lg bg-[#0858b1] px-3 py-2 font-medium text-white disabled:opacity-50">{update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : "Confirmer la création"}</button><button type="button" disabled={busy} onClick={() => onAction(id, "cancel")} className="rounded-lg border px-3 py-2 disabled:opacity-50">Annuler</button></div>}
+    {!done && !pending && state.status !== "expired" && <div className="flex flex-wrap gap-2"><AgentButton disabled={busy} onClick={() => onAction(id, "confirm")} className="min-h-9 rounded-lg px-3 py-2 text-xs">{update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : "Confirmer la création"}</AgentButton><button type="button" disabled={busy} onClick={() => onAction(id, "cancel")} className="rounded-lg border px-3 py-2 disabled:opacity-50">Annuler</button></div>}
    </section>;
   })}
  </div>;

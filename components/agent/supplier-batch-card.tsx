@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronUp, LoaderCircle, RotateCw, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, RotateCw, X } from "lucide-react";
+import { AgentButton, AgentLoader } from "./agent-themed-ui";
 
 export type SupplierBatchItem = {
   index: number;
@@ -98,15 +99,15 @@ export function SupplierBatchCard({ batch, onRefresh }: Props) {
   }
 
   return (
-    <section className="my-3 w-full overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm" aria-label="Traitement du lot fournisseur">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-blue-50/60 px-4 py-3">
+    <section className="my-3 w-full overflow-hidden rounded-xl border border-[var(--agent-primary-border)] bg-white shadow-sm" aria-label="Traitement du lot fournisseur">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-[var(--agent-primary-softer)] px-4 py-3">
         <div>
           <h3 className="font-semibold text-slate-900">Lot de {batch.total} produits</h3>
           {batch.phase === "ANALYSIS" && <p className="mt-1 text-xs text-slate-600">Analyse {batch.analysisProgress}/{batch.total}</p>}
           {batch.phase === "CREATION" && <p className="mt-1 text-xs text-slate-600">Création {batch.creationProgress}/{creationTotal || batch.total}</p>}
           {batch.phase === "REVIEW" && <p className="mt-1 text-xs text-slate-600">Vérifiez les brouillons avant confirmation.</p>}
         </div>
-        {running && <span className="inline-flex items-center gap-2 text-xs font-medium text-[#0858b1]"><LoaderCircle size={15} className="animate-spin" /> Traitement en arrière-plan</span>}
+        {running && <AgentLoader label="Traitement en arrière-plan" />}
       </header>
 
       <div className="max-h-[55vh] overflow-auto">
@@ -148,11 +149,11 @@ export function SupplierBatchCard({ batch, onRefresh }: Props) {
       {error && <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</p>}
       <footer className="flex flex-wrap items-center gap-2 border-t border-slate-200 px-4 py-3">
         {review && <>
-          <button type="button" disabled={busy || selectedCount === 0} onClick={() => void act("confirm")} className="inline-flex items-center gap-2 rounded-lg bg-[#0858b1] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><Check size={14} /> Confirmer les {selectedCount} produits sélectionnés</button>
+          <AgentButton disabled={busy || selectedCount === 0} onClick={() => void act("confirm")} className="min-h-9 rounded-lg px-3 py-2 text-xs"><Check size={14} /> Confirmer les {selectedCount} produits sélectionnés</AgentButton>
           <button type="button" disabled={busy} onClick={() => void act("cancel")} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-50"><X size={14} /> Annuler</button>
         </>}
-        {(batch.status === "PENDING" || batch.status === "COMPLETED") && failedCount > 0 && <button type="button" disabled={busy} onClick={() => void act("retry")} className="inline-flex items-center gap-2 rounded-lg bg-[#0858b1] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><RotateCw size={14} /> Réessayer les échecs</button>}
-        {busy && <LoaderCircle size={16} className="animate-spin text-[#0858b1]" />}
+        {(batch.status === "PENDING" || batch.status === "COMPLETED") && failedCount > 0 && <AgentButton disabled={busy} onClick={() => void act("retry")} className="min-h-9 rounded-lg px-3 py-2 text-xs"><RotateCw size={14} /> Réessayer les échecs</AgentButton>}
+        {busy && <AgentLoader label="Action en cours" />}
       </footer>
     </section>
   );

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { AgentPanel } from "@/components/agent/agent-panel";
+import { AgentAvatar, useAgentThemeStyle } from "@/components/agent/agent-themed-ui";
 
 const STORAGE_KEY = "fgmc-agent-button-position";
 /** The button is 64 px (size-16); this much of the screen edge always stays free around it. */
@@ -46,6 +46,7 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
   const [dragging, setDragging] = useState(false);
+  const themeStyle = useAgentThemeStyle();
   const audioRef = useRef<HTMLAudioElement>(null);
   const drag = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
   const latest = useRef<Position | null>(null);
@@ -164,18 +165,10 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
         onKeyDown={onKeyDown}
         whileHover={dragging ? undefined : { scale: 1.06 }}
         whileTap={dragging ? undefined : { scale: 0.96 }}
-        style={position ? { right: position.right, bottom: position.bottom, touchAction: "none" } : { touchAction: "none" }}
-        className={`fixed z-[70] flex size-16 select-none items-center justify-center rounded-full bg-white p-1 shadow-lg outline-none transition-shadow hover:shadow-xl focus-visible:ring-4 focus-visible:ring-blue-300 ${position ? "" : "bottom-3 right-3 sm:bottom-5 sm:right-5"} ${dragging ? "cursor-grabbing shadow-2xl" : "cursor-grab"}`}
+        style={{ ...themeStyle, ...(position ? { right: position.right, bottom: position.bottom } : {}), touchAction: "none" }}
+        className={`fixed z-[70] flex size-16 select-none items-center justify-center rounded-full bg-white p-1 shadow-lg outline-none transition-shadow hover:shadow-xl focus-visible:ring-4 focus-visible:ring-[var(--agent-focus)] ${position ? "" : "bottom-3 right-3 sm:bottom-5 sm:right-5"} ${dragging ? "cursor-grabbing shadow-2xl" : "cursor-grab"}`}
       >
-        <Image
-          src="/agent/arafet-agent-bg-rm.gif"
-          alt={agentName}
-          width={800}
-          height={1422}
-          unoptimized
-          draggable={false}
-          className="pointer-events-none h-full w-full object-contain"
-        />
+        <AgentAvatar size="xl" decorative className="pointer-events-none" />
       </motion.button>
     </>
   );

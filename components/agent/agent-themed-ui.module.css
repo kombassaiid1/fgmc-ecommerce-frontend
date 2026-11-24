@@ -1,0 +1,187 @@
+.avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  background: #07111f;
+  border: 1px solid color-mix(in srgb, var(--agent-primary) 72%, white);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--agent-primary) 30%, transparent);
+  isolation: isolate;
+}
+
+.avatarImage {
+  object-fit: contain;
+  padding: 5%;
+}
+
+.agentFrame {
+  background: #fff;
+  color-scheme: light;
+  color: #0f172a;
+}
+
+.chatRoot {
+  color-scheme: light;
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 1.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--agent-primary) 36%, white);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--agent-primary) 12%, white);
+  padding: 0.2rem 0.65rem;
+  color: #172033;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1rem;
+}
+
+.badgeDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: none;
+  border-radius: 9999px;
+  background: var(--agent-primary);
+  box-shadow: 0 0 0.55rem color-mix(in srgb, var(--agent-primary) 75%, transparent);
+}
+
+.button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background-image: linear-gradient(#fff, #fff), var(--agent-gradient);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  padding: 0.55rem 0.9rem;
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.1rem;
+  transition: filter 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.button:hover:not(:disabled) {
+  filter: saturate(1.15);
+  box-shadow: var(--agent-glow);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+  opacity: 0.55;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--agent-primary) 18%, #e2e8f0);
+  background: #fff;
+  padding: 0.75rem 1rem;
+  color: #0f172a;
+}
+
+.headerTitle {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.loader {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--agent-focus);
+}
+
+.spinner {
+  animation: agent-spin 900ms linear infinite;
+}
+
+@keyframes agent-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+  .spinner { animation: none; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .agentFrame {
+    background: #0f172a !important;
+    color-scheme: dark;
+    color: #e2e8f0;
+  }
+
+  .chatRoot {
+    color-scheme: dark;
+    background: #0b1220 !important;
+    color: #e2e8f0;
+  }
+
+  .agentFrame :global(.bg-white) { background-color: #111827 !important; }
+  .agentFrame :global(.bg-slate-50) { background-color: #0f172a !important; }
+  .agentFrame :global(.bg-slate-100) { background-color: #1e293b !important; }
+  .agentFrame :global(.text-slate-900),
+  .agentFrame :global(.text-slate-800),
+  .agentFrame :global(.text-slate-700) { color: #f1f5f9 !important; }
+  .agentFrame :global(.text-slate-600) { color: #cbd5e1 !important; }
+  .agentFrame :global(.text-slate-500),
+  .agentFrame :global(.text-slate-400) { color: #94a3b8 !important; }
+  .agentFrame :global(.border-slate-100),
+  .agentFrame :global(.border-slate-200),
+  .agentFrame :global(.border-slate-300) { border-color: #334155 !important; }
+
+  .badge {
+    border-color: color-mix(in srgb, var(--agent-primary) 48%, #334155);
+    background: color-mix(in srgb, var(--agent-primary) 22%, #0f172a);
+    color: #f8fafc;
+  }
+
+  .button {
+    background-image: linear-gradient(#0f172a, #0f172a), var(--agent-gradient);
+    color: #f8fafc;
+  }
+
+  .button:focus-visible { outline-color: #f8fafc; }
+
+  .header {
+    border-bottom-color: color-mix(in srgb, var(--agent-primary) 28%, #334155);
+    background: #0f172a;
+    color: #f8fafc;
+  }
+
+  .headerStatus { color: #cbd5e1; }
+}
