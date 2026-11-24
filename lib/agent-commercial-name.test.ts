@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getAgentCommercialName } from "./agent-commercial-name.ts";
+import { DEFAULT_AGENT_COMMERCIAL_NAME, DEFAULT_AGENT_THEME_ID, resolveAgentTheme } from "./agent-theme.ts";
 
 test("reads the commercial agent name from the server environment", () => {
   const previous = process.env.AGENT_NAME_COMMERCIAL;
@@ -13,11 +14,13 @@ test("reads the commercial agent name from the server environment", () => {
   }
 });
 
-test("uses a generic label when the commercial name is not configured", () => {
+test("uses the default theme identity when the commercial name is not configured", () => {
   const previous = process.env.AGENT_NAME_COMMERCIAL;
   delete process.env.AGENT_NAME_COMMERCIAL;
   try {
-    assert.equal(getAgentCommercialName(), "Agent FGMC");
+    const commercialName = getAgentCommercialName();
+    assert.equal(commercialName, DEFAULT_AGENT_COMMERCIAL_NAME);
+    assert.equal(resolveAgentTheme(commercialName).id, DEFAULT_AGENT_THEME_ID);
   } finally {
     if (previous !== undefined) process.env.AGENT_NAME_COMMERCIAL = previous;
   }

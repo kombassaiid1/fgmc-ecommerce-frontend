@@ -13,6 +13,9 @@ import { RecoTracker } from "@/components/providers/reco-tracker";
 import { SiteFooter } from "@/components/footer/site-footer";
 import { SplashScreen } from "@/components/splash/splash-screen";
 import { Toaster } from "@/components/ui/sonner";
+import { AgentThemeProvider } from "@/components/providers/agent-theme-provider";
+import { getAgentCommercialName } from "@/lib/agent-commercial-name";
+import { resolveAgentTheme } from "@/lib/agent-theme";
 
 const oswald = Oswald({
   variable: "--font-oswald",
@@ -67,6 +70,7 @@ export default async function RootLayout({
   // « fr_TN » → « fr »: the language of the page, for browsers and search engines.
   const lang = seo.locale?.split(/[_-]/)[0]?.toLowerCase() || "fr";
   const origin = await getSiteOrigin();
+  const agentTheme = resolveAgentTheme(getAgentCommercialName());
   const organizationLd =
     origin && seo.indexable
       ? buildOrganizationJsonLd({
@@ -91,14 +95,16 @@ export default async function RootLayout({
         {organizationLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(organizationLd) }} /> : null}
         {seo.splashEnabled ? <SplashScreen /> : null}
         <ReactQueryProvider>
-          <main className="flex-1!">
-            <TopNavBar />
-            {children}
-          </main>
-          <SiteFooter />
-          <Toaster />
-          <RecoTracker />
-          <ClientVisitTracker />
+          <AgentThemeProvider theme={agentTheme}>
+            <main className="flex-1!">
+              <TopNavBar />
+              {children}
+            </main>
+            <SiteFooter />
+            <Toaster />
+            <RecoTracker />
+            <ClientVisitTracker />
+          </AgentThemeProvider>
         </ReactQueryProvider>
       </body>
     </html>

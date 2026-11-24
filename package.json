@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test --test-reporter=spec components/agent/agent-chat-state.spec.ts components/agent/agent-job.spec.ts components/agent/send-error.test.ts lib/api/seo-generation-contract.test.ts lib/api/seo-content-optimization.test.ts lib/agent-commercial-name.test.ts"
+    "test": "node --experimental-strip-types --test --test-reporter=spec components/agent/agent-chat-state.spec.ts components/agent/agent-job.spec.ts components/agent/send-error.test.ts lib/api/seo-generation-contract.test.ts lib/api/seo-content-optimization.test.ts lib/agent-commercial-name.test.ts lib/agent-theme.test.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.303",
