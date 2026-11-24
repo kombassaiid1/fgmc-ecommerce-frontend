@@ -1713,6 +1713,7 @@ export default function AdminProductsPage() {
 
           {selectedTabId === "seo" ? (
             <SeoTab
+              productId={productId ?? undefined}
               title={formState.title}
               slug={formState.slug}
               description={formState.description}

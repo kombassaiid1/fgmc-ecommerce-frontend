@@ -29,6 +29,7 @@ export type SeoValidationResult = {
 };
 
 export type ProductSeoGenerationInput = {
+  productId?: string;
   title: string;
   slug: string;
   description: string;
@@ -56,6 +57,6 @@ export function generateProductSeo(input: ProductSeoGenerationInput): Promise<un
     path: '/improve-product/generate-seo',
     method: 'POST',
     body: JSON.stringify(input),
-    timeoutMs: 185_000,
+    timeoutMs: 620_000,
   });
 }

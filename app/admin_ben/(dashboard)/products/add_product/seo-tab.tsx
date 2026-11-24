@@ -8,6 +8,7 @@ import { generateProductSeo, validateProductSeo, type ProductSeoGenerationInput,
 import { applyProductSeoProposal, createSingleFlightAction, type ProductSeoCallbacks } from "@/lib/api/seo-generation-contract";
 
 export type SeoTabProps = {
+  productId?: string;
   title: string;
   slug: string;
   /** HTML description */
@@ -257,6 +258,7 @@ export function SeoTab(props: SeoTabProps) {
 
   const handleGenerate = () => {
     const input: ProductSeoGenerationInput = {
+      ...(props.productId ? { productId: props.productId } : {}),
       title: props.title,
       slug: props.slug,
       description: props.description,
