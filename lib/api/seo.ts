@@ -1,4 +1,5 @@
 import { apiRequest } from './http-client';
+import type { ProductSeoContentOptimizationInput } from './seo-content-optimization';
 
 export type SeoLevel = 'good' | 'ok' | 'bad';
 
@@ -55,6 +56,15 @@ export function validateProductSeo(
 export function generateProductSeo(input: ProductSeoGenerationInput): Promise<unknown> {
   return apiRequest<unknown>({
     path: '/improve-product/generate-seo',
+    method: 'POST',
+    body: JSON.stringify(input),
+    timeoutMs: 620_000,
+  });
+}
+
+export function optimizeProductSeoContent(input: ProductSeoContentOptimizationInput): Promise<unknown> {
+  return apiRequest<unknown>({
+    path: '/improve-product/optimize-content-seo',
     method: 'POST',
     body: JSON.stringify(input),
     timeoutMs: 620_000,

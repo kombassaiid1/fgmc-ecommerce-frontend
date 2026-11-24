@@ -1734,6 +1734,12 @@ export default function AdminProductsPage() {
               onSlugChange={(value) =>
                 setFormState((prev) => ({ ...prev, slug: value }))
               }
+              onShortDescriptionChange={(value) =>
+                setFormState((prev) => ({ ...prev, shortDescription: value }))
+              }
+              onDescriptionChange={(value) =>
+                setFormState((prev) => ({ ...prev, description: value }))
+              }
             />
           ) : null}
 

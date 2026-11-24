@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Text, TextField } from "@shopify/polaris";
 import { ChevronDown, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
-import { generateProductSeo, validateProductSeo, type ProductSeoGenerationInput, type SeoValidationResult } from "@/lib/api/seo";
+import { generateProductSeo, optimizeProductSeoContent, validateProductSeo, type ProductSeoGenerationInput, type SeoValidationResult } from "@/lib/api/seo";
 import { applyProductSeoProposal, createSingleFlightAction, type ProductSeoCallbacks } from "@/lib/api/seo-generation-contract";
+import { applyProductSeoContentPreview, parseProductSeoContentPreview, type ProductSeoContentOptimizationInput, type ProductSeoContentOptimizationResult } from "@/lib/api/seo-content-optimization";
 
 export type SeoTabProps = {
   productId?: string;
@@ -24,6 +25,8 @@ export type SeoTabProps = {
   onMetaDescriptionChange: (value: string) => void;
   onKeyphraseChange: (value: string) => void;
   onSlugChange: (value: string) => void;
+  onShortDescriptionChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
 };
 
 type Level = "good" | "ok" | "bad";
@@ -165,6 +168,8 @@ export function SeoTab(props: SeoTabProps) {
     onMetaDescriptionChange,
     onKeyphraseChange,
     onSlugChange,
+    onShortDescriptionChange,
+    onDescriptionChange,
   } = props;
 
   const [mode, setMode] = useState<"mobile" | "desktop">("mobile");
@@ -172,6 +177,9 @@ export function SeoTab(props: SeoTabProps) {
   const [result, setResult] = useState<SeoValidationResult | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isOptimizingContent, setIsOptimizingContent] = useState(false);
+  const [contentPreview, setContentPreview] = useState<ProductSeoContentOptimizationResult | null>(null);
+  const [contentOptimizationError, setContentOptimizationError] = useState<string | null>(null);
   const generateAction = useRef(createSingleFlightAction(async (
     input: ProductSeoGenerationInput,
     callbacks: ProductSeoCallbacks,
@@ -185,6 +193,21 @@ export function SeoTab(props: SeoTabProps) {
       toast.error("Impossible de générer le SEO. Réessayez.");
     } finally {
       setIsGenerating(false);
+    }
+  })).current;
+  const optimizeContentAction = useRef(createSingleFlightAction(async (
+    input: ProductSeoContentOptimizationInput,
+  ) => {
+    setIsOptimizingContent(true);
+    setContentOptimizationError(null);
+    setContentPreview(null);
+    try {
+      const response = await optimizeProductSeoContent(input);
+      setContentPreview(parseProductSeoContentPreview(response, input));
+    } catch (error) {
+      setContentOptimizationError(error instanceof Error ? error.message : "Impossible d’optimiser le contenu SEO.");
+    } finally {
+      setIsOptimizingContent(false);
     }
   })).current;
 
@@ -276,13 +299,78 @@ export function SeoTab(props: SeoTabProps) {
     });
   };
 
+  const handleOptimizeContent = () => {
+    const input: ProductSeoContentOptimizationInput = {
+      ...(props.productId ? { productId: props.productId } : {}),
+      title: props.title,
+      slug: props.slug,
+      description: props.description,
+      shortDescription: props.shortDescription,
+      imageCount: props.imageCount,
+      metaTitle: props.metaTitle,
+      metaDescription: props.metaDescription,
+      keyphrase: props.keyphrase,
+    };
+    void optimizeContentAction(input);
+  };
+
+  const handleApplyContentPreview = () => {
+    if (!contentPreview) return;
+    if (contentPreview.preview.shortDescription.before !== props.shortDescription ||
+        contentPreview.preview.description.before !== props.description) {
+      setContentPreview(null);
+      setContentOptimizationError("Le contenu a changé depuis l’aperçu. Relancez l’optimisation.");
+      return;
+    }
+    applyProductSeoContentPreview(contentPreview.preview, { onShortDescriptionChange, onDescriptionChange });
+    setContentPreview(null);
+    toast.success("Les descriptions sont prêtes. Enregistrez le produit pour sauvegarder.");
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
-        <Button onClick={handleGenerate} loading={isGenerating} disabled={isGenerating}>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button onClick={handleOptimizeContent} loading={isOptimizingContent} disabled={isOptimizingContent || isGenerating}>
+          {isOptimizingContent ? "Optimisation du contenu..." : "✨ Optimiser le contenu SEO"}
+        </Button>
+        <Button onClick={handleGenerate} loading={isGenerating} disabled={isGenerating || isOptimizingContent}>
           {isGenerating ? "Génération SEO..." : "✨ Générer avec l’IA"}
         </Button>
       </div>
+      {contentOptimizationError ? <p className="text-sm text-red-700" role="status">{contentOptimizationError}</p> : null}
+      {contentPreview ? (
+        <section className="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-4" aria-label="Aperçu du contenu SEO">
+          <Text as="h3" variant="headingSm">Aperçu avant application</Text>
+          {(["shortDescription", "description"] as const).map((field) => (
+            <div key={field} className="grid gap-3 lg:grid-cols-2">
+              {(["before", "after"] as const).map((version) => (
+                <div key={version} className="min-w-0 rounded-md border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-sm font-semibold text-slate-800">
+                    {field === "shortDescription" ? "Résumé" : "Description"} · {version === "before" ? "AVANT" : "APRÈS"}
+                  </p>
+                  <iframe
+                    title={`${field === "shortDescription" ? "Résumé" : "Description"} ${version === "before" ? "avant" : "après"}`}
+                    sandbox=""
+                    srcDoc={`<!doctype html><meta charset="utf-8"><style>body{font:14px/1.55 system-ui,sans-serif;color:#1f2937;margin:12px}img,video,iframe{max-width:100%;height:auto}h2{font-size:1.05em}li{margin:.25em 0}</style>${contentPreview.preview[field][version]}`}
+                    className="h-52 w-full rounded border border-slate-100 bg-white"
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-600">
+              {contentPreview.validation.remainingIssues.length
+                ? `Vérifié en ${contentPreview.validation.attempts} passage(s) · points restants : ${contentPreview.validation.remainingIssues.join(", ")}`
+                : `Validé en ${contentPreview.validation.attempts} passage(s)`}
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => setContentPreview(null)}>Annuler</Button>
+              <Button variant="primary" onClick={handleApplyContentPreview}>Appliquer</Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
       {/* Overall scores */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">
