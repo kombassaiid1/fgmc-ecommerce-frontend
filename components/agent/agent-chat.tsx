@@ -327,7 +327,7 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function getErrorMessage(error: Error | undefined): string | null {
+function getErrorMessage(error: Error | undefined, agentName: string): string | null {
   if (!error) return null;
   let rawMessage = error.message;
   try {
@@ -347,7 +347,7 @@ function getErrorMessage(error: Error | undefined): string | null {
     return "Votre session administrateur a expiré. Reconnectez-vous pour continuer.";
   }
   if (statusCode === 403 || message.includes("403") || message.includes("forbidden")) {
-    return "Votre compte n’a pas accès à l’Agent FGMC.";
+    return `Votre compte n’a pas accès à ${agentName}.`;
   }
   if (
     statusCode === 429 ||
@@ -378,9 +378,10 @@ function getErrorMessage(error: Error | undefined): string | null {
 type AgentChatProps = {
   fullPage?: boolean;
   onOpenFullPage?: () => void;
+  agentName: string;
 };
 
-export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) {
+export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: AgentChatProps) {
   const [input, setInput] = useState("");
   const responseDurations = useAgentChatStore((state) => state.responseDurations);
   const agentProgress = useAgentChatStore((state) => state.agentProgress);
@@ -656,7 +657,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       ? RAW_TOOL_CALL_NOTICE
       : task.status === "failed"
         ? task.error || "L’Agent n’a pas pu terminer cette demande. Vous pouvez réessayer."
-        : getErrorMessage(error);
+        : getErrorMessage(error, agentName);
   const canRetryDemand = !sendFailure && (task.status === "failed" || rawToolCallError);
   const externalLinks = collectResourceLinks(messages.map((message) => ({
     text: message.parts.filter(isTextUIPart).map((part) => part.text).join("\n"),
@@ -871,7 +872,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
       setActiveJob(job);
     } catch (cause) {
       // Envoi refusé avant tout traitement : conversation inchangée, saisie conservée, erreur visible.
-      const failure = describeSendError(cause);
+      const failure = describeSendError(cause, agentName);
       setMessages(messagesBefore);
       taskSentAtRef.current = null;
       if (regenerate) {
@@ -1146,7 +1147,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
     >
       {fullPage && (
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2 lg:hidden">
-          <span className="text-xs font-medium text-slate-600">Agent FGMC</span>
+          <span className="text-xs font-medium text-slate-600">{agentName}</span>
           <button
             type="button"
             aria-expanded={historyOpen}
@@ -1290,7 +1291,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage }: AgentChatProps) 
               Bonjour, comment puis-je vous aider ?
             </h3>
             <p className="mt-2 w-full max-w-xs self-center text-center text-sm leading-6 text-slate-500">
-              Posez une question à votre assistant d’administration FGMC.
+              Posez une question à {agentName}, votre assistant d’administration FGMC.
             </p>
             <div className="mt-6 flex w-full flex-wrap items-center justify-center gap-2.5 xl:flex-nowrap">
               {QUICK_ACTIONS.map((action) => (

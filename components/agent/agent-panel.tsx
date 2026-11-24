@@ -9,9 +9,10 @@ import Image from "next/image";
 
 type AgentPanelProps = {
   onClose: () => void;
+  agentName: string;
 };
 
-export function AgentPanel({ onClose }: AgentPanelProps) {
+export function AgentPanel({ onClose, agentName }: AgentPanelProps) {
   const router = useRouter();
 
   return (
@@ -20,7 +21,7 @@ export function AgentPanel({ onClose }: AgentPanelProps) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.94, y: 16 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      aria-label="Agent FGMC"
+      aria-label={agentName}
       className="fixed bottom-20 right-3 z-[60] flex h-[min(680px,calc(100dvh-7rem))] min-h-0 w-[calc(100vw-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:bottom-24 sm:right-5 sm:w-[460px]"
       style={{ fontFamily: "Arial, Helvetica, sans-serif", letterSpacing: "normal", fontStretch: "normal" }}
     >
@@ -28,14 +29,14 @@ export function AgentPanel({ onClose }: AgentPanelProps) {
         <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-50 p-1 text-[#0858b1]">
           <Image
               src="/arafet.jpeg"
-              alt="Agent FGMC"
+              alt={agentName}
               width={40}
               height={40}
               className="h-full w-full rounded-lg object-cover"/>
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold text-slate-900">
-            Agent FGMC
+            {agentName}
           </h2>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
             <span
@@ -47,14 +48,14 @@ export function AgentPanel({ onClose }: AgentPanelProps) {
         </div>
         <button
           type="button"
-          aria-label="Fermer le panneau Agent FGMC"
+          aria-label={`Fermer le panneau ${agentName}`}
           onClick={onClose}
           className="flex size-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
         >
           <X size={19} aria-hidden="true" />
         </button>
       </header>
-      <AgentChat onOpenFullPage={() => router.push("/admin_ben/agent")} />
+      <AgentChat agentName={agentName} onOpenFullPage={() => router.push("/admin_ben/agent")} />
     </motion.section>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getAdminUserFromSession } from "@/lib/admin-auth";
+import { getAgentCommercialName } from "@/lib/agent-commercial-name";
 
 import { AdminShell } from "./admin-shell";
 
@@ -13,5 +14,5 @@ export default async function AdminDashboardLayout({
     redirect("/admin_ben/login");
   }
 
-  return <AdminShell user={adminUser}>{children}</AdminShell>;
+  return <AdminShell user={adminUser} agentName={getAgentCommercialName()}>{children}</AdminShell>;
 }

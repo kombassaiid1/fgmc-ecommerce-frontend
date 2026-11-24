@@ -43,6 +43,7 @@ import { AgentAdminNavigationContext } from "@/components/agent/agent-admin-navi
 type AdminShellProps = {
   children: React.ReactNode;
   user: AdminUser;
+  agentName: string;
 };
 
 type PolarisLinkProps = {
@@ -153,7 +154,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export function AdminShell({ children, user }: AdminShellProps) {
+export function AdminShell({ children, user, agentName }: AdminShellProps) {
   const pathname = usePathname();
   const isAgentPage = pathname === "/admin_ben/agent";
   const [showMobileNavigation, setShowMobileNavigation] = useState(false);
@@ -270,7 +271,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
           )}
         </Frame>
       </AgentAdminNavigationContext.Provider>
-      {pathname !== "/admin_ben/agent" && hasAccess && can(permissions, "agent.view") && <AgentFloatingButton />}
+      {pathname !== "/admin_ben/agent" && hasAccess && can(permissions, "agent.view") && <AgentFloatingButton agentName={agentName} />}
       </AdminSessionContext.Provider>
     </AppProvider>
   );

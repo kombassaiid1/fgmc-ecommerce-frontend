@@ -33,11 +33,11 @@ export const TASK_IN_PROGRESS_MESSAGE = "Une réponse est déjà en cours. Atten
 export type SendFailure = { message: string; conflict: boolean; retryable: boolean };
 
 // Le statut compte, pas le corps : un 409 est un refus « tâche en cours » même sans message.
-export function describeSendError(error: unknown): SendFailure {
+export function describeSendError(error: unknown, agentName = "Agent FGMC"): SendFailure {
   const status = error instanceof AgentRequestError ? error.statusCode : undefined;
   if (status === 409) return { message: TASK_IN_PROGRESS_MESSAGE, conflict: true, retryable: false };
   if (status === 401) return { message: "Votre session administrateur a expiré. Reconnectez-vous pour continuer.", conflict: false, retryable: false };
-  if (status === 403) return { message: "Votre compte n’a pas accès à l’Agent FGMC.", conflict: false, retryable: false };
+  if (status === 403) return { message: `Votre compte n’a pas accès à ${agentName}.`, conflict: false, retryable: false };
   if (status === 429) return { message: "Le modèle est temporairement limité par son fournisseur. Réessayez dans un instant.", conflict: false, retryable: true };
   if (status !== undefined && status >= 500) {
     return { message: "Le service Agent est momentanément indisponible. Réessayez dans un instant.", conflict: false, retryable: true };

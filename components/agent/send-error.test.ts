@@ -26,6 +26,7 @@ test("5xx et réseau : message clair et relance possible", async () => {
 test("401 et 403 : pas de relance, 400 : message du serveur si court", async () => {
   assert.equal(describeSendError(new AgentRequestError(401, "")).retryable, false);
   assert.equal(describeSendError(new AgentRequestError(403, "")).retryable, false);
+  assert.equal(describeSendError(new AgentRequestError(403, ""), "Test Agent").message, "Votre compte n’a pas accès à Test Agent.");
   assert.equal(describeSendError(new AgentRequestError(400, "Message trop long.")).message, "Message trop long.");
   assert.match(describeSendError(new AgentRequestError(400, "x".repeat(300))).message, /n’a pas pu être envoyée/);
 });

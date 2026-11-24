@@ -42,7 +42,7 @@ function writePosition(position: Position) {
 }
 
 /** The assistant's round button. It can be dragged anywhere on the screen; its place is remembered in this browser. */
-export function AgentFloatingButton() {
+export function AgentFloatingButton({ agentName }: { agentName: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -141,7 +141,7 @@ export function AgentFloatingButton() {
   return (
     <>
       <AnimatePresence>
-        {isOpen && <AgentPanel onClose={() => setIsOpen(false)} />}
+        {isOpen && <AgentPanel agentName={agentName} onClose={() => setIsOpen(false)} />}
       </AnimatePresence>
 
       <audio
@@ -152,7 +152,7 @@ export function AgentFloatingButton() {
 
       <motion.button
         type="button"
-        aria-label={isOpen ? "Fermer Agent_FGMC" : "Ouvrir Agent FGMC"}
+        aria-label={isOpen ? `Fermer ${agentName}` : `Ouvrir ${agentName}`}
         aria-expanded={isOpen}
         aria-description="Glissez pour déplacer, ou Maj + flèches au clavier"
         title="Glissez pour déplacer"
@@ -169,7 +169,7 @@ export function AgentFloatingButton() {
       >
         <Image
           src="/agent/arafet-agent-bg-rm.gif"
-          alt="Agent FGMC"
+          alt={agentName}
           width={800}
           height={1422}
           unoptimized
