@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { AgentAvatar, useAgentThemeStyle } from "@/components/agent/agent-themed-ui";
+import { useAgentTheme } from "@/components/providers/agent-theme-provider";
+import themedStyles from "@/components/agent/agent-themed-ui.module.css";
 
 const STORAGE_KEY = "fgmc-agent-button-position";
 /** The button is 64 px (size-16); this much of the screen edge always stays free around it. */
@@ -47,6 +49,8 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
   const [position, setPosition] = useState<Position | null>(null);
   const [dragging, setDragging] = useState(false);
   const themeStyle = useAgentThemeStyle();
+  const theme = useAgentTheme();
+  const triggerSurface = theme.id === "plasma" ? "bg-transparent border-0 p-0" : "bg-white p-1";
   const audioRef = useRef<HTMLAudioElement>(null);
   const drag = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
   const latest = useRef<Position | null>(null);
@@ -55,7 +59,7 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
   useEffect(() => {
     const saved = readPosition();
     latest.current = saved;
-    setPosition(saved);
+    startTransition(() => setPosition(saved));
   }, []);
 
   // A smaller window must not leave the button out of reach.
@@ -151,11 +155,11 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
         preload="auto"
       />
 
-      <motion.button
+      <button
         type="button"
         aria-label={isOpen ? `Fermer ${agentName}` : `Ouvrir ${agentName}`}
         aria-expanded={isOpen}
-        aria-description="Glissez pour déplacer, ou Maj + flèches au clavier"
+        aria-describedby="agent-floating-button-help"
         title="Glissez pour déplacer"
         onClick={handleClick}
         onPointerDown={onPointerDown}
@@ -163,13 +167,20 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={onKeyDown}
-        whileHover={dragging ? undefined : { scale: 1.06 }}
-        whileTap={dragging ? undefined : { scale: 0.96 }}
-        style={{ ...themeStyle, ...(position ? { right: position.right, bottom: position.bottom } : {}), touchAction: "none" }}
-        className={`fixed z-[70] flex size-16 select-none items-center justify-center rounded-full bg-white p-1 shadow-lg outline-none transition-shadow hover:shadow-xl focus-visible:ring-4 focus-visible:ring-[var(--agent-focus)] ${position ? "" : "bottom-3 right-3 sm:bottom-5 sm:right-5"} ${dragging ? "cursor-grabbing shadow-2xl" : "cursor-grab"}`}
+        style={{
+          ...themeStyle,
+          ...(position ? { right: position.right, bottom: position.bottom } : {}),
+          ...(theme.id === "plasma" ? { background: "none", border: 0, padding: 0, boxShadow: "0 0 22px rgba(236, 72, 153, 0.2), 0 0 30px rgba(139, 92, 246, 0.18)" } : {}),
+          touchAction: "none",
+        }}
+        data-agent-theme={theme.id}
+        className={`${themedStyles.floatingTrigger} fixed z-[70] flex size-16 select-none items-center justify-center rounded-full ${triggerSurface} outline-none focus-visible:ring-4 focus-visible:ring-[var(--agent-focus)] ${position ? "" : "bottom-3 right-3 sm:bottom-5 sm:right-5"} ${dragging ? "cursor-grabbing shadow-2xl" : "cursor-grab"}`}
       >
-        <AgentAvatar size="xl" decorative className="pointer-events-none" />
-      </motion.button>
+        <AgentAvatar size="xl" motion={dragging ? "none" : "idle"} decorative className="pointer-events-none" />
+      </button>
+      <span id="agent-floating-button-help" className="sr-only">
+        Glissez pour déplacer le bouton, ou utilisez Maj et les flèches du clavier.
+      </span>
     </>
   );
 }

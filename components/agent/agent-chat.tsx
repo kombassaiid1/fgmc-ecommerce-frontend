@@ -20,6 +20,7 @@ import { readAgentJob, startAgentJob } from "./agent-job-client";
 import { useChat } from "@ai-sdk/react";
 import { SupplierBatchCard, type SupplierBatch } from "./supplier-batch-card";
 import { AgentAvatar, AgentBadge, AgentButton, AgentLoader, useAgentThemeStyle } from "./agent-themed-ui";
+import { useAgentTheme } from "@/components/providers/agent-theme-provider";
 import themedStyles from "./agent-themed-ui.module.css";
 import { isFileUIPart, isTextUIPart } from "ai";
 import Image from "next/image";
@@ -384,6 +385,7 @@ type AgentChatProps = {
 
 export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: AgentChatProps) {
   const agentThemeStyle = useAgentThemeStyle();
+  const agentTheme = useAgentTheme();
   const [input, setInput] = useState("");
   const responseDurations = useAgentChatStore((state) => state.responseDurations);
   const agentProgress = useAgentChatStore((state) => state.agentProgress);
@@ -1140,6 +1142,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
           ? "grid h-full min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-white lg:grid-rows-1 lg:grid-cols-[var(--agent-columns)]"
           : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--agent-surface)]"
       }`}
+      data-agent-theme={agentTheme.id}
       ref={fullPage ? chatGridRef : undefined}
       style={{
         ...agentThemeStyle,
@@ -1397,14 +1400,14 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
                         ? "Confirmation de création groupée des produits"
                         : "Confirmation de création du produit"
                     }
-                    className="w-full rounded-2xl border border-[var(--agent-primary-border)] bg-white p-4 shadow-sm"
+                    className={`w-full rounded-2xl border border-[var(--agent-primary-border)] bg-white p-4 shadow-sm ${confirmation?.status === "confirmed" ? themedStyles.feedbackSuccess : confirmation?.status === "error" ? themedStyles.feedbackError : ""}`}
                   >
                     <div className="flex items-start gap-2.5">
                       <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-[var(--agent-primary-soft)] text-[var(--agent-focus)]">
                         <Sparkles size={16} aria-hidden="true" />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-semibold text-slate-900">
+                        <h4 role={confirmation?.status === "confirmed" ? "status" : undefined} className="text-sm font-semibold text-slate-900">
                           {confirmation?.status === "confirmed"
                             ? isUpdateConfirmation
                               ? "Produit modifié"
@@ -1546,9 +1549,9 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
         }} />}
         {isBusy && !activeAssistantHasContent && (
           <div className="flex items-end gap-2" aria-live="polite">
-            <AgentAvatar size="sm" />
+            <AgentAvatar size="sm" motion="thinking" />
             <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-slate-100 bg-white px-3.5 py-3 text-xs text-slate-500 shadow-sm">
-              <AgentLoader />
+              <AgentLoader state="thinking" />
               {activeJob ? (
                 <span role="status">
                   <span className="font-medium text-slate-700">L’agent travaille…</span>{" "}
@@ -1575,7 +1578,7 @@ export function AgentChat({ fullPage = false, onOpenFullPage, agentName }: Agent
         {friendlyError && (
           <div
             role="alert"
-            className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-sm leading-5 text-red-700"
+            className={`rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-sm leading-5 text-red-700 ${themedStyles.feedbackError}`}
           >
             <p>{friendlyError}</p>
             {(canRetryDemand || sendFailure?.retryable) && (

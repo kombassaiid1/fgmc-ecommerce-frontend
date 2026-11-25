@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Globe } from "lucide-react";
 import { SiteFavicon, getPublicSiteDomain } from "./site-favicon";
 import { AgentButton, AgentLoader } from "./agent-themed-ui";
+import themedStyles from "./agent-themed-ui.module.css";
 
 export type AgentEventSource = { url: string; title?: string; domain?: string };
 export type AgentEvent = { id: string; phase: string; label: string; status: string; tool?: string; error?: string; confirmation?: Record<string, unknown>; sources?: AgentEventSource[] };
@@ -61,8 +62,9 @@ export function AgentActivity({ events, states, busy, active, onAction }: { even
    const done = state.status === "confirmed" || state.status === "cancelled"; const pending = state.status === "confirming" || state.status === "cancelling";
    const product = record(c.product); const products = Array.isArray(c.productDrafts) ? c.productDrafts.map(record) : c.productDraft ? [record(c.productDraft)] : [];
    const result = record(state.result); const results = Array.isArray(result.createdProducts) ? result.createdProducts.map(record) : result.id ? [result] : [];
-   return <section key={id} className="space-y-3 rounded-xl border border-[var(--agent-primary-border)] bg-white p-3 text-xs text-slate-700" aria-label="Confirmation de l’opération">
-    <h4 className="font-semibold text-slate-900">{state.status === "confirmed" ? update ? "Produit modifié" : publish ? "Produit publié" : "Produit créé" : state.status === "cancelled" ? "Opération annulée" : update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : `Confirmer ${products.length > 1 ? `la création des ${products.length} produits` : "la création du produit"}`}</h4>
+   const feedbackClass = state.status === "confirmed" ? themedStyles.feedbackSuccess : state.status === "error" ? themedStyles.feedbackError : "";
+   return <section key={id} className={`space-y-3 rounded-xl border border-[var(--agent-primary-border)] bg-white p-3 text-xs text-slate-700 ${feedbackClass}`} aria-label="Confirmation de l’opération">
+    <h4 role={state.status === "confirmed" ? "status" : undefined} className="font-semibold text-slate-900">{state.status === "confirmed" ? update ? "Produit modifié" : publish ? "Produit publié" : "Produit créé" : state.status === "cancelled" ? "Opération annulée" : update ? "Confirmer les modifications" : publish ? "Confirmer la publication" : `Confirmer ${products.length > 1 ? `la création des ${products.length} produits` : "la création du produit"}`}</h4>
     {typeof product.title === "string" && <p className="font-medium">{product.title}{typeof product.sku === "string" ? ` — ${product.sku}` : ""}</p>}
     {typeof c.message === "string" && <p>{c.message}</p>}
     {Array.isArray(c.diff) && <div className="max-h-64 overflow-auto"><table className="w-full text-left"><thead><tr><th className="p-1">Champ</th><th className="p-1">Avant</th><th className="p-1">Après</th></tr></thead><tbody>{c.diff.map((item, index) => { const diff = record(item); return <tr key={index} className="border-t"><th className="p-1 align-top">{fields[String(diff.field)] ?? String(diff.field)}</th><td className="max-w-32 break-words p-1 align-top">{text(diff.before)}</td><td className="max-w-32 break-words p-1 align-top">{text(diff.after)}</td></tr>; })}</tbody></table></div>}

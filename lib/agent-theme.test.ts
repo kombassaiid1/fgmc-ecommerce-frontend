@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   AGENT_THEMES,
@@ -12,7 +12,7 @@ test("maps every commercial agent name to its typed theme", () => {
   const expected = {
     photon: { image: "/agent/theme/photon.jpg", colors: ["#FACC15", "#EAB308"] },
     quantum: { image: "/agent/theme/quantum.jpg", colors: ["#38BDF8", "#EF4444"] },
-    plasma: { image: "/agent/theme/plasma.jpg", colors: ["#EC4899", "#8B5CF6"] },
+    plasma: { image: "/agent/theme/plasma-transparent.png", colors: ["#EC4899", "#8B5CF6"] },
     fusion: { image: "/agent/theme/fusion.jpg", colors: ["#22D3EE", "#FB923C"] },
     proton: { image: "/agent/theme/proton.jpeg", colors: ["#2563EB", "#22C55E", "#EF4444"] },
     pulsar: { image: "/agent/theme/pulsar.jpeg", colors: ["#3B82F6", "#818CF8"] },
@@ -51,11 +51,72 @@ test("each registered theme has the data required by the provider", () => {
   for (const id of AGENT_THEME_IDS) {
     const theme = AGENT_THEMES[id];
     assert.equal(existsSync(new URL(`../public${theme.image}`, import.meta.url)), true);
-    assert.match(theme.image, /^\/agent\/theme\/.+\.(jpg|jpeg)$/);
+    assert.match(theme.image, /^\/agent\/theme\/.+\.(jpg|jpeg|png)$/);
     assert.match(theme.colors.primary, /^#[\da-f]{6}$/i);
     assert.match(theme.colors.secondary, /^#[\da-f]{6}$/i);
     assert.match(theme.gradient, /^linear-gradient\(/);
     assert.ok(theme.glow.length > 0);
-    assert.ok(["pulse", "orbit", "ripple", "none"].includes(theme.animationType));
+    assert.equal(theme.animationType.length > 0, true);
   }
+});
+
+test("assigns a distinct motion signature to every registered agent", () => {
+  const animationTypes = AGENT_THEME_IDS.map((id) => AGENT_THEMES[id].animationType);
+  assert.equal(new Set(animationTypes).size, AGENT_THEME_IDS.length);
+  assert.deepEqual(animationTypes, [
+    "photon-particles",
+    "quantum-oscillation",
+    "plasma-pulse",
+    "fusion-convergence",
+    "proton-halo",
+    "pulsar-waves",
+    "quasar-radiance",
+  ]);
+});
+
+test("provides idle and processing CSS for every registered motion signature", () => {
+  const css = readFileSync(new URL("../components/agent/agent-themed-ui.module.css", import.meta.url), "utf8");
+  for (const id of AGENT_THEME_IDS) {
+    const animationType = AGENT_THEMES[id].animationType;
+    assert.ok(css.includes(`.motionIdle[data-animation="${animationType}"]`), `${id} idle animation is missing`);
+    assert.ok(css.includes(`.spinner[data-animation="${animationType}"]`), `${id} processing animation is missing`);
+  }
+});
+
+test("disables decorative motion when reduced motion is requested", () => {
+  const css = readFileSync(new URL("../components/agent/agent-themed-ui.module.css", import.meta.url), "utf8");
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  assert.match(css, /\.motionIdle::before[\s\S]*?animation:\s*none\s*!important/);
+  assert.match(css, /\.feedbackSuccess[\s\S]*?animation:\s*none\s*!important/);
+});
+
+test("limits the premium electric arc treatment to the Plasma avatar", () => {
+  const component = readFileSync(new URL("../components/agent/agent-themed-ui.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../components/agent/agent-themed-ui.module.css", import.meta.url), "utf8");
+  assert.match(component, /theme\.id === "plasma" && motion !== "none"/);
+  assert.match(component, /className=\{styles\.plasmaArcs\}/);
+  assert.match(css, /\.plasmaArc\s*\{[\s\S]*?animation:\s*plasma-arc-conduction/);
+  assert.match(css, /\.floatingTrigger\[data-agent-theme="plasma"\]/);
+  assert.match(css, /\.header\[data-agent-theme="plasma"\]/);
+  assert.match(css, /\.button\[data-agent-theme="plasma"\]/);
+  assert.match(css, /\.plasmaAvatar \.avatarImage\s*\{[\s\S]*?transform:\s*scale\(0\.93\)/);
+});
+
+test("provides the Plasma avatar as a PNG with an alpha channel", () => {
+  const png = readFileSync(new URL("../public/agent/theme/plasma-transparent.png", import.meta.url));
+  assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(png.readUInt8(25), 6);
+});
+
+test("keeps the floating Plasma button surface transparent", () => {
+  const component = readFileSync(new URL("../components/agent/agent-floating-button.tsx", import.meta.url), "utf8");
+  assert.match(component, /theme\.id === "plasma" \? "bg-transparent border-0 p-0" : "bg-white p-1"/);
+  assert.match(component, /theme\.id === "plasma" \? \{ background: "none", border: 0, padding: 0/);
+});
+
+test("disables Plasma SVG arcs and sparks when reduced motion is requested", () => {
+  const css = readFileSync(new URL("../components/agent/agent-themed-ui.module.css", import.meta.url), "utf8");
+  const reducedMotionBlock = css.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.match(reducedMotionBlock, /\.plasmaArc/);
+  assert.match(reducedMotionBlock, /\.plasmaSpark/);
 });
