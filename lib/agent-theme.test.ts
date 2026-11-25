@@ -88,3 +88,28 @@ test("provides every agent avatar as a PNG with an alpha channel", () => {
     assert.equal(png.readUInt8(25), 6, `${id} needs an RGBA image`);
   }
 });
+
+test("provides distinct, short sound signatures with bounded levels for every identity", () => {
+  const signatures = new Set<string>();
+  for (const id of AGENT_THEME_IDS) {
+    const { sound } = resolveAgentTheme(AGENT_THEMES[id].name);
+    assert.ok(sound.voices.length > 0 && sound.voices.length <= 4, id);
+    let totalGain = 0;
+    for (const voice of sound.voices) {
+      assert.ok(["sine", "triangle"].includes(voice.waveform), id);
+      assert.ok(Number.isFinite(voice.start) && voice.start >= 0, id);
+      assert.ok(Number.isFinite(voice.duration) && voice.duration >= .05, id);
+      assert.ok(voice.start + voice.duration <= 1, `${id}: signature is too long`);
+      assert.ok(Number.isFinite(voice.gain) && voice.gain > 0, id);
+      totalGain += voice.gain;
+      for (const frequency of [voice.frequency, voice.endFrequency ?? voice.frequency]) {
+        assert.ok(Number.isFinite(frequency) && frequency >= 100 && frequency <= 3000, id);
+      }
+    }
+    assert.ok(totalGain <= 1, `${id}: combined voice gain exceeds the headroom budget`);
+    signatures.add(JSON.stringify(sound));
+  }
+  assert.equal(signatures.size, AGENT_THEME_IDS.length);
+  assert.equal(resolveAgentTheme(undefined).sound, AGENT_THEMES.plasma.sound);
+  assert.equal(resolveAgentTheme("unknown").sound, AGENT_THEMES.plasma.sound);
+});

@@ -8,6 +8,7 @@ import { AgentPanel } from "@/components/agent/agent-panel";
 import { AgentAvatar, useAgentThemeStyle } from "@/components/agent/agent-themed-ui";
 import { useAgentTheme } from "@/components/providers/agent-theme-provider";
 import themedStyles from "@/components/agent/agent-themed-ui.module.css";
+import { useAgentSound } from "./use-agent-sound";
 
 const STORAGE_KEY = "fgmc-agent-button-position";
 /** The button is 64 px (size-16); this much of the screen edge always stays free around it. */
@@ -50,8 +51,8 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
   const [dragging, setDragging] = useState(false);
   const themeStyle = useAgentThemeStyle();
   const theme = useAgentTheme();
+  const agentSound = useAgentSound(theme.sound);
   const triggerSurface = "bg-transparent border-0 p-0";
-  const audioRef = useRef<HTMLAudioElement>(null);
   const drag = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
   const latest = useRef<Position | null>(null);
   const justDragged = useRef(false);
@@ -80,10 +81,8 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
       justDragged.current = false;
       return;
     }
-    if (!isOpen && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
+    if (isOpen) agentSound.stop();
+    else agentSound.play();
     setIsOpen((open) => !open);
   };
 
@@ -148,12 +147,6 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
       <AnimatePresence>
         {isOpen && <AgentPanel agentName={agentName} onClose={() => setIsOpen(false)} />}
       </AnimatePresence>
-
-      <audio
-        ref={audioRef}
-        src="/agent/arafet-click.mp3"
-        preload="auto"
-      />
 
       <button
         type="button"

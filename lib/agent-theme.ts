@@ -1,3 +1,5 @@
+import type { AgentSound } from "./agent-sound";
+
 export const AGENT_THEME_IDS = [
   "photon",
   "quantum",
@@ -30,6 +32,7 @@ export type AgentTheme = {
   gradient: string;
   glow: string;
   animationType: AgentThemeAnimationType;
+  sound: AgentSound;
 };
 
 export const DEFAULT_AGENT_THEME_ID: AgentThemeId = "plasma";
@@ -44,6 +47,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #FACC15 0%, #EAB308 100%)",
     glow: "0 0 32px rgba(250, 204, 21, 0.45)",
     animationType: "photon-particles",
+    sound: { voices: [
+      { waveform: "sine", frequency: 1046, endFrequency: 2093, start: 0, duration: 0.15, gain: 0.45 },
+      { waveform: "sine", frequency: 1568, endFrequency: 2637, start: 0.1, duration: 0.17, gain: 0.33 },
+      { waveform: "sine", frequency: 2093, start: 0.23, duration: 0.13, gain: 0.22 },
+    ] },
   },
   quantum: {
     id: "quantum",
@@ -53,6 +61,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #38BDF8 0%, #EF4444 100%)",
     glow: "0 0 32px rgba(56, 189, 248, 0.4), 0 0 48px rgba(239, 68, 68, 0.24)",
     animationType: "quantum-oscillation",
+    sound: { voices: [
+      { waveform: "sine", frequency: 392, endFrequency: 415, start: 0, duration: 0.64, gain: 0.35 },
+      { waveform: "sine", frequency: 400, endFrequency: 392, start: 0, duration: 0.64, gain: 0.35 },
+      { waveform: "sine", frequency: 784, start: 0.35, duration: 0.3, gain: 0.2 },
+    ] },
   },
   plasma: {
     id: "plasma",
@@ -62,6 +75,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)",
     glow: "0 0 32px rgba(236, 72, 153, 0.4), 0 0 48px rgba(139, 92, 246, 0.28)",
     animationType: "plasma-pulse",
+    sound: { voices: [
+      { waveform: "triangle", frequency: 220, endFrequency: 660, start: 0, duration: 0.38, gain: 0.35 },
+      { waveform: "sine", frequency: 880, endFrequency: 440, start: 0.12, duration: 0.4, gain: 0.33 },
+      { waveform: "sine", frequency: 1320, endFrequency: 990, start: 0.32, duration: 0.22, gain: 0.18 },
+    ] },
   },
   fusion: {
     id: "fusion",
@@ -71,6 +89,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #22D3EE 0%, #FB923C 100%)",
     glow: "0 0 32px rgba(34, 211, 238, 0.4), 0 0 48px rgba(251, 146, 60, 0.25)",
     animationType: "fusion-convergence",
+    sound: { voices: [
+      { waveform: "sine", frequency: 330, endFrequency: 523, start: 0, duration: 0.48, gain: 0.36 },
+      { waveform: "sine", frequency: 784, endFrequency: 523, start: 0, duration: 0.48, gain: 0.3 },
+      { waveform: "sine", frequency: 1046, start: 0.4, duration: 0.28, gain: 0.24 },
+    ] },
   },
   proton: {
     id: "proton",
@@ -80,6 +103,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #2563EB 0%, #22C55E 55%, #EF4444 100%)",
     glow: "0 0 32px rgba(37, 99, 235, 0.4), 0 0 48px rgba(34, 197, 94, 0.22)",
     animationType: "proton-halo",
+    sound: { voices: [
+      { waveform: "sine", frequency: 196, start: 0, duration: 0.55, gain: 0.4 },
+      { waveform: "triangle", frequency: 294, start: 0.07, duration: 0.46, gain: 0.23 },
+      { waveform: "sine", frequency: 392, start: 0.14, duration: 0.4, gain: 0.27 },
+    ] },
   },
   pulsar: {
     id: "pulsar",
@@ -89,6 +117,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #3B82F6 0%, #818CF8 100%)",
     glow: "0 0 32px rgba(59, 130, 246, 0.42), 0 0 48px rgba(129, 140, 248, 0.28)",
     animationType: "pulsar-waves",
+    sound: { voices: [
+      { waveform: "sine", frequency: 740, start: 0, duration: 0.12, gain: 0.4 },
+      { waveform: "sine", frequency: 740, start: 0.2, duration: 0.12, gain: 0.35 },
+      { waveform: "sine", frequency: 1480, start: 0.4, duration: 0.19, gain: 0.25 },
+    ] },
   },
   quasar: {
     id: "quasar",
@@ -98,6 +131,11 @@ export const AGENT_THEMES = {
     gradient: "linear-gradient(135deg, #F59E0B 0%, #A855F7 100%)",
     glow: "0 0 32px rgba(245, 158, 11, 0.42), 0 0 48px rgba(168, 85, 247, 0.28)",
     animationType: "quasar-radiance",
+    sound: { voices: [
+      { waveform: "sine", frequency: 147, endFrequency: 294, start: 0, duration: 0.78, gain: 0.32 },
+      { waveform: "triangle", frequency: 440, endFrequency: 660, start: 0.12, duration: 0.6, gain: 0.27 },
+      { waveform: "sine", frequency: 1175, endFrequency: 1760, start: 0.35, duration: 0.48, gain: 0.22 },
+    ] },
   },
 } as const satisfies Record<AgentThemeId, AgentTheme>;
 
