@@ -50,7 +50,7 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
   const [dragging, setDragging] = useState(false);
   const themeStyle = useAgentThemeStyle();
   const theme = useAgentTheme();
-  const triggerSurface = theme.id === "plasma" ? "bg-transparent border-0 p-0" : "bg-white p-1";
+  const triggerSurface = "bg-transparent border-0 p-0";
   const audioRef = useRef<HTMLAudioElement>(null);
   const drag = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
   const latest = useRef<Position | null>(null);
@@ -170,7 +170,10 @@ export function AgentFloatingButton({ agentName }: { agentName: string }) {
         style={{
           ...themeStyle,
           ...(position ? { right: position.right, bottom: position.bottom } : {}),
-          ...(theme.id === "plasma" ? { background: "none", border: 0, padding: 0, boxShadow: "0 0 22px rgba(236, 72, 153, 0.2), 0 0 30px rgba(139, 92, 246, 0.18)" } : {}),
+          background: "none",
+          border: 0,
+          padding: 0,
+          boxShadow: "0 0 22px color-mix(in srgb, var(--agent-primary) 20%, transparent), 0 0 30px color-mix(in srgb, var(--agent-secondary) 18%, transparent)",
           touchAction: "none",
         }}
         data-agent-theme={theme.id}

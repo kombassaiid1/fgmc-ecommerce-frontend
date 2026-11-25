@@ -5,12 +5,14 @@ import { LoaderCircle } from "lucide-react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { useAgentTheme } from "@/components/providers/agent-theme-provider";
 import styles from "./agent-themed-ui.module.css";
+import { AgentAnimatedImage } from "./agent-animated-image";
 
 export function useAgentThemeStyle(): CSSProperties {
   const theme = useAgentTheme();
   return {
     "--agent-primary": theme.colors.primary,
     "--agent-secondary": theme.colors.secondary,
+    "--agent-accent": theme.colors.accent ?? theme.colors.secondary,
     "--agent-gradient": theme.gradient,
     "--agent-glow": theme.glow,
     "--agent-primary-soft": `color-mix(in srgb, ${theme.colors.primary} 10%, Canvas)`,
@@ -36,21 +38,13 @@ export function AgentAvatar({
 }) {
   const theme = useAgentTheme();
   const themeStyle = useAgentThemeStyle();
-  const avatarStyle: CSSProperties = theme.id === "plasma"
-    ? { ...themeStyle, background: "none", border: 0, boxShadow: "none" }
-    : themeStyle;
+  const avatarStyle: CSSProperties = { ...themeStyle, background: "none", border: 0, boxShadow: "none" };
   const dimensions = { sm: "size-7", md: "size-10", lg: "size-12", xl: "size-16" }[size];
   const rounding = shape === "circle" ? "rounded-full" : "rounded-xl";
-  const motionClass = motion === "idle"
-    ? styles.motionIdle
-    : motion === "thinking"
-      ? `${styles.motionIdle} ${styles.motionThinking}`
-      : "";
-  const plasmaMotion = theme.id === "plasma" && motion !== "none";
 
   return (
     <span
-      className={`${styles.avatar} ${motionClass} ${theme.id === "plasma" ? styles.plasmaAvatar : ""} ${dimensions} ${rounding} ${className}`}
+      className={`${styles.avatar} ${styles.cutoutAvatar} ${dimensions} ${rounding} ${className}`}
       style={avatarStyle}
       data-agent-theme={theme.id}
       data-animation={motion === "none" ? undefined : theme.animationType}
@@ -59,27 +53,10 @@ export function AgentAvatar({
       aria-label={decorative ? undefined : theme.name}
       aria-hidden={decorative || undefined}
     >
-      <Image
-        src={theme.image}
-        alt=""
-        fill
-        sizes="64px"
-        className={styles.avatarImage}
-      />
-      {plasmaMotion && (
-        <svg
-          className={styles.plasmaArcs}
-          viewBox="0 0 100 100"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path className={styles.plasmaArc} d="M15 39C20 19 38 9 53 14" />
-          <path className={styles.plasmaArc} d="M84 35C94 50 87 70 70 80" />
-          <path className={styles.plasmaArc} d="M29 83C14 76 8 61 13 49" />
-          <circle className={styles.plasmaSpark} cx="15" cy="39" r="1.5" />
-          <circle className={styles.plasmaSpark} cx="84" cy="35" r="1.25" />
-          <circle className={styles.plasmaSpark} cx="29" cy="83" r="1" />
-        </svg>
+      {motion === "none" ? (
+        <Image src={theme.image} alt="" fill sizes="64px" className={styles.avatarImage} />
+      ) : (
+        <AgentAnimatedImage theme={theme} motion={motion} />
       )}
     </span>
   );

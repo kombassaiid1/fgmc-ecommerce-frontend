@@ -39,7 +39,7 @@ export const AGENT_THEMES = {
   photon: {
     id: "photon",
     name: "NÉO Photon",
-    image: "/agent/theme/photon.jpg",
+    image: "/agent/theme/photon-transparent.png",
     colors: { primary: "#FACC15", secondary: "#EAB308" },
     gradient: "linear-gradient(135deg, #FACC15 0%, #EAB308 100%)",
     glow: "0 0 32px rgba(250, 204, 21, 0.45)",
@@ -48,7 +48,7 @@ export const AGENT_THEMES = {
   quantum: {
     id: "quantum",
     name: "NÉO Quantum",
-    image: "/agent/theme/quantum.jpg",
+    image: "/agent/theme/quantum-transparent.png",
     colors: { primary: "#38BDF8", secondary: "#EF4444" },
     gradient: "linear-gradient(135deg, #38BDF8 0%, #EF4444 100%)",
     glow: "0 0 32px rgba(56, 189, 248, 0.4), 0 0 48px rgba(239, 68, 68, 0.24)",
@@ -66,7 +66,7 @@ export const AGENT_THEMES = {
   fusion: {
     id: "fusion",
     name: "NÉO Fusion",
-    image: "/agent/theme/fusion.jpg",
+    image: "/agent/theme/fusion-transparent.png",
     colors: { primary: "#22D3EE", secondary: "#FB923C" },
     gradient: "linear-gradient(135deg, #22D3EE 0%, #FB923C 100%)",
     glow: "0 0 32px rgba(34, 211, 238, 0.4), 0 0 48px rgba(251, 146, 60, 0.25)",
@@ -75,7 +75,7 @@ export const AGENT_THEMES = {
   proton: {
     id: "proton",
     name: "NÉO Proton",
-    image: "/agent/theme/proton.jpeg",
+    image: "/agent/theme/proton-transparent.png",
     colors: { primary: "#2563EB", secondary: "#22C55E", accent: "#EF4444" },
     gradient: "linear-gradient(135deg, #2563EB 0%, #22C55E 55%, #EF4444 100%)",
     glow: "0 0 32px rgba(37, 99, 235, 0.4), 0 0 48px rgba(34, 197, 94, 0.22)",
@@ -84,7 +84,7 @@ export const AGENT_THEMES = {
   pulsar: {
     id: "pulsar",
     name: "NÉO Pulsar",
-    image: "/agent/theme/pulsar.jpeg",
+    image: "/agent/theme/pulsar-transparent.png",
     colors: { primary: "#3B82F6", secondary: "#818CF8" },
     gradient: "linear-gradient(135deg, #3B82F6 0%, #818CF8 100%)",
     glow: "0 0 32px rgba(59, 130, 246, 0.42), 0 0 48px rgba(129, 140, 248, 0.28)",
@@ -93,7 +93,7 @@ export const AGENT_THEMES = {
   quasar: {
     id: "quasar",
     name: "NÉO Quasar",
-    image: "/agent/theme/quasar.jpeg",
+    image: "/agent/theme/quasar-transparent.png",
     colors: { primary: "#F59E0B", secondary: "#A855F7" },
     gradient: "linear-gradient(135deg, #F59E0B 0%, #A855F7 100%)",
     glow: "0 0 32px rgba(245, 158, 11, 0.42), 0 0 48px rgba(168, 85, 247, 0.28)",

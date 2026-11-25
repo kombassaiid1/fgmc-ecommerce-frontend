@@ -16,8 +16,8 @@
   padding: 5%;
 }
 
-/* Plasma prototype: the image has a real alpha cutout; keep the glow free of a backing tile. */
-.plasmaAvatar {
+/* All agent images have alpha cutouts; no backing tile behind their glow. */
+.cutoutAvatar {
   overflow: visible;
   isolation: auto;
   border: 0;
@@ -25,195 +25,11 @@
   box-shadow: none;
 }
 
-.plasmaAvatar .avatarImage {
+.cutoutAvatar .avatarImage {
   transform: scale(0.93);
   object-fit: contain;
   padding: 0;
 }
-
-.plasmaAvatar.motionIdle[data-animation="plasma-pulse"]::before,
-.plasmaAvatar.motionIdle[data-animation="plasma-pulse"]::after {
-  content: none;
-}
-
-.plasmaArcs {
-  position: absolute;
-  z-index: 2;
-  inset: -5%;
-  width: 110%;
-  height: 110%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.plasmaArc {
-  stroke: var(--agent-primary);
-  stroke-width: 1.25;
-  stroke-linecap: round;
-  stroke-dasharray: 8 18;
-  animation: plasma-arc-conduction 4.2s linear infinite;
-}
-
-.plasmaArc:nth-of-type(2) {
-  stroke: #f9a8d4;
-  stroke-dasharray: 3 12;
-  animation-duration: 3.3s;
-  animation-direction: reverse;
-}
-
-.plasmaArc:nth-of-type(3) {
-  stroke: var(--agent-secondary);
-  stroke-dasharray: 2 15;
-  animation-duration: 5.1s;
-}
-
-.plasmaSpark {
-  fill: #fce7f3;
-  filter: drop-shadow(0 0 2px #ec4899);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: plasma-spark-discharge 1.8s ease-in-out infinite alternate;
-}
-
-.plasmaSpark:nth-of-type(2) { animation-delay: -0.65s; }
-.plasmaSpark:nth-of-type(3) { animation-delay: -1.2s; }
-
-.motionThinking .plasmaArc { animation-duration: 2.3s; }
-.motionThinking .plasmaSpark { animation-duration: 0.9s; }
-
-.motionIdle::before,
-.motionIdle::after,
-.motionThinking::before,
-.motionThinking::after {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-  content: "";
-}
-
-.motionIdle[data-animation="photon-particles"]::before,
-.motionIdle[data-animation="photon-particles"]::after {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #fde047;
-  box-shadow: 0 0 7px rgba(250, 204, 21, 0.8);
-  animation: photon-particle-drift 1.6s ease-in-out infinite;
-}
-
-.motionIdle[data-animation="photon-particles"]::before { top: 15%; left: 18%; }
-.motionIdle[data-animation="photon-particles"]::after { top: 65%; left: 67%; animation-delay: -1.2s; }
-
-.motionIdle[data-animation="quantum-oscillation"]::before,
-.motionIdle[data-animation="quantum-oscillation"]::after {
-  top: 42%;
-  width: 8px;
-  height: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  animation: quantum-nuclei-oscillate 2.8s ease-in-out infinite alternate;
-}
-
-.motionIdle[data-animation="quantum-oscillation"]::before {
-  left: 16%;
-  background: #38bdf8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
-}
-
-.motionIdle[data-animation="quantum-oscillation"]::after {
-  right: 16%;
-  background: #ef4444;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.55);
-  animation-delay: -1.4s;
-}
-
-.motionIdle[data-animation="plasma-pulse"]::before,
-.motionIdle[data-animation="plasma-pulse"]::after {
-  inset: 3px;
-  border: 1px solid var(--agent-primary);
-  border-radius: inherit;
-  animation: plasma-electric-pulse 2.7s ease-in-out infinite;
-}
-
-.motionIdle[data-animation="plasma-pulse"]::after {
-  inset: 8px;
-  border-color: var(--agent-secondary);
-  animation-delay: -1.35s;
-}
-
-.motionIdle[data-animation="fusion-convergence"]::before,
-.motionIdle[data-animation="fusion-convergence"]::after {
-  top: 50%;
-  width: 38%;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--agent-primary));
-  box-shadow: 0 0 5px color-mix(in srgb, var(--agent-primary) 70%, transparent);
-  animation: fusion-flux-converge 2.8s ease-in-out infinite alternate;
-}
-
-.motionIdle[data-animation="fusion-convergence"]::before { left: 0; }
-.motionIdle[data-animation="fusion-convergence"]::after {
-  right: 0;
-  background: linear-gradient(270deg, transparent, var(--agent-secondary));
-  box-shadow: 0 0 5px color-mix(in srgb, var(--agent-secondary) 70%, transparent);
-  animation-delay: -1.4s;
-}
-
-.motionIdle[data-animation="proton-halo"]::before {
-  inset: 3px;
-  border: 1px solid var(--agent-primary);
-  border-right-color: transparent;
-  border-bottom-color: var(--agent-secondary);
-  border-radius: inherit;
-  box-shadow: 0 0 7px color-mix(in srgb, var(--agent-primary) 45%, transparent);
-  animation: proton-halo-rotate 18s linear infinite;
-}
-
-.motionIdle[data-animation="pulsar-waves"]::before,
-.motionIdle[data-animation="pulsar-waves"]::after {
-  inset: 12px;
-  border: 1px solid var(--agent-primary);
-  border-radius: 50%;
-  animation: pulsar-wave-emission 3.2s ease-out infinite;
-}
-
-.motionIdle[data-animation="pulsar-waves"]::after {
-  border-color: var(--agent-secondary);
-  animation-delay: -1.6s;
-}
-
-.motionIdle[data-animation="quasar-radiance"]::before {
-  inset: 4px;
-  border: 1px solid transparent;
-  border-top-color: var(--agent-primary);
-  border-right-color: var(--agent-secondary);
-  border-radius: 50%;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--agent-primary) 38%, transparent);
-  animation: quasar-halo-radiate 15s linear infinite;
-}
-
-.motionIdle[data-animation="quasar-radiance"]::after {
-  top: 50%;
-  right: -4px;
-  left: -4px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--agent-primary), var(--agent-secondary), transparent);
-  animation: quasar-ray-sweep 4.5s ease-in-out infinite alternate;
-}
-
-.motionThinking[data-animation="photon-particles"]::before,
-.motionThinking[data-animation="photon-particles"]::after { animation-duration: 1.5s; }
-.motionThinking[data-animation="quantum-oscillation"]::before,
-.motionThinking[data-animation="quantum-oscillation"]::after { animation-duration: 1.9s; }
-.motionThinking[data-animation="plasma-pulse"]::before,
-.motionThinking[data-animation="plasma-pulse"]::after { animation-duration: 1.8s; }
-.motionThinking[data-animation="fusion-convergence"]::before,
-.motionThinking[data-animation="fusion-convergence"]::after { animation-duration: 1.8s; }
-.motionThinking[data-animation="proton-halo"]::before { animation-duration: 8s; }
-.motionThinking[data-animation="pulsar-waves"]::before,
-.motionThinking[data-animation="pulsar-waves"]::after { animation-duration: 2s; }
-.motionThinking[data-animation="quasar-radiance"]::before { animation-duration: 7s; }
 
 .floatingTrigger {
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.22);
@@ -428,54 +244,6 @@
   to { transform: rotate(360deg); }
 }
 
-@keyframes photon-particle-drift {
-  0% { transform: translate3d(0, 0, 0); opacity: 0.35; }
-  50% { transform: translate3d(12px, -10px, 0); opacity: 0.9; }
-  100% { transform: translate3d(25px, 7px, 0); opacity: 0.45; }
-}
-
-@keyframes quantum-nuclei-oscillate {
-  from { transform: translate3d(0, 0, 0) scale(0.88); }
-  to { transform: translate3d(5px, -2px, 0) scale(1.08); }
-}
-
-@keyframes plasma-electric-pulse {
-  0%, 100% { transform: scale(0.94); opacity: 0.42; }
-  50% { transform: scale(1); opacity: 0.82; }
-}
-
-@keyframes plasma-arc-conduction {
-  from { stroke-dashoffset: 0; opacity: 0.45; }
-  50% { opacity: 0.92; }
-  to { stroke-dashoffset: -52; opacity: 0.5; }
-}
-
-@keyframes plasma-spark-discharge {
-  from { transform: scale(0.45); opacity: 0.35; }
-  to { transform: scale(1.25); opacity: 1; }
-}
-
-@keyframes fusion-flux-converge {
-  from { transform: scaleX(0.58); opacity: 0.46; }
-  to { transform: scaleX(1); opacity: 0.82; }
-}
-
-@keyframes proton-halo-rotate { to { transform: rotate(360deg); } }
-
-@keyframes pulsar-wave-emission {
-  0% { transform: scale(0.72); opacity: 0.62; }
-  75%, 100% { transform: scale(1.5); opacity: 0; }
-}
-
-@keyframes quasar-halo-radiate {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes quasar-ray-sweep {
-  from { transform: rotate(-24deg) scaleX(0.55); opacity: 0.35; }
-  to { transform: rotate(24deg) scaleX(1); opacity: 0.72; }
-}
-
 @keyframes photon-loader { to { transform: rotate(360deg); } }
 @keyframes quantum-loader { 50% { transform: rotate(180deg) scale(0.78); } to { transform: rotate(360deg); } }
 @keyframes plasma-loader { 50% { transform: rotate(180deg) scale(0.82); opacity: 0.72; } to { transform: rotate(360deg); opacity: 1; } }
@@ -499,12 +267,6 @@
   .button,
   .floatingTrigger { transition: none; }
   .spinner,
-  .motionIdle::before,
-  .motionIdle::after,
-  .motionThinking::before,
-  .motionThinking::after,
-  .plasmaArc,
-  .plasmaSpark,
   .feedbackSuccess,
   .feedbackError { animation: none !important; }
   .floatingTrigger:hover:not(:active),
@@ -589,4 +351,55 @@
   }
 
   .loader[data-agent-theme="plasma"] { color: #f9a8d4; }
+}
+
+/* Shared premium surfaces inherit the selected identity, including fallback. */
+.floatingTrigger[data-agent-theme]:not([data-agent-theme="plasma"]) {
+  border: 0;
+  background: transparent;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--agent-primary) 20%, transparent);
+}
+.header[data-agent-theme]:not([data-agent-theme="plasma"]) {
+  position: relative;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--agent-primary) 9%, Canvas), color-mix(in srgb, var(--agent-secondary) 6%, Canvas));
+}
+.header[data-agent-theme]:not([data-agent-theme="plasma"])::after {
+  position: absolute;
+  right: 1rem;
+  bottom: -1px;
+  left: 1rem;
+  height: 1px;
+  background: var(--agent-gradient);
+  opacity: 0.6;
+  content: "";
+}
+.badge[data-agent-theme]:not([data-agent-theme="plasma"]) {
+  background: linear-gradient(115deg, color-mix(in srgb, var(--agent-primary) 12%, Canvas), color-mix(in srgb, var(--agent-secondary) 8%, Canvas));
+  box-shadow: inset 0 1px color-mix(in srgb, CanvasText 8%, transparent), 0 3px 12px color-mix(in srgb, var(--agent-secondary) 10%, transparent);
+}
+.button[data-agent-theme]:not([data-agent-theme="plasma"]) {
+  background: linear-gradient(112deg, color-mix(in srgb, var(--agent-primary) 50%, #171027), color-mix(in srgb, var(--agent-secondary) 50%, #171027));
+  border: 0;
+  color: #fff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.25), 0 4px 14px color-mix(in srgb, var(--agent-primary) 20%, transparent);
+}
+.agentFrame[data-agent-theme]:not([data-agent-theme="plasma"]) {
+  border-color: color-mix(in srgb, var(--agent-primary) 35%, Canvas);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2), 0 0 34px color-mix(in srgb, var(--agent-primary) 13%, transparent);
+}
+
+/* The photograph is replaced only after the first successfully rendered frame. */
+.animatedImage, .imageCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.imageCanvas { visibility: hidden; }
+.animatedImage[data-ready="true"] .avatarImage { visibility: hidden; }
+.animatedImage[data-ready="true"] .imageCanvas { visibility: visible; }
+@media (prefers-reduced-motion: reduce) {
+  .animatedImage[data-ready="true"] .imageCanvas { visibility: hidden; }
+  .animatedImage[data-ready="true"] .avatarImage { visibility: visible; }
 }

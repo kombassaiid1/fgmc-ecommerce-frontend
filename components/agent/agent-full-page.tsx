@@ -4,14 +4,17 @@ import { useContext } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AgentChat } from "@/components/agent/agent-chat";
 import { AgentAdminNavigationContext } from "@/components/agent/agent-admin-navigation-context";
-import { AgentHeader } from "@/components/agent/agent-themed-ui";
+import { useAgentTheme } from "@/components/providers/agent-theme-provider";
+import { AgentHeader, useAgentThemeStyle } from "@/components/agent/agent-themed-ui";
 import themedStyles from "@/components/agent/agent-themed-ui.module.css";
 
 export function AgentFullPage({ agentName }: { agentName: string }) {
+  const theme = useAgentTheme();
+  const themeStyle = useAgentThemeStyle();
   const adminNavigation = useContext(AgentAdminNavigationContext);
 
   return (
-    <section className={`${themedStyles.agentFrame} flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white`} aria-label={`${agentName} complet`}>
+    <section data-agent-theme={theme.id} style={themeStyle} className={`${themedStyles.agentFrame} flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white`} aria-label={`${agentName} complet`}>
       <AgentHeader
         titleAs="h1"
         className="px-5 py-3"
